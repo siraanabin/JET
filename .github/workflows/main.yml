@@ -2,51 +2,113 @@ name: Build JET Android APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
-jobs:
-  build-apk:
-    name: Assemble Debug APK
-    runs-on: ubuntu-latest
+permissions:
+  contents: write
 
+jobs:
+  build:
+    name: Build JET APKs
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unzip & Prepare JET Project
+      - name: Unpack and patch Android project
         run: |
-          if ls *.zip 1> /dev/null 2>&1; then
-            for f in *.zip; do unzip -o "$f"; done
-          fi
-          if [ ! -f "settings.gradle.kts" ] && [ -f "JET-Android/settings.gradle.kts" ]; then
-            cp -r JET-Android/* .
-          fi
-          python3 -c 'p="app/src/main/java/com/jet/downloader/MainActivity.kt"; s=open(p).read(); open(p,"w").write(s.replace("\\s","\\\\s"))'
+          unzip -o JET-Android-GitHub.zip -d .
+          cat JET-updater.patch.part* > /tmp/JET-updater.patch
+          git apply --check /tmp/JET-updater.patch
+          git apply /tmp/JET-updater.patch
+
+      - name: Verify project version metadata
+        run: |
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          v = json.loads(Path('version.json').read_text())
+          g = Path('app/build.gradle.kts').read_text()
+          code = int(re.search(r'versionCode\s*=\s*(\d+)', g).group(1))
+          name = re.search(r'versionName\s*=\s*"([^"]+)"', g).group(1)
+          assert code == v['versionCode'], (code, v['versionCode'])
+          assert name == v['versionName'], (name, v['versionName'])
+          print(f"JET {name} (versionCode {code})")
+          PY
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
-      - name: Accept Android SDK Licenses
-        run: |
-          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
-            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          fi
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle 8.7
+      - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Build debug and release APKs
+        run: gradle --no-daemon --stacktrace assembleDebug assembleRelease
 
-      - name: Upload JET APK Artifact
+      - name: Package updated Android source
+        run: zip -qr JET-Android-GitHub-updated.zip app gradle build.gradle.kts gradle.properties settings.gradle.kts version.json
+
+      - name: Upload updated source ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: JET-Android-Updated-Source
+          path: JET-Android-GitHub-updated.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: JET-Android-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
           retention-days: 30
+
+      - name: Upload unsigned release APK for signing setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: JET-Android-Unsigned-Release-APK
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Sign release APK
+        id: sign_app
+        if: startsWith(github.ref, 'refs/tags/') && env.ANDROID_KEYSTORE_BASE64 != ''
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Prepare release asset
+        if: startsWith(github.ref, 'refs/tags/') && env.ANDROID_KEYSTORE_BASE64 != ''
+        run: cp "${{ steps.sign_app.outputs.signedReleaseFile }}" JET-release.apk
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') && env.ANDROID_KEYSTORE_BASE64 != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          name: JET ${{ github.ref_name }}
+          files: JET-release.apk
+          generate_release_notes: true
+
+      - name: Explain missing signing configuration
+        if: startsWith(github.ref, 'refs/tags/') && env.ANDROID_KEYSTORE_BASE64 == ''
+        run: |
+          echo 'Release APK was built but not published because the existing app signing key is not configured.'
+          echo 'Add ANDROID_KEYSTORE_BASE64, ANDROID_KEY_ALIAS, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_PASSWORD repository secrets, then rerun this tag.'
