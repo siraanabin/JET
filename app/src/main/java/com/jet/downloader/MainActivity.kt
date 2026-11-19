@@ -475,7 +475,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus && !isFinishing && ::webView.isInitialized) {
+        if (hasFocus && !isFinishing && ::webView.isInitialized && webView.progress >= 100) {
             checkSystemClipboard()
         }
     }
