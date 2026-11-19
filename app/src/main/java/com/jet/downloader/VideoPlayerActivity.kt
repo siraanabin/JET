@@ -55,6 +55,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var seekTarget: TextView
     private lateinit var seekDelta: TextView
     private var player: ExoPlayer? = null
+    private var bgAudioEnabled = false
+    private val thumbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val thumbCache = android.util.LruCache<String, android.graphics.Bitmap>(24)
     private var currentPath = ""
     private var locked = false
     private var muted = false
@@ -298,18 +301,27 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showControls(show: Boolean) {
         controlsVisible = show
         handler.removeCallbacks(hideControls)
+        val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
             controls.visibility = View.VISIBLE
-            topBar.translationY = -24f; bottomPanel.translationY = 24f
-            centerControls.scaleX = .92f; centerControls.scaleY = .92f
-            topBar.animate().alpha(1f).translationY(0f).setDuration(220L).start()
-            bottomPanel.animate().alpha(1f).translationY(0f).setDuration(220L).start()
-            centerControls.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220L).start()
+            topBar.animate().cancel()
+            bottomPanel.animate().cancel()
+            centerControls.animate().cancel()
+            topBar.translationY = -dp(76).toFloat()
+            bottomPanel.translationY = dp(110).toFloat()
+            topBar.alpha = 0f
+            bottomPanel.alpha = 0f
+            centerControls.alpha = 0f
+            centerControls.scaleX = 0.9f
+            centerControls.scaleY = 0.9f
+            topBar.animate().alpha(1f).translationY(0f).setDuration(240L).setInterpolator(interp).start()
+            bottomPanel.animate().alpha(1f).translationY(0f).setDuration(240L).setInterpolator(interp).start()
+            centerControls.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(240L).setInterpolator(interp).start()
             if (player?.isPlaying == true) handler.postDelayed(hideControls, 3500L)
         } else {
-            topBar.animate().alpha(0f).translationY(-24f).setDuration(220L).start()
-            bottomPanel.animate().alpha(0f).translationY(24f).setDuration(220L).start()
-            centerControls.animate().alpha(0f).scaleX(.92f).scaleY(.92f).setDuration(220L)
+            topBar.animate().alpha(0f).translationY(-dp(76).toFloat()).setDuration(220L).setInterpolator(interp).start()
+            bottomPanel.animate().alpha(0f).translationY(dp(110).toFloat()).setDuration(220L).setInterpolator(interp).start()
+            centerControls.animate().alpha(0f).scaleX(0.9f).scaleY(0.9f).setDuration(220L).setInterpolator(interp)
                 .withEndAction { if (!controlsVisible) controls.visibility = View.GONE }.start()
         }
     }
@@ -342,6 +354,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         }.show()
     }
     private fun populatePlaylist(folder: File?) {
+        playlist.removeAllViews()
         val files = folder?.listFiles()?.filter { it.isFile && it.extension.lowercase(Locale.US) in
             setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "mp3", "m4a", "opus") }
             ?.sortedByDescending { it.lastModified() }.orEmpty()
@@ -352,9 +365,12 @@ class VideoPlayerActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(dp(76), -1)
                 tag = file.absolutePath
                 setOnClickListener {
-                    currentPath = file.absolutePath; titleView.text = file.nameWithoutExtension
+                    currentPath = file.absolutePath
+                    titleView.text = file.nameWithoutExtension
                     player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
-                    player?.prepare(); player?.play(); refreshSelection()
+                    player?.prepare()
+                    player?.play()
+                    refreshSelection()
                 }
             }
             val image = ImageView(this).apply {
@@ -363,17 +379,38 @@ class VideoPlayerActivity : AppCompatActivity() {
                 setBackgroundResource(R.drawable.player_thumbnail_bg)
                 clipToOutline = true
             }
-            try {
-                val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(file.absolutePath)
-                retriever.getFrameAtTime(1_000_000L)?.let { image.setImageBitmap(it) }
-                retriever.release()
-            } catch (_: Exception) {}
-            val name = TextView(this).apply {
-                text = file.nameWithoutExtension; setTextColor(-1); textSize = 9f
-                maxLines = 1; gravity = Gravity.CENTER
+            val cached = thumbCache.get(file.absolutePath)
+            if (cached != null) {
+                image.setImageBitmap(cached)
+            } else {
+                thumbExecutor.execute {
+                    var bitmap: android.graphics.Bitmap? = null
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(file.absolutePath)
+                        bitmap = retriever.getFrameAtTime(1_000_000L)
+                    } catch (_: Exception) {
+                    } finally {
+                        try { retriever.release() } catch (_: Exception) {}
+                    }
+                    bitmap?.let { decoded ->
+                        thumbCache.put(file.absolutePath, decoded)
+                        runOnUiThread {
+                            if (!isDestroyed && image.parent != null) image.setImageBitmap(decoded)
+                        }
+                    }
+                }
             }
-            card.addView(image); card.addView(name); playlist.addView(card)
+            val name = TextView(this).apply {
+                text = file.nameWithoutExtension
+                setTextColor(-1)
+                textSize = 9f
+                maxLines = 1
+                gravity = Gravity.CENTER
+            }
+            card.addView(image)
+            card.addView(name)
+            playlist.addView(card)
         }
         refreshSelection()
     }
@@ -387,21 +424,46 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
     }
     private fun backgroundAudio() {
+        if (currentPath.isBlank() || !File(currentPath).isFile) return
+        bgAudioEnabled = true
+        findViewById<ImageButton>(R.id.player_background).isSelected = true
         ContextCompat.startForegroundService(this, Intent(this, PlayerPlaybackService::class.java).apply {
             putExtra(PlayerPlaybackService.EXTRA_PATH, currentPath)
             putExtra(PlayerPlaybackService.EXTRA_TITLE, titleView.text.toString())
         })
+        Toast.makeText(this, "Background audio ON", Toast.LENGTH_SHORT).show()
         finish()
     }
     private fun enterPip() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).build())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(android.util.Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+        }
     }
     override fun onUserLeaveHint() { super.onUserLeaveHint(); if (Build.VERSION.SDK_INT >= 26) enterPip() }
-    override fun onPictureInPictureModeChanged(inPip: Boolean, config: android.content.res.Configuration) {
-        super.onPictureInPictureModeChanged(inPip, config)
-        if (inPip || locked) showControls(false) else showControls(true)
-        findViewById<Button>(R.id.player_unlock).visibility = if (inPip) View.GONE else if (locked) View.VISIBLE else View.GONE
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            handler.removeCallbacks(hideControls)
+            controls.visibility = View.GONE
+            findViewById<Button>(R.id.player_unlock).visibility = View.GONE
+        } else if (!locked) {
+            showControls(true)
+        } else {
+            controls.visibility = View.GONE
+            findViewById<Button>(R.id.player_unlock).visibility = View.VISIBLE
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
+        if (!inPip && !bgAudioEnabled && !isChangingConfigurations) player?.pause()
     }
     private fun seekBy(delta: Long) {
         val p = player ?: return
@@ -428,9 +490,11 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        thumbExecutor.shutdownNow()
         try { unregisterReceiver(battery) } catch (_: Exception) {}
-        playerView.player = null
-        player?.release(); player = null
+        if (::playerView.isInitialized) playerView.player = null
+        player?.release()
+        player = null
         super.onDestroy()
     }
 }

@@ -5,17 +5,17 @@
     <androidx.media3.ui.PlayerView
         android:id="@+id/player_view" android:layout_width="match_parent"
         android:layout_height="match_parent" android:keepScreenOn="true" />
-    <View android:layout_width="match_parent" android:layout_height="68dp"
-        android:layout_gravity="top" android:background="@drawable/player_top_gradient" />
+    <View android:layout_width="match_parent" android:layout_height="76dp"
+        android:layout_gravity="top" android:background="@drawable/bg_player_top_scrim" />
     <View android:layout_width="match_parent" android:layout_height="190dp"
-        android:layout_gravity="bottom" android:background="@drawable/player_bottom_gradient" />
+        android:layout_gravity="bottom" android:background="@drawable/bg_player_bottom_scrim" />
     <FrameLayout android:id="@+id/player_controls"
         android:layout_width="match_parent" android:layout_height="match_parent">
-        <LinearLayout android:id="@+id/player_top_bar" android:layout_width="match_parent"
+        <LinearLayout android:id="@+id/player_top_bar" android:background="@drawable/bg_player_top_scrim" android:layout_width="match_parent"
             android:layout_height="56dp" android:layout_gravity="top" android:gravity="center_vertical"
             android:orientation="horizontal" android:paddingStart="12dp" android:paddingEnd="12dp">
             <ImageButton android:id="@+id/player_close" android:layout_width="40dp" android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="Back"
+                android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Back"
                 android:src="@drawable/ic_player_back" android:tint="#FFFFFF" />
             <TextView android:id="@+id/player_title" android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" android:ellipsize="marquee" android:singleLine="true"
@@ -23,13 +23,13 @@
                 android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
             <TextView android:id="@+id/player_cc" android:layout_width="40dp" android:layout_height="40dp"
                 android:gravity="center" android:text="CC" android:textColor="#FFFFFF" android:textStyle="bold"
-                android:background="?android:attr/selectableItemBackgroundBorderless" />
+                android:background="@drawable/bg_player_toolbar_btn" />
             <TextView android:id="@+id/player_battery" android:layout_width="52dp" android:layout_height="wrap_content"
                 android:gravity="center" android:text="▰ --%" android:textColor="#FFFFFF" android:textSize="11sp" />
             <TextView android:id="@+id/player_clock" android:layout_width="42dp" android:layout_height="wrap_content"
                 android:gravity="center" android:text="00:00" android:textColor="#FFFFFF" android:textSize="12sp" />
             <ImageButton android:id="@+id/player_more" android:layout_width="40dp" android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="More"
+                android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="More"
                 android:src="@drawable/ic_player_more" android:tint="#FFFFFF" />
         </LinearLayout>
 
@@ -37,17 +37,17 @@
             android:layout_height="wrap_content" android:layout_gravity="center" android:gravity="center"
             android:orientation="horizontal">
             <ImageButton android:id="@+id/player_rewind" android:layout_width="52dp" android:layout_height="52dp"
-                android:layout_marginEnd="44dp" android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:layout_marginEnd="44dp" android:background="@drawable/bg_player_toolbar_btn"
                 android:contentDescription="Rewind 10 seconds" android:src="@drawable/ic_player_rewind" android:tint="#FFFFFF" />
             <ImageButton android:id="@+id/player_play" android:layout_width="68dp" android:layout_height="68dp"
-                android:background="@drawable/player_play_glass" android:contentDescription="Play or pause"
+                android:background="@drawable/bg_player_glass_circle" android:contentDescription="Play or pause"
                 android:padding="14dp" android:src="@drawable/ic_player_play" android:tint="#FFFFFF" />
             <ImageButton android:id="@+id/player_forward" android:layout_width="52dp" android:layout_height="52dp"
-                android:layout_marginStart="44dp" android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:layout_marginStart="44dp" android:background="@drawable/bg_player_toolbar_btn"
                 android:contentDescription="Forward 10 seconds" android:src="@drawable/ic_player_forward" android:tint="#FFFFFF" />
         </LinearLayout>
 
-        <LinearLayout android:id="@+id/player_bottom_panel" android:layout_width="match_parent"
+        <LinearLayout android:id="@+id/player_bottom_panel" android:background="@drawable/bg_player_bottom_scrim" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:layout_gravity="bottom" android:orientation="vertical"
             android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingBottom="5dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="36dp"
@@ -65,19 +65,19 @@
             </LinearLayout>
             <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
                 android:gravity="center" android:orientation="horizontal">
-                <ImageButton android:id="@+id/player_lock" style="@style/PlayerToolbarButton" android:contentDescription="Lock" android:src="@drawable/ic_player_lock" />
-                <ImageButton android:id="@+id/player_mute" style="@style/PlayerToolbarButton" android:contentDescription="Mute" android:src="@drawable/ic_player_mute" />
-                <ImageButton android:id="@+id/player_pip" style="@style/PlayerToolbarButton" android:contentDescription="Picture in picture" android:src="@drawable/ic_player_pip" />
-                <ImageButton android:id="@+id/player_aspect" style="@style/PlayerToolbarButton" android:contentDescription="Zoom mode" android:src="@drawable/ic_player_zoom" />
+                <ImageButton android:id="@+id/player_lock" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Lock" android:src="@drawable/ic_player_lock" />
+                <ImageButton android:id="@+id/player_mute" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Mute" android:src="@drawable/ic_player_mute" />
+                <ImageButton android:id="@+id/player_pip" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Picture in picture" android:src="@drawable/ic_player_pip" />
+                <ImageButton android:id="@+id/player_aspect" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Zoom mode" android:src="@drawable/ic_player_zoom" />
                 <FrameLayout android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp">
                     <ImageButton android:id="@+id/player_speed" android:layout_width="match_parent" android:layout_height="match_parent"
-                        android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="Playback speed"
+                        android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Playback speed"
                         android:src="@drawable/ic_player_speed" android:tint="#FFFFFF" />
                     <TextView android:id="@+id/player_speed_label" android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:layout_gravity="bottom" android:gravity="center" android:text="1x" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </FrameLayout>
-                <ImageButton android:id="@+id/player_background" style="@style/PlayerToolbarButton" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
-                <ImageButton android:id="@+id/player_rotate" style="@style/PlayerToolbarButton" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
+                <ImageButton android:id="@+id/player_background" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
+                <ImageButton android:id="@+id/player_rotate" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
             </LinearLayout>
             <HorizontalScrollView android:layout_width="match_parent" android:layout_height="54dp"
                 android:fillViewport="false" android:scrollbars="none">
@@ -87,8 +87,8 @@
         </LinearLayout>
 
         <LinearLayout android:id="@+id/player_brightness_hud" android:layout_width="48dp" android:layout_height="170dp"
-            android:layout_gravity="center_vertical|start" android:layout_marginStart="28dp" android:gravity="center"
-            android:orientation="vertical" android:padding="8dp" android:background="@drawable/player_hud_bg" android:visibility="gone">
+            android:layout_gravity="center_vertical|end" android:layout_marginEnd="24dp" android:gravity="center"
+            android:orientation="vertical" android:padding="8dp" android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
             <TextView android:id="@+id/player_brightness_icon" android:layout_width="wrap_content" android:layout_height="28dp"
                 android:text="☼" android:textColor="#FFFFFF" android:textSize="22sp" />
             <ProgressBar android:id="@+id/player_hud_progress" style="?android:attr/progressBarStyleHorizontal"
@@ -98,8 +98,8 @@
                 android:layout_marginTop="8dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
         </LinearLayout>
         <LinearLayout android:id="@+id/player_volume_hud" android:layout_width="48dp" android:layout_height="170dp"
-            android:layout_gravity="center_vertical|end" android:layout_marginEnd="28dp" android:gravity="center"
-            android:orientation="vertical" android:padding="8dp" android:background="@drawable/player_hud_bg" android:visibility="gone">
+            android:layout_gravity="center_vertical|start" android:layout_marginStart="24dp" android:gravity="center"
+            android:orientation="vertical" android:padding="8dp" android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
             <TextView android:id="@+id/player_volume_icon" android:layout_width="wrap_content" android:layout_height="28dp"
                 android:text="◖" android:textColor="#FFFFFF" android:textSize="22sp" />
             <ProgressBar style="?android:attr/progressBarStyleHorizontal" android:id="@+id/player_volume_progress" android:layout_width="110dp"
@@ -111,7 +111,7 @@
 
         <LinearLayout android:id="@+id/player_seek_hud" android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_gravity="center" android:orientation="vertical" android:gravity="center"
-            android:paddingHorizontal="22dp" android:paddingVertical="14dp" android:background="@drawable/player_seek_hud_bg"
+            android:paddingHorizontal="22dp" android:paddingVertical="14dp" android:background="@drawable/bg_player_hud_pill"
             android:visibility="gone">
             <TextView android:id="@+id/player_seek_target" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="00:00" android:textColor="#FFFFFF" android:textSize="22sp" android:textStyle="bold" />
@@ -120,15 +120,15 @@
         </LinearLayout>
         <TextView android:id="@+id/player_zoom_hud" android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_gravity="center" android:paddingHorizontal="18dp" android:paddingVertical="9dp"
-            android:background="@drawable/player_hud_bg" android:text="FIT" android:textColor="#FFFFFF"
+            android:background="@drawable/bg_player_hud_pill" android:text="FIT" android:textColor="#FFFFFF"
             android:textStyle="bold" android:visibility="gone" />
         <FrameLayout android:id="@+id/player_left_tap_hud" android:layout_width="150dp" android:layout_height="190dp"
-            android:layout_gravity="center_vertical|start" android:background="@drawable/player_ripple_left" android:visibility="gone">
+            android:layout_gravity="center_vertical|start" android:background="@drawable/bg_player_tap_ripple" android:visibility="gone">
             <TextView android:id="@+id/player_left_tap_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_gravity="center" android:text="« 10s" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" />
         </FrameLayout>
         <FrameLayout android:id="@+id/player_right_tap_hud" android:layout_width="150dp" android:layout_height="190dp"
-            android:layout_gravity="center_vertical|end" android:background="@drawable/player_ripple_right" android:visibility="gone">
+            android:layout_gravity="center_vertical|end" android:background="@drawable/bg_player_tap_ripple" android:visibility="gone">
             <TextView android:id="@+id/player_right_tap_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_gravity="center" android:text="10s »" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" />
         </FrameLayout>
