@@ -44,6 +44,7 @@ import com.jet.downloader.model.DownloadCompletePayload
 import com.jet.downloader.model.DownloadErrorPayload
 import com.jet.downloader.model.LibraryItemPayload
 import com.jet.downloader.model.MediaInfoPayload
+import com.jet.downloader.model.StreamSizePayload
 import com.jet.downloader.model.OpenSourceLicenseItem
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
@@ -595,11 +596,7 @@ class MainActivity : AppCompatActivity() {
                     val durationSec = info.duration.toLong()
                     val bestAudio = info.audioStreams.maxByOrNull { it.averageBitrate }
                     val bestAudioBytes = bestAudio?.let { audio ->
-                        if (audio.contentLength > 0) {
-                            audio.contentLength
-                        } else {
-                            (audio.averageBitrate.toLong() * 1000L * durationSec) / 8L
-                        }
+                        (audio.averageBitrate.toLong() * 1000L * durationSec) / 8L
                     } ?: 0L
 
                     fun sizeText(bytes: Long): String =
@@ -623,11 +620,7 @@ class MainActivity : AppCompatActivity() {
                             .filter { it.height == height && it.isUrl }
                             .maxByOrNull { it.bitrate }
                         val videoBytes = video?.let {
-                            val raw = if (it.contentLength > 0) {
-                                it.contentLength
-                            } else {
-                                (it.bitrate.toLong() * durationSec) / 8L
-                            }
+                            val raw = (it.bitrate.toLong() * durationSec) / 8L
                             if (it.isVideoOnly) raw + bestAudioBytes else raw
                         } ?: 0L
                         streamSizes[id] = StreamSizePayload(sizeText = sizeText(videoBytes))
@@ -865,7 +858,17 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun playInNativeMedia3(title: String, filePath: String) {
-            playWithMedia3(title, filePath)
+            runOnUiThread {
+                val file = File(filePath)
+                if (!file.exists()) {
+                    Toast.makeText(this@MainActivity, "File not found on storage", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                startActivity(Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
+                    putExtra(VideoPlayerActivity.EXTRA_TITLE, title)
+                    putExtra(VideoPlayerActivity.EXTRA_FILE_PATH, file.absolutePath)
+                })
+            }
         }
 
         @JavascriptInterface
