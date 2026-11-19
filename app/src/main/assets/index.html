@@ -856,18 +856,18 @@
       window.onNativeMediaInfo = function (info) {
         $('fetching-info-bar').classList.add('hidden');
         if (!info || !info.ok) {
+          state.formats.forEach((stream) => { stream.sizeText = 'Size N/A'; });
+          renderFormatLists();
           $('format-stream-title').textContent = state.pendingUrl;
           showToast(info && info.error ? info.error : 'Using direct stream mode');
           return;
         }
         state.fetchedTitle = info.title || state.pendingUrl;
         $('format-stream-title').textContent = `${state.fetchedTitle} (${info.duration || ''}) · ${info.extractor || ''}`;
-        if (info.streams) {
-          state.formats.forEach((stream) => {
-            stream.sizeText = info.streams[stream.id]?.sizeText || 'Size N/A';
-          });
-          renderFormatLists();
-        }
+        state.formats.forEach((stream) => {
+          stream.sizeText = info.streams?.[stream.id]?.sizeText || 'Size N/A';
+        });
+        renderFormatLists();
       };
 
       window.onNativeDownloadProgress = function (id, progress, speedLabel) {
