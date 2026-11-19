@@ -874,8 +874,10 @@ class MainActivity : AppCompatActivity() {
         fun updateYtDlpEngine() {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    val channels = YoutubeDL.UpdateChannel.values()
-                    val status = YoutubeDL.getInstance().updateYoutubeDL(applicationContext, channels[0])
+                    val status = YoutubeDL.getInstance().updateYoutubeDL(
+                        applicationContext,
+                        YoutubeDL.UpdateChannel.STABLE
+                    )
                     val ver = YoutubeDL.getInstance().version(applicationContext) ?: "Latest"
                     val res = JSONObject().apply {
                         put("ok", true)
