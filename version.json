@@ -1,0 +1,6 @@
+{
+  "versionCode": 340,
+  "versionName": "3.4.0",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v3.4.0/JET-release.apk",
+  "changelog": "Added in-app APK updater\nAutomatic update check\nDownload progress display\nImproved Android installation flow"
+}
