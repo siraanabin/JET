@@ -73,8 +73,8 @@
                     <ImageButton android:id="@+id/player_speed" android:layout_width="match_parent" android:layout_height="match_parent"
                         android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Playback speed"
                         android:src="@drawable/ic_player_speed" android:tint="#FFFFFF" />
-                    <TextView android:id="@+id/player_speed_label" android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_width="wrap_content" android:layout_gravity="bottom|end" android:layout_marginEnd="2dp" android:layout_marginBottom="2dp" android:gravity="center" android:paddingHorizontal="2dp" android:text="1.0x" android:textColor="#FFFFFF" android:textSize="7sp" android:background="@drawable/bg_player_speed_badge" />
+                    <TextView android:id="@+id/player_speed_label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_gravity="bottom|end" android:layout_marginEnd="2dp" android:layout_marginBottom="2dp" android:gravity="center" android:paddingHorizontal="2dp" android:text="1.0x" android:textColor="#FFFFFF" android:textSize="7sp" android:background="@drawable/bg_player_speed_badge" />
                 </FrameLayout>
                 <ImageButton android:id="@+id/player_background" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
                 <ImageButton android:id="@+id/player_rotate" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
