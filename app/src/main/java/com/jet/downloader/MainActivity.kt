@@ -778,7 +778,6 @@ class MainActivity : AppCompatActivity() {
                         if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
 
                     val streamSizes = mutableMapOf<String, StreamSizePayload>()
-                    streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
                     listOf(
                         "aud-70" to 70L,
                         "aud-128" to 128L,
@@ -788,7 +787,7 @@ class MainActivity : AppCompatActivity() {
                         val estimatedMp3Bytes = (bitrateKbps * 1000L * durationSec) / 8L
                         streamSizes[id] = StreamSizePayload(sizeText = sizeText(estimatedMp3Bytes))
                     }
-                    val bestAudioBytes = bestAudioBytesJob?.await() ?: 0L
+                    // Start audio and every available video stream lookup together.
                     val videoSizeJobs = listOf(
                         "vid-144" to 144,
                         "vid-240" to 240,
@@ -804,13 +803,16 @@ class MainActivity : AppCompatActivity() {
                                 .filter { it.height == height && it.isUrl }
                                 .maxByOrNull { it.bitrate }
                             video?.let {
-                                val raw = estimateStreamBytes(it.content, it.bitrate.toLong(), durationSec)
-                                if (it.isVideoOnly) raw + bestAudioBytes else raw
-                            } ?: 0L
+                                estimateStreamBytes(it.content, it.bitrate.toLong(), durationSec) to it.isVideoOnly
+                            } ?: (0L to false)
                         }
                     }
+                    val bestAudioBytes = bestAudioBytesJob?.await() ?: 0L
+                    streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
                     videoSizeJobs.forEach { (id, job) ->
-                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(job.await()))
+                        val (videoBytes, isVideoOnly) = job.await()
+                        val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
+                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(totalBytes))
                     }
 
                     val payload = MediaInfoPayload(
