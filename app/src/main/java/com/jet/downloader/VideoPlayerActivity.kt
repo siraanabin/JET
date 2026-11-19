@@ -7,6 +7,7 @@ import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.os.*
 import android.view.*
+import android.view.animation.OvershootInterpolator
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -19,12 +20,15 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.DefaultTimeBar
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.TimeBar
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class VideoPlayerActivity : AppCompatActivity() {
     companion object {
@@ -33,20 +37,40 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
     private lateinit var playerView: PlayerView
     private lateinit var titleView: TextView
-    private lateinit var seek: SeekBar
+    private lateinit var seek: DefaultTimeBar
     private lateinit var currentTime: TextView
     private lateinit var durationTime: TextView
     private lateinit var controls: View
+    private lateinit var topBar: View
+    private lateinit var bottomPanel: View
+    private lateinit var centerControls: View
     private lateinit var playlist: LinearLayout
+    private lateinit var volumeHud: View
+    private lateinit var brightnessHud: View
+    private lateinit var seekHud: View
+    private lateinit var leftTapHud: View
+    private lateinit var rightTapHud: View
+    private lateinit var zoomHud: TextView
+    private lateinit var hudPercent: TextView
+    private lateinit var hudProgress: ProgressBar
+    private lateinit var seekTarget: TextView
+    private lateinit var seekDelta: TextView
     private var player: ExoPlayer? = null
     private var currentPath = ""
     private var locked = false
     private var muted = false
     private var ccEnabled = true
     private var aspect = 0
+    private var controlsVisible = true
+    private var scrubbing = false
+    private var gestureMode = 0 // 1 brightness, 2 volume, 3 seek
+    private var gestureStartX = 0f
+    private var gestureStartY = 0f
+    private var gestureStartValue = 0f
+    private var gestureStartPosition = 0L
+    private var lastSeekDelta = 0L
     private val handler = Handler(Looper.getMainLooper())
     private val audio by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
-
     private val clock = object : Runnable {
         override fun run() {
             findViewById<TextView>(R.id.player_clock).text =
@@ -58,12 +82,17 @@ class VideoPlayerActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
-            if (level >= 0) findViewById<TextView>(R.id.player_battery).text = "▰ " + (level * 100 / scale) + "%"
+            if (level >= 0) findViewById<TextView>(R.id.player_battery).text = "▰ ${level * 100 / scale}%"
         }
     }
     private val progress = object : Runnable {
-        override fun run() { updateProgress(); handler.postDelayed(this, 500L) }
+        override fun run() { updateProgress(); handler.postDelayed(this, 300L) }
     }
+    private val hideHud = Runnable {
+        fadeHud(volumeHud); fadeHud(brightnessHud); fadeHud(seekHud)
+        fadeHud(leftTapHud); fadeHud(rightTapHud); fadeHud(zoomHud)
+    }
+    private val hideControls = Runnable { if (!locked && player?.isPlaying == true) showControls(false) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,13 +109,25 @@ class VideoPlayerActivity : AppCompatActivity() {
         currentTime = findViewById(R.id.player_current_time)
         durationTime = findViewById(R.id.player_duration)
         controls = findViewById(R.id.player_controls)
+        topBar = findViewById(R.id.player_top_bar)
+        bottomPanel = findViewById(R.id.player_bottom_panel)
+        centerControls = findViewById(R.id.player_center_controls)
         playlist = findViewById(R.id.player_playlist)
+        volumeHud = findViewById(R.id.player_volume_hud)
+        brightnessHud = findViewById(R.id.player_brightness_hud)
+        seekHud = findViewById(R.id.player_seek_hud)
+        leftTapHud = findViewById(R.id.player_left_tap_hud)
+        rightTapHud = findViewById(R.id.player_right_tap_hud)
+        zoomHud = findViewById(R.id.player_zoom_hud)
+        hudPercent = findViewById(R.id.player_hud_percent)
+        hudProgress = findViewById(R.id.player_hud_progress)
+        seekTarget = findViewById(R.id.player_seek_target)
+        seekDelta = findViewById(R.id.player_seek_delta)
 
         val path = intent.getStringExtra(EXTRA_FILE_PATH).orEmpty()
         if (path.isBlank() || !File(path).isFile) {
             Toast.makeText(this, "Video file not found", Toast.LENGTH_SHORT).show()
-            finish()
-            return
+            finish(); return
         }
         currentPath = path
         titleView.text = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
@@ -95,119 +136,198 @@ class VideoPlayerActivity : AppCompatActivity() {
         playerView.player = exo
         playerView.useController = false
         exo.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(File(path))))
-        exo.prepare()
-        exo.play()
+        exo.prepare(); exo.play()
         exo.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                findViewById<TextView>(R.id.player_play).text = if (isPlaying) "Ⅱ" else "▶"
+                findViewById<ImageButton>(R.id.player_play).setImageResource(
+                    if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play
+                )
+                if (isPlaying) handler.postDelayed(hideControls, 3000L)
             }
         })
         setupControls()
         setupGestures()
         populatePlaylist(File(path).parentFile)
-        handler.post(clock)
-        handler.post(progress)
+        handler.post(clock); handler.post(progress)
         registerReceiver(battery, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        handler.postDelayed(hideControls, 3500L)
     }
 
     private fun setupControls() {
         findViewById<ImageButton>(R.id.player_close).setOnClickListener { finish() }
-        findViewById<TextView>(R.id.player_rewind).setOnClickListener { seekBy(-10_000L) }
-        findViewById<TextView>(R.id.player_play).setOnClickListener {
+        findViewById<ImageButton>(R.id.player_rewind).setOnClickListener { seekBy(-10_000L) }
+        findViewById<ImageButton>(R.id.player_play).setOnClickListener {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
         }
-        findViewById<TextView>(R.id.player_forward).setOnClickListener { seekBy(10_000L) }
+        findViewById<ImageButton>(R.id.player_forward).setOnClickListener { seekBy(10_000L) }
         findViewById<TextView>(R.id.player_cc).setOnClickListener {
             ccEnabled = !ccEnabled
             player?.trackSelectionParameters = player!!.trackSelectionParameters.buildUpon()
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !ccEnabled).build()
-            findViewById<TextView>(R.id.player_cc).alpha = if (ccEnabled) 1f else .45f
+            it.alpha = if (ccEnabled) 1f else .45f
         }
         findViewById<ImageButton>(R.id.player_more).setOnClickListener { showMore() }
-        val unlockButton = findViewById<Button>(R.id.player_unlock)
-        findViewById<Button>(R.id.player_lock).setOnClickListener {
-            locked = true
-            controls.visibility = View.GONE
-            unlockButton.visibility = View.VISIBLE
+        val unlock = findViewById<Button>(R.id.player_unlock)
+        findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
+            locked = true; showControls(false); unlock.visibility = View.VISIBLE
             Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
         }
-        unlockButton.setOnClickListener {
-            locked = false
-            controls.visibility = View.VISIBLE
-            unlockButton.visibility = View.GONE
+        unlock.setOnClickListener {
+            locked = false; unlock.visibility = View.GONE; showControls(true)
             Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
         }
-        findViewById<Button>(R.id.player_mute).setOnClickListener {
-            muted = !muted
-            player?.volume = if (muted) 0f else 1f
-            findViewById<Button>(R.id.player_mute).text = if (muted) "Unmute" else "Mute"
+        findViewById<ImageButton>(R.id.player_mute).setOnClickListener {
+            muted = !muted; player?.volume = if (muted) 0f else 1f
+            it.isSelected = muted
         }
-        findViewById<Button>(R.id.player_pip).setOnClickListener { enterPip() }
-        findViewById<Button>(R.id.player_aspect).setOnClickListener {
-            aspect = (aspect + 1) % 3
-            val modes = intArrayOf(AspectRatioFrameLayout.RESIZE_MODE_FIT, AspectRatioFrameLayout.RESIZE_MODE_FILL, AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
-            val labels = arrayOf("Fit", "Fill", "Zoom")
-            playerView.resizeMode = modes[aspect]
-            findViewById<Button>(R.id.player_aspect).text = labels[aspect]
-        }
-        findViewById<Button>(R.id.player_speed).setOnClickListener { showSpeed() }
-        findViewById<Button>(R.id.player_background).setOnClickListener { backgroundAudio() }
-        findViewById<Button>(R.id.player_rotate).setOnClickListener {
+        findViewById<ImageButton>(R.id.player_pip).setOnClickListener { enterPip() }
+        findViewById<ImageButton>(R.id.player_aspect).setOnClickListener { cycleAspect() }
+        findViewById<ImageButton>(R.id.player_speed).setOnClickListener { showSpeed() }
+        findViewById<ImageButton>(R.id.player_background).setOnClickListener { backgroundAudio() }
+        findViewById<ImageButton>(R.id.player_rotate).setOnClickListener {
             requestedOrientation = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
-        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
-                if (fromUser) currentTime.text = time(value.toLong())
+        listOf(R.id.player_close, R.id.player_rewind, R.id.player_play, R.id.player_forward,
+            R.id.player_more, R.id.player_lock, R.id.player_mute, R.id.player_pip,
+            R.id.player_aspect, R.id.player_speed, R.id.player_background, R.id.player_rotate)
+            .forEach { id -> findViewById<View>(id).setOnTouchListener { v, e ->
+                if (e.action == MotionEvent.ACTION_DOWN) v.animate().scaleX(.88f).scaleY(.88f).setDuration(75).start()
+                if (e.action == MotionEvent.ACTION_UP || e.action == MotionEvent.ACTION_CANCEL)
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator(2.2f)).start()
+                false
+            } }
+        seek.addListener(object : TimeBar.OnScrubListener {
+            override fun onScrubStart(timeBar: TimeBar, position: Long) { scrubbing = true; handler.removeCallbacks(hideControls) }
+            override fun onScrubMove(timeBar: TimeBar, position: Long) { currentTime.text = time(position) }
+            override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
+                scrubbing = false
+                if (!canceled) player?.seekTo(position)
+                handler.postDelayed(hideControls, 3000L)
             }
-            override fun onStartTrackingTouch(bar: SeekBar?) {}
-            override fun onStopTrackingTouch(bar: SeekBar?) { player?.seekTo(bar?.progress?.toLong() ?: 0L) }
         })
     }
 
     private fun setupGestures() {
-        var downX = 0f
-        var downY = 0f
-        var initial = 0f
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                if (!locked) seekBy(if (e.x < playerView.width / 2f) -10_000L else 10_000L)
+                if (!locked) {
+                    val forward = e.x >= playerView.width / 2f
+                    seekBy(if (forward) 10_000L else -10_000L)
+                    val hud = if (forward) rightTapHud else leftTapHud
+                    val label = hud.findViewById<TextView>(if (forward) R.id.player_right_tap_text else R.id.player_left_tap_text)
+                    label.text = if (forward) "10s »" else "« 10s"
+                    hud.visibility = View.VISIBLE; hud.alpha = 1f
+                    hud.scaleX = .75f; hud.scaleY = .75f
+                    hud.animate().alpha(0f).scaleX(1.12f).scaleY(1.12f).setDuration(420L)
+                        .withEndAction { hud.visibility = View.GONE }.start()
+                }
                 return true
             }
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if (!locked) controls.visibility = if (controls.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                if (!locked) showControls(!controlsVisible)
                 return true
             }
         })
         playerView.setOnTouchListener { _, event ->
             detector.onTouchEvent(event)
-            when (event.action) {
+            when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    downX = event.x; downY = event.y
-                    initial = if (downX < playerView.width / 2f)
+                    gestureStartX = event.x; gestureStartY = event.y
+                    gestureMode = 0; lastSeekDelta = 0L
+                    gestureStartPosition = player?.currentPosition ?: 0L
+                    gestureStartValue = if (event.x < playerView.width * .5f)
                         (window.attributes.screenBrightness.takeIf { it >= 0f } ?: .5f)
                     else audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
                 }
-                MotionEvent.ACTION_MOVE -> if (!locked && abs(event.y - downY) > 18f && abs(event.y - downY) > abs(event.x - downX)) {
-                    val delta = (downY - event.y) / playerView.height
-                    if (downX < playerView.width / 2f) {
-                        window.attributes = window.attributes.apply { screenBrightness = (initial + delta).coerceIn(.02f, 1f) }
-                    } else {
-                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
-                        audio.setStreamVolume(AudioManager.STREAM_MUSIC, (initial + delta * max).coerceIn(0f, max).toInt(), 0)
+                MotionEvent.ACTION_MOVE -> if (!locked) {
+                    val dx = event.x - gestureStartX
+                    val dy = event.y - gestureStartY
+                    if (gestureMode == 0 && (abs(dx) > 24f || abs(dy) > 24f)) {
+                        gestureMode = if (abs(dx) > abs(dy)) 3 else if (gestureStartX < playerView.width * .5f) 1 else 2
                     }
+                    when (gestureMode) {
+                        1 -> {
+                            val value = (gestureStartValue + (gestureStartY - event.y) / playerView.height).coerceIn(.02f, 1f)
+                            window.attributes = window.attributes.apply { screenBrightness = value }
+                            showVerticalHud(brightnessHud, value, "☼")
+                        }
+                        2 -> {
+                            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                            val value = (gestureStartValue + (gestureStartY - event.y) / playerView.height * max).roundToInt().coerceIn(0, max)
+                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
+                            showVerticalHud(volumeHud, value.toFloat() / max, "◖")
+                        }
+                        3 -> {
+                            val duration = player?.duration?.takeIf { it > 0 } ?: 0L
+                            val delta = (dx / playerView.width * duration.coerceAtMost(3_600_000L) * 1.4f).toLong()
+                            lastSeekDelta = delta
+                            val target = (gestureStartPosition + delta).coerceIn(0L, duration)
+                            seekTarget.text = time(target)
+                            seekDelta.text = (if (delta >= 0) "+" else "−") + time(abs(delta))
+                            showHud(seekHud)
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (gestureMode == 3 && !locked) seekBy(lastSeekDelta)
+                    if (gestureMode != 0) handler.postDelayed(hideHud, 400L)
+                    gestureMode = 0
                 }
             }
             true
         }
     }
 
+    private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
+        findViewById<TextView>(if (hud.id == R.id.player_brightness_hud) R.id.player_brightness_icon else R.id.player_volume_icon).text = glyph
+        hudPercent.text = "${(fraction * 100).roundToInt()}%"
+        hudProgress.progress = (fraction * 100).roundToInt()
+        showHud(hud)
+    }
+    private fun showHud(view: View) {
+        handler.removeCallbacks(hideHud)
+        view.animate().cancel(); view.visibility = View.VISIBLE; view.alpha = 1f
+        handler.postDelayed(hideHud, 400L)
+    }
+    private fun fadeHud(view: View) {
+        if (view.visibility != View.VISIBLE) return
+        view.animate().alpha(0f).setDuration(180L).withEndAction { view.visibility = View.GONE }.start()
+    }
+    private fun showControls(show: Boolean) {
+        controlsVisible = show
+        handler.removeCallbacks(hideControls)
+        if (show) {
+            controls.visibility = View.VISIBLE
+            topBar.translationY = -24f; bottomPanel.translationY = 24f
+            centerControls.scaleX = .92f; centerControls.scaleY = .92f
+            topBar.animate().alpha(1f).translationY(0f).setDuration(220L).start()
+            bottomPanel.animate().alpha(1f).translationY(0f).setDuration(220L).start()
+            centerControls.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220L).start()
+            if (player?.isPlaying == true) handler.postDelayed(hideControls, 3500L)
+        } else {
+            topBar.animate().alpha(0f).translationY(-24f).setDuration(220L).start()
+            bottomPanel.animate().alpha(0f).translationY(24f).setDuration(220L).start()
+            centerControls.animate().alpha(0f).scaleX(.92f).scaleY(.92f).setDuration(220L)
+                .withEndAction { if (!controlsVisible) controls.visibility = View.GONE }.start()
+        }
+    }
+    private fun cycleAspect() {
+        aspect = (aspect + 1) % 3
+        val modes = intArrayOf(AspectRatioFrameLayout.RESIZE_MODE_FIT, AspectRatioFrameLayout.RESIZE_MODE_ZOOM, AspectRatioFrameLayout.RESIZE_MODE_FILL)
+        val labels = arrayOf("FIT", "CROP", "100%")
+        playerView.resizeMode = modes[aspect]
+        zoomHud.text = labels[aspect]
+        zoomHud.visibility = View.VISIBLE; zoomHud.alpha = 1f
+        handler.removeCallbacks(hideHud); handler.postDelayed({ fadeHud(zoomHud) }, 800L)
+        findViewById<ImageButton>(R.id.player_aspect).isSelected = aspect != 0
+    }
     private fun showMore() {
-        AlertDialog.Builder(this).setItems(arrayOf("Fit", "Fill", "Zoom", "Playback speed")) { _, which ->
+        AlertDialog.Builder(this).setItems(arrayOf("Fit", "Crop", "Fill", "Playback speed")) { _, which ->
             when (which) {
                 0 -> { aspect = 0; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT }
-                1 -> { aspect = 1; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL }
-                2 -> { aspect = 2; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM }
+                1 -> { aspect = 1; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM }
+                2 -> { aspect = 2; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL }
                 3 -> showSpeed()
             }
         }.show()
@@ -217,10 +337,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         val labels = arrayOf("0.5x", "1.0x", "1.25x", "1.5x", "2.0x")
         AlertDialog.Builder(this).setTitle("Playback speed").setItems(labels) { _, which ->
             player?.setPlaybackSpeed(values[which])
-            findViewById<Button>(R.id.player_speed).text = labels[which]
+            findViewById<TextView>(R.id.player_speed_label).text = labels[which]
         }.show()
     }
-
     private fun populatePlaylist(folder: File?) {
         val files = folder?.listFiles()?.filter { it.isFile && it.extension.lowercase(Locale.US) in
             setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "mp3", "m4a", "opus") }
@@ -228,21 +347,20 @@ class VideoPlayerActivity : AppCompatActivity() {
         files.forEach { file ->
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(6, 4, 6, 4)
-                layoutParams = LinearLayout.LayoutParams(132, -1)
+                setPadding(4, 3, 4, 3)
+                layoutParams = LinearLayout.LayoutParams(dp(76), -1)
                 tag = file.absolutePath
                 setOnClickListener {
-                    currentPath = file.absolutePath
-                    titleView.text = file.nameWithoutExtension
+                    currentPath = file.absolutePath; titleView.text = file.nameWithoutExtension
                     player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
-                    player?.prepare(); player?.play()
-                    refreshSelection()
+                    player?.prepare(); player?.play(); refreshSelection()
                 }
             }
             val image = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(116, 62)
+                layoutParams = LinearLayout.LayoutParams(dp(64), dp(38))
                 scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundColor(0xFF30343B.toInt())
+                setBackgroundResource(R.drawable.player_thumbnail_bg)
+                clipToOutline = true
             }
             try {
                 val retriever = MediaMetadataRetriever()
@@ -251,7 +369,8 @@ class VideoPlayerActivity : AppCompatActivity() {
                 retriever.release()
             } catch (_: Exception) {}
             val name = TextView(this).apply {
-                text = file.nameWithoutExtension; setTextColor(-1); textSize = 10f; maxLines = 1
+                text = file.nameWithoutExtension; setTextColor(-1); textSize = 9f
+                maxLines = 1; gravity = Gravity.CENTER
             }
             card.addView(image); card.addView(name); playlist.addView(card)
         }
@@ -260,7 +379,10 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun refreshSelection() {
         for (i in 0 until playlist.childCount) {
             val child = playlist.getChildAt(i)
-            child.setBackgroundColor(if (child.tag == currentPath) 0xFF365D9D.toInt() else 0x66000000)
+            val selected = child.tag == currentPath
+            child.setBackgroundResource(if (selected) R.drawable.player_playlist_selected else R.drawable.player_playlist_item)
+            child.scaleX = if (selected) 1.06f else 1f
+            child.scaleY = if (selected) 1.06f else 1f
         }
     }
     private fun backgroundAudio() {
@@ -277,25 +399,32 @@ class VideoPlayerActivity : AppCompatActivity() {
     override fun onUserLeaveHint() { super.onUserLeaveHint(); if (Build.VERSION.SDK_INT >= 26) enterPip() }
     override fun onPictureInPictureModeChanged(inPip: Boolean, config: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, config)
-        controls.visibility = if (inPip || locked) View.GONE else View.VISIBLE
+        if (inPip || locked) showControls(false) else showControls(true)
         findViewById<Button>(R.id.player_unlock).visibility = if (inPip) View.GONE else if (locked) View.VISIBLE else View.GONE
     }
     private fun seekBy(delta: Long) {
         val p = player ?: return
-        p.seekTo((p.currentPosition + delta).coerceIn(0L, p.duration.coerceAtLeast(0L)))
+        val end = p.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
+        p.seekTo((p.currentPosition + delta).coerceIn(0L, end))
+        showControls(true)
     }
     private fun updateProgress() {
         val p = player ?: return
-        seek.max = p.duration.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        seek.progress = p.currentPosition.coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        currentTime.text = time(p.currentPosition)
-        durationTime.text = time(p.duration)
+        val duration = p.duration.takeIf { it > 0 } ?: C.TIME_UNSET
+        seek.setDuration(duration)
+        if (!scrubbing) {
+            seek.setPosition(p.currentPosition.coerceAtLeast(0L))
+            seek.setBufferedPosition(p.bufferedPosition.coerceAtLeast(0L))
+            currentTime.text = time(p.currentPosition)
+        }
+        durationTime.text = if (duration == C.TIME_UNSET) "--:--" else time(duration)
     }
     private fun time(ms: Long): String {
         val s = ms.coerceAtLeast(0L) / 1000L
         return if (s >= 3600) String.format(Locale.US, "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
             else String.format(Locale.US, "%d:%02d", s / 60, s % 60)
     }
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         try { unregisterReceiver(battery) } catch (_: Exception) {}
