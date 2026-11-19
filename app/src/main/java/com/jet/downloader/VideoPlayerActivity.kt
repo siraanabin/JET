@@ -52,7 +52,6 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var rightTapHud: View
     private lateinit var zoomHud: TextView
     private lateinit var hudPercent: TextView
-    private lateinit var hudProgress: ProgressBar
     private lateinit var seekTarget: TextView
     private lateinit var seekDelta: TextView
     private var player: ExoPlayer? = null
@@ -120,7 +119,6 @@ class VideoPlayerActivity : AppCompatActivity() {
         rightTapHud = findViewById(R.id.player_right_tap_hud)
         zoomHud = findViewById(R.id.player_zoom_hud)
         hudPercent = findViewById(R.id.player_hud_percent)
-        hudProgress = findViewById(R.id.player_hud_progress)
         seekTarget = findViewById(R.id.player_seek_target)
         seekDelta = findViewById(R.id.player_seek_delta)
 
@@ -281,8 +279,11 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
         findViewById<TextView>(if (hud.id == R.id.player_brightness_hud) R.id.player_brightness_icon else R.id.player_volume_icon).text = glyph
-        hudPercent.text = "${(fraction * 100).roundToInt()}%"
-        hudProgress.progress = (fraction * 100).roundToInt()
+        val isBrightness = hud.id == R.id.player_brightness_hud
+        findViewById<TextView>(if (isBrightness) R.id.player_hud_percent else R.id.player_volume_percent).text =
+            "${(fraction * 100).roundToInt()}%"
+        findViewById<ProgressBar>(if (isBrightness) R.id.player_hud_progress else R.id.player_volume_progress).progress =
+            (fraction * 100).roundToInt()
         showHud(hud)
     }
     private fun showHud(view: View) {
