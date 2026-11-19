@@ -764,7 +764,25 @@
         refreshIcons();
       }
 
-      urlInput.addEventListener('input', updatePasteButtonState);
+      let mediaInfoPrefetchTimer = null;
+      let lastPrefetchedUrl = '';
+
+      function scheduleMediaInfoPrefetch(rawUrl) {
+        const candidate = (rawUrl || '').trim();
+        if (!candidate.startsWith('http') || candidate === lastPrefetchedUrl) return;
+        clearTimeout(mediaInfoPrefetchTimer);
+        mediaInfoPrefetchTimer = setTimeout(() => {
+          if (hasAndroid() && window.JetAndroid.prefetchMediaInfo) {
+            lastPrefetchedUrl = candidate;
+            window.JetAndroid.prefetchMediaInfo(candidate);
+          }
+        }, 450);
+      }
+
+      urlInput.addEventListener('input', () => {
+        updatePasteButtonState();
+        scheduleMediaInfoPrefetch(urlInput.value);
+      });
 
       $('paste-btn').addEventListener('click', async () => {
         if (urlInput.value.trim().length > 0) {
@@ -782,6 +800,7 @@
         if (clipText) {
           urlInput.value = clipText;
           updatePasteButtonState();
+          scheduleMediaInfoPrefetch(clipText);
         } else {
           showToast('Copy a video link first, then tap Paste');
         }
@@ -790,12 +809,14 @@
       $('clipboard-apply-btn').addEventListener('click', () => {
         urlInput.value = state.clipboardUrl;
         updatePasteButtonState();
+        scheduleMediaInfoPrefetch(state.clipboardUrl);
         $('clipboard-chip').classList.add('hidden');
       });
 
       $('clipboard-download-btn').addEventListener('click', () => {
         urlInput.value = state.clipboardUrl;
         updatePasteButtonState();
+        scheduleMediaInfoPrefetch(state.clipboardUrl);
         $('clipboard-chip').classList.add('hidden');
         openFormatModal(state.clipboardUrl);
       });

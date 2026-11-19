@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.util.LruCache
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -49,6 +50,7 @@ import com.jet.downloader.model.OpenSourceLicenseItem
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -62,6 +64,7 @@ import org.schabi.newpipe.extractor.stream.StreamInfo
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : AppCompatActivity() {
 
@@ -82,6 +85,44 @@ class MainActivity : AppCompatActivity() {
 
     @Volatile
     private var ytDlpReady: Boolean = false
+
+    // Reuse extracted stream metadata across prefetch and modal-open requests.
+    private val streamInfoCache = LruCache<String, StreamInfo>(8)
+    private val streamInfoInFlight = ConcurrentHashMap<String, CompletableDeferred<StreamInfo>>()
+
+    private suspend fun getOrFetchStreamInfo(url: String): StreamInfo {
+        synchronized(streamInfoCache) {
+            streamInfoCache.get(url)?.let { return it }
+        }
+        val pending = CompletableDeferred<StreamInfo>()
+        val existing = streamInfoInFlight.putIfAbsent(url, pending)
+        if (existing != null) return existing.await()
+        try {
+            val info = StreamInfo.getInfo(url)
+            synchronized(streamInfoCache) { streamInfoCache.put(url, info) }
+            pending.complete(info)
+            return info
+        } catch (error: Exception) {
+            pending.completeExceptionally(error)
+            throw error
+        } finally {
+            streamInfoInFlight.remove(url, pending)
+        }
+    }
+
+    private fun estimateStreamBytes(contentUrl: String, bitrateBitsPerSecond: Long, durationSeconds: Long): Long {
+        val clenBytes = try {
+            Uri.parse(contentUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L }
+        } catch (_: Exception) {
+            null
+        }
+        if (clenBytes != null) return clenBytes
+        return if (bitrateBitsPerSecond > 0L && durationSeconds > 0L) {
+            (bitrateBitsPerSecond * durationSeconds) / 8L
+        } else {
+            0L
+        }
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -587,16 +628,28 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun prefetchMediaInfo(url: String) {
+            if (!url.startsWith("http")) return
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    getOrFetchStreamInfo(url)
+                } catch (_: Exception) {
+                    // The foreground fetch reports errors when the user opens the format modal.
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun fetchMediaInfo(url: String) {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    // 1. Primary fast extraction via NewPipe Extractor (GPLv3) + OkHttp (Apache 2.0)
-                    val info = StreamInfo.getInfo(url)
+                    // A prefetched StreamInfo is reused; concurrent requests share one extraction.
+                    val info = getOrFetchStreamInfo(url)
                     val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
                     val durationSec = info.duration.toLong()
                     val bestAudio = info.audioStreams.maxByOrNull { it.averageBitrate }
                     val bestAudioBytes = bestAudio?.let { audio ->
-                        (audio.averageBitrate.toLong() * 1000L * durationSec) / 8L
+                        estimateStreamBytes(audio.content, audio.averageBitrate.toLong() * 1000L, durationSec)
                     } ?: 0L
 
                     fun sizeText(bytes: Long): String =
@@ -620,7 +673,7 @@ class MainActivity : AppCompatActivity() {
                             .filter { it.height == height && it.isUrl }
                             .maxByOrNull { it.bitrate }
                         val videoBytes = video?.let {
-                            val raw = (it.bitrate.toLong() * durationSec) / 8L
+                            val raw = estimateStreamBytes(it.content, it.bitrate.toLong(), durationSec)
                             if (it.isVideoOnly) raw + bestAudioBytes else raw
                         } ?: 0L
                         streamSizes[id] = StreamSizePayload(sizeText = sizeText(videoBytes))
