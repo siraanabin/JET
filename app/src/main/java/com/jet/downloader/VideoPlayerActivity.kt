@@ -30,6 +30,7 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+// MX-style playback UI with asynchronous playlist thumbnail decoding.
 class VideoPlayerActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_TITLE = "video_title"
