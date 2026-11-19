@@ -1,0 +1,165 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 47ab845..5678b2d 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -11,8 +11,8 @@ android {
+         applicationId = "com.jet.downloader"
+         minSdk = 24
+         targetSdk = 34
+-        versionCode = 320
+-        versionName = "3.2.0"
++        versionCode = 340
++        versionName = "3.4.0"
+     }
+ 
+     buildTypes {
+@@ -40,4 +40,5 @@ dependencies {
+     implementation("androidx.appcompat:appcompat:1.7.0")
+     implementation("androidx.activity:activity-ktx:1.9.1")
+     implementation("androidx.webkit:webkit:1.11.0")
++    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+ }
+diff --git a/app/proguard-rules.pro b/app/proguard-rules.pro
+new file mode 100644
+index 0000000..4e4cbc8
+--- /dev/null
++++ b/app/proguard-rules.pro
+@@ -0,0 +1 @@
++# JET ProGuard rules
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index b158d93..a82bd7a 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -2,6 +2,7 @@
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ 
+     <uses-permission android:name="android.permission.INTERNET" />
++    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+@@ -39,5 +40,14 @@
+             </intent-filter>
+         </activity>
+ 
++        <provider
++            android:name="androidx.core.content.FileProvider"
++            android:authorities="${applicationId}.fileprovider"
++            android:exported="false"
++            android:grantUriPermissions="true">
++            <meta-data
++                android:name="android.support.FILE_PROVIDER_PATHS"
++                android:resource="@xml/file_paths" />
++        </provider>
+     </application>
+ </manifest>
+diff --git a/app/src/main/assets/index.html b/app/src/main/assets/index.html
+index d931a48..7c2a21e 100644
+--- a/app/src/main/assets/index.html
++++ b/app/src/main/assets/index.html
+@@ -449,7 +449,7 @@
+                 </div>
+                 <div class="min-w-0">
+                   <p class="text-xs font-bold text-app-text">App Update</p>
+-                  <p id="app-version-text" class="text-[11px] text-app-secondary tabular-nums">JET v3.2.0 · Android</p>
++                  <p id="app-version-text" class="text-[11px] text-app-secondary tabular-nums">JET v3.4.0 · Android</p>
+                 </div>
+               </div>
+               <button id="check-app-update-btn" type="button"
+@@ -466,7 +466,7 @@
+           <span id="clear-cache-label">Clear Temporary Cache (142 MB)</span>
+         </button>
+ 
+-        <p class="text-center text-[11px] text-app-muted pb-2">JET v3.2.0 · Download at Full Speed.</p>
++        <p class="text-center text-[11px] text-app-muted pb-2">JET v3.4.0 · Download at Full Speed.</p>
+       </section>
+     </main>
+ 
+@@ -1361,24 +1361,82 @@
+         }, 1000);
+       });
+ 
+-      $('check-app-update-btn').addEventListener('click', () => {
+-        if (state.appUpdated) {
+-          showToast('You are running the latest JET v3.3.0');
+-          return;
+-        }
++      let availableApkUrl = null;
++
++      function escapeUpdateText(value) {
++        return String(value || '').replace(/[&<>"']/g, (char) => ({
++          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
++        })[char]);
++      }
++
++      window.onNativeAppUpdateAvailable = function (versionName, changelog, apkUrl) {
++        availableApkUrl = apkUrl;
++        const lines = String(changelog || 'Bug fixes and improvements')
++          .split(/\r?\n|•/)
++          .map(line => line.trim())
++          .filter(Boolean);
++        const changesHtml = lines.map(line =>
++          `<li class="text-[11px] text-app-secondary">${escapeUpdateText(line)}</li>`
++        ).join('');
++        openUtilityModal('App Update Available', `
++          <div class="p-3 rounded-2xl bg-app-elevated space-y-2">
++            <p class="text-sm font-extrabold text-app-text">JET v${escapeUpdateText(versionName)}</p>
++            <ul class="list-disc pl-4 space-y-1">${changesHtml}</ul>
++            <p id="app-update-progress-label" class="text-[11px] text-app-secondary">Ready to download</p>
++            <div class="h-2 rounded-full bg-app-border overflow-hidden">
++              <div id="app-update-progress-bar" class="h-full bg-app-primary" style="width:0%"></div>
++            </div>
++          </div>
++          <button id="install-app-update-btn" type="button" class="w-full h-11 rounded-2xl bg-app-primary text-white text-xs font-bold">Download & Install</button>
++        `);
++        $('install-app-update-btn').addEventListener('click', () => {
++          if (!availableApkUrl || !window.JetAndroid) {
++            showToast('Native Android updater is unavailable');
++            return;
++          }
++          $('install-app-update-btn').disabled = true;
++          $('install-app-update-btn').textContent = 'Downloading…';
++          window.JetAndroid.downloadAndInstallAppUpdate(availableApkUrl);
++        });
++      };
++
++      window.onNativeAppUpdateNotAvailable = function (installedVersion) {
++        $('app-version-text').textContent = `JET v${installedVersion} · Up to date`;
++        showToast(`You are running the latest JET v${installedVersion}`);
++      };
++
++      window.onNativeAppUpdateError = function (message) {
++        showToast(`Update error: ${message}`);
++        const button = $('install-app-update-btn');
++        if (button) {
++          button.disabled = false;
++          button.textContent = 'Try Again';
++        }
++        const label = $('app-update-progress-label');
++        if (label) label.textContent = message;
++      };
++
++      window.onNativeAppUpdateProgress = function (percent, label) {
++        const bar = $('app-update-progress-bar');
++        const status = $('app-update-progress-label');
++        if (bar) bar.style.width = `${Math.max(0, Math.min(100, Number(percent) || 0)}%`;
++        if (status) status.textContent = label || `Downloading ${percent}%`;
++        const button = $('install-app-update-btn');
++        if (button) button.textContent = `Downloading ${percent}%`;
++      };
++
++      $('check-app-update-btn').addEventListener('click', () => {
++        if (window.JetAndroid && window.JetAndroid.checkForAppUpdate) {
++          $('check-app-update-btn').disabled = true;
++          $('check-app-update-btn').textContent = 'Checking…';
++          window.JetAndroid.checkForAppUpdate(true);
++          setTimeout(() => {
++            $('check-app-update-btn').disabled = false;
++            $('check-app-update-btn').textContent = 'Check for Updates';
++          }, 2500);
++        } else {
++          showToast('App updates are available only in the Android app');
++        }
+       });
+ 
+       $('clear-cache-btn').addEventListener('click', () => {
