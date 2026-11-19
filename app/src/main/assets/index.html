@@ -841,7 +841,7 @@
       window.onNativeClipboardUrl = function (url) {
         if (!url || !url.startsWith('http')) return;
         state.clipboardUrl = url;
-        $('clipboard-url-label').textContent = url.replace(/^https?:\\/\\//, '');
+        $('clipboard-url-label').textContent = url.replace(/^https?:\/\//, '');
         $('clipboard-chip').classList.remove('hidden');
 
         // Open the download format sheet once for each newly copied URL.
