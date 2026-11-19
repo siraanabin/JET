@@ -60,7 +60,9 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import org.koin.android.ext.android.inject
+import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.stream.StreamInfo
+import com.jet.downloader.network.JetOkHttpDownloader
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -69,6 +71,8 @@ import java.util.concurrent.ConcurrentHashMap
 class MainActivity : AppCompatActivity() {
 
     private val okHttpClient: OkHttpClient by inject()
+    private val newPipeDownloader: JetOkHttpDownloader by inject()
+    private val newPipeInitLock = Any()
     private val downloadDao: DownloadDao by inject()
     private val preferencesManager: PreferencesManager by inject()
     private val json: Json by inject()
@@ -98,7 +102,7 @@ class MainActivity : AppCompatActivity() {
         val existing = streamInfoInFlight.putIfAbsent(url, pending)
         if (existing != null) return existing.await()
         try {
-            val info = StreamInfo.getInfo(url)
+            val info = extractStreamInfoWithReloadRetry(url)
             synchronized(streamInfoCache) { streamInfoCache.put(url, info) }
             pending.complete(info)
             return info
@@ -107,6 +111,33 @@ class MainActivity : AppCompatActivity() {
             throw error
         } finally {
             streamInfoInFlight.remove(url, pending)
+        }
+    }
+
+    private fun isPageReloadRequired(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            if (current.message.orEmpty().contains("page needs to be reloaded", ignoreCase = true)) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
+    }
+
+    private suspend fun extractStreamInfoWithReloadRetry(url: String): StreamInfo {
+        return try {
+            StreamInfo.getInfo(url)
+        } catch (firstError: Exception) {
+            if (!isPageReloadRequired(firstError)) throw firstError
+
+            // The extractor's site configuration/session can become stale. Reinitialize
+            // its downloader once and retry the same URL before using the yt-dlp fallback.
+            synchronized(newPipeInitLock) {
+                NewPipe.init(newPipeDownloader)
+            }
+            synchronized(streamInfoCache) { streamInfoCache.remove(url) }
+            StreamInfo.getInfo(url)
         }
     }
 
@@ -650,8 +681,8 @@ class MainActivity : AppCompatActivity() {
                     val bestAudio = info.audioStreams
                         .filter { it.isUrl }
                         .maxByOrNull { it.averageBitrate }
-                    // NewPipe Extractor 0.24.2 does not expose Stream.contentLength.
-                    // Prefer YouTube's URL clen parameter, then use bitrate × duration / 8.
+                    // Prefer stream content length when exposed by the extractor; otherwise use URL clen,
+                    // then bitrate × duration / 8 for a stable per-format estimate.
                     val bestAudioBytes = bestAudio?.let { audio ->
                         estimateStreamBytes(audio.content, audio.averageBitrate.toLong(), durationSec)
                     } ?: 0L
