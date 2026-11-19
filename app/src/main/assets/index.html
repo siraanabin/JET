@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>JET — Download at Full Speed.</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    if (window.tailwind) {
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            },
+            colors: {
+              app: {
+                bg: 'var(--bg-canvas)',
+                surface: 'var(--bg-surface)',
+                elevated: 'var(--bg-elevated)',
+                border: 'var(--border-subtle)',
+                primary: 'var(--accent-primary)',
+                primaryHover: 'var(--accent-hover)',
+                primaryTint: 'var(--accent-tint)',
+                text: 'var(--text-primary)',
+                secondary: 'var(--text-secondary)',
+                muted: 'var(--text-muted)',
+                success: 'var(--status-success)',
+                warning: 'var(--status-warning)',
+                danger: 'var(--status-danger)',
+                nav: 'var(--bg-nav)',
+              },
+            },
+          },
+        },
+      };
+    }
+  </script>
+  <style>
+    :root {
+      --bg-canvas: #F4F6FB;
+      --bg-surface: #FFFFFF;
+      --bg-elevated: #EEF2F9;
+      --border-subtle: #E2E8F0;
+      --accent-primary: #3B66F5;
+      --accent-hover: #2952E3;
+      --accent-tint: #EEF3FF;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #64748B;
+      --status-success: #16A34A;
+      --status-warning: #D97706;
+      --status-danger: #DC2626;
+      --bg-nav: rgba(255, 255, 255, 0.98);
+      --card-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.06);
+      --glow-color: rgba(59, 102, 245, 0.12);
+    }
+
+    html.dark {
+      --bg-canvas: #090C14;
+      --bg-surface: #111624;
+      --bg-elevated: #171E31;
+      --border-subtle: #1E2740;
+      --accent-primary: #4F7CFF;
+      --accent-hover: #3B66F5;
+      --accent-tint: rgba(79, 124, 255, 0.14);
+      --text-primary: #F8FAFC;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      --status-success: #22C55E;
+      --status-warning: #F59E0B;
+      --status-danger: #EF4444;
+      --bg-nav: rgba(13, 18, 31, 0.98);
+      --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.45);
+      --glow-color: rgba(79, 124, 255, 0.22);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100dvh;
+      overflow: hidden;
+    }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+
+    .surface-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--card-shadow);
+    }
+
+    .ambient-glow {
+      background: radial-gradient(85% 45% at 50% 0%, var(--glow-color) 0%, transparent 100%);
+    }
+
+    .screen-fade { animation: fadeSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .sheet-up { animation: sheetSlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes sheetSlideUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .toggle-track { transition: background-color 200ms ease, border-color 200ms ease; }
+    .toggle-thumb { transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  </style>
+</head>
+<body>
+
+  <div class="relative w-full h-[100dvh] bg-app-bg overflow-hidden flex flex-col select-none">
+    <div class="ambient-glow absolute inset-x-0 top-0 h-64 pointer-events-none z-0"></div>
+
+    <!-- Main Scrollable Viewport -->
+    <main id="scroll-container" class="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pt-4 pb-28">
+
+      <!-- ==================== 1. HOME SCREEN ==================== -->
+      <section id="screen-home" class="screen-fade space-y-5">
+        <header class="flex items-center justify-between pt-1">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5B86FF] to-[#3B66F5] flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M5 13V17C5 18.1046 5.89543 19 7 19H17C18.1046 19 19 18.1046 19 17V13" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+                <path d="M12 4V14M12 14L8 10M12 14L16 10" stroke="#A3E635" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h1 class="text-lg font-extrabold tracking-tight text-app-text leading-none">JET</h1>
+                <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-app-success text-[9px] font-extrabold">NewPipe + Media3</span>
+              </div>
+              <span class="text-[11px] font-medium text-app-secondary">Download at Full Speed.</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="topbar-theme-btn" type="button" aria-label="Toggle Dark Mode"
+              class="w-10 h-10 rounded-full surface-card flex items-center justify-center text-app-secondary active:scale-95 transition">
+              <i id="topbar-theme-icon" data-lucide="moon" class="w-5 h-5 pointer-events-none"></i>
+            </button>
+            <button type="button" data-nav-target="settings" aria-label="Settings"
+              class="w-10 h-10 rounded-full surface-card flex items-center justify-center text-app-secondary active:scale-95 transition">
+              <i data-lucide="settings" class="w-5 h-5 pointer-events-none"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- Clipboard Detection Chip -->
+        <div id="clipboard-chip" class="hidden surface-card flex items-center justify-between gap-2 !border-app-primary/40 rounded-2xl px-3 py-2.5">
+          <button id="clipboard-apply-btn" type="button" class="flex items-center gap-2.5 text-left flex-1 min-w-0">
+            <span class="w-8 h-8 rounded-xl bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0">
+              <i data-lucide="link-2" class="w-4 h-4"></i>
+            </span>
+            <div class="truncate">
+              <p class="text-xs font-semibold text-app-text truncate">
+                Link found: <span id="clipboard-url-label" class="text-app-primary font-semibold"></span>
+              </p>
+              <p class="text-[11px] text-app-secondary">Tap to paste or download now</p>
+            </div>
+          </button>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="clipboard-download-btn" type="button"
+              class="h-8 px-2.5 rounded-xl bg-app-primary text-white text-[11px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition">
+              <i data-lucide="download" class="w-3 h-3 stroke-[2.5]"></i>
+              <span>Download</span>
+            </button>
+            <button id="clipboard-dismiss-btn" type="button" aria-label="Dismiss"
+              class="w-8 h-8 rounded-xl flex items-center justify-center text-app-muted hover:bg-app-elevated transition">
+              <i data-lucide="x" class="w-4 h-4 pointer-events-none"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hero Headline -->
+        <div class="pt-0.5">
+          <h2 class="text-[28px] font-extrabold tracking-tight leading-[1.15] text-app-text">
+            Download at<br />
+            <span class="text-app-primary">Full Speed.</span>
+          </h2>
+        </div>
+
+        <!-- Unified Download Hero Card -->
+        <div class="surface-card rounded-3xl p-4 space-y-3.5">
+          <div class="flex items-center gap-2 bg-app-elevated border border-app-border focus-within:border-app-primary rounded-2xl pl-3.5 pr-1.5 py-1.5 transition">
+            <i data-lucide="link" class="w-4 h-4 text-app-muted shrink-0"></i>
+            <input id="url-input" type="url" placeholder="Paste YouTube, SoundCloud, PeerTube or video link..."
+              class="bg-transparent text-sm text-app-text placeholder-app-muted focus:outline-none flex-1 min-w-0" />
+            <button id="paste-btn" type="button"
+              class="h-9 px-3 rounded-xl bg-app-primaryTint text-app-primary text-xs font-bold flex items-center gap-1.5 shrink-0 active:scale-95 transition">
+              <i id="paste-btn-icon" data-lucide="clipboard" class="w-3.5 h-3.5"></i>
+              <span id="paste-btn-label">Paste</span>
+            </button>
+          </div>
+
+          <button id="start-download-btn" type="button"
+            class="w-full h-12 rounded-2xl bg-app-primary hover:bg-app-primaryHover active:scale-[0.99] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition">
+            <i data-lucide="download" class="w-4 h-4 stroke-[2.5]"></i>
+            <span>Analyze &amp; Download</span>
+          </button>
+        </div>
+
+        <!-- Quick Tools -->
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-app-text">Quick tools</h3>
+            <span class="text-[11px] font-medium text-app-muted">Native Kotlin Engine</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2.5">
+            <button type="button" data-quick-tool="mp3"
+              class="quick-tool-btn surface-card rounded-2xl p-3 flex flex-col items-start gap-2.5 text-left active:scale-[0.97] transition">
+              <div class="w-9 h-9 rounded-xl bg-app-primaryTint text-app-primary flex items-center justify-center">
+                <i data-lucide="music" class="w-4 h-4"></i>
+              </div>
+              <span class="text-xs font-bold text-app-text leading-snug">Direct MP3</span>
+            </button>
+
+            <button type="button" data-quick-tool="1080p"
+              class="quick-tool-btn surface-card rounded-2xl p-3 flex flex-col items-start gap-2.5 text-left active:scale-[0.97] transition">
+              <div class="w-9 h-9 rounded-xl bg-emerald-500/15 text-app-success flex items-center justify-center">
+                <i data-lucide="film" class="w-4 h-4"></i>
+              </div>
+              <span class="text-xs font-bold text-app-text leading-snug">1080p Fast</span>
+            </button>
+
+            <button type="button" data-quick-tool="folder"
+              class="quick-tool-btn surface-card rounded-2xl p-3 flex flex-col items-start gap-2.5 text-left active:scale-[0.97] transition">
+              <div class="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-500 dark:text-indigo-400 flex items-center justify-center">
+                <i data-lucide="folder-open" class="w-4 h-4"></i>
+              </div>
+              <span class="text-xs font-bold text-app-text leading-snug">Saved Files</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Latest Download Preview Card -->
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-app-text">Latest saved file</h3>
+            <button type="button" data-nav-target="library" class="text-xs font-bold text-app-primary">View all</button>
+          </div>
+
+          <div id="latest-download-card" class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
+            <div class="relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden">
+              <div class="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white">
+                <i data-lucide="play" class="w-3.5 h-3.5 fill-white ml-0.5"></i>
+              </div>
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <p id="latest-title" class="text-xs font-bold text-app-text truncate">No downloads yet</p>
+              <p id="latest-meta" class="text-[11px] text-app-secondary mt-0.5 tabular-nums">Paste any link above to start</p>
+              <div class="flex items-center gap-1.5 mt-1">
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold text-app-primary">
+                  <i data-lucide="folder" class="w-3 h-3"></i> Downloads/JET · Media3 Player
+                </span>
+              </div>
+            </div>
+
+            <div class="w-9 h-9 rounded-full bg-app-elevated border border-app-border flex items-center justify-center text-app-text shrink-0">
+              <i data-lucide="play" class="w-4 h-4"></i>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 2. DOWNLOADS SCREEN ==================== -->
+      <section id="screen-downloads" class="hidden screen-fade space-y-4">
+        <header class="pt-1">
+          <h1 class="text-2xl font-extrabold tracking-tight text-app-text">Downloads</h1>
+          <p id="downloads-subtitle" class="text-xs font-medium text-app-secondary mt-0.5 tabular-nums">0 active · 0 completed</p>
+        </header>
+
+        <div class="surface-card grid grid-cols-2 p-1 rounded-2xl">
+          <button id="dl-tab-active" type="button" class="py-2.5 rounded-xl text-xs font-bold bg-app-primary text-white shadow transition">
+            Active (<span id="dl-active-tab-count" class="tabular-nums">0</span>)
+          </button>
+          <button id="dl-tab-done" type="button" class="py-2.5 rounded-xl text-xs font-bold text-app-secondary transition">
+            Done (<span id="dl-done-tab-count" class="tabular-nums">0</span>)
+          </button>
+        </div>
+
+        <div id="downloads-active-list" class="space-y-3"></div>
+        <div id="downloads-done-list" class="hidden space-y-3"></div>
+      </section>
+
+      <!-- ==================== 3. LIBRARY SCREEN ==================== -->
+      <section id="screen-library" class="hidden screen-fade space-y-4">
+        <header class="pt-1 flex items-center justify-between gap-2">
+          <div>
+            <h1 class="text-2xl font-extrabold tracking-tight text-app-text">Library</h1>
+            <p class="text-xs font-medium text-app-secondary mt-0.5">Internal Storage / Download / JET</p>
+          </div>
+          <button id="refresh-library-btn" type="button" class="px-3 py-1.5 rounded-full surface-card text-[11px] font-bold text-app-primary flex items-center gap-1 active:scale-95 transition">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            <span id="library-item-count" class="tabular-nums">0 files</span>
+          </button>
+        </header>
+
+        <div class="surface-card flex items-center gap-2.5 focus-within:!border-app-primary rounded-2xl px-3.5 h-11 transition">
+          <i data-lucide="search" class="w-4 h-4 text-app-muted shrink-0"></i>
+          <input id="library-search" type="text" placeholder="Search downloaded files..."
+            class="bg-transparent text-xs text-app-text placeholder-app-muted focus:outline-none w-full" />
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <button type="button" data-lib-filter="all" class="lib-filter-btn px-3.5 py-2 rounded-full text-xs font-bold bg-app-primary text-white shadow-sm shrink-0 transition">All</button>
+            <button type="button" data-lib-filter="video" class="lib-filter-btn surface-card px-3.5 py-2 rounded-full text-xs font-bold text-app-secondary shrink-0 transition">Video</button>
+            <button type="button" data-lib-filter="audio" class="lib-filter-btn surface-card px-3.5 py-2 rounded-full text-xs font-bold text-app-secondary shrink-0 transition">Audio</button>
+            <button type="button" data-lib-filter="document" class="lib-filter-btn surface-card px-3.5 py-2 rounded-full text-xs font-bold text-app-secondary shrink-0 transition">Other</button>
+          </div>
+
+          <div class="surface-card flex items-center p-1 rounded-2xl shrink-0">
+            <button id="lib-view-grid" type="button" aria-label="Grid view"
+              class="w-9 h-9 rounded-xl flex items-center justify-center bg-app-primary text-white shadow-sm transition">
+              <i data-lucide="layout-grid" class="w-4 h-4"></i>
+            </button>
+            <button id="lib-view-list" type="button" aria-label="List view"
+              class="w-9 h-9 rounded-xl flex items-center justify-center text-app-secondary transition">
+              <i data-lucide="list" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="library-items-container" class="grid grid-cols-2 gap-3"></div>
+      </section>
+
+      <!-- ==================== 4. SETTINGS SCREEN ==================== -->
+      <section id="screen-settings" class="hidden screen-fade space-y-4">
+        <header class="pt-1">
+          <h1 class="text-2xl font-extrabold tracking-tight text-app-text">Settings</h1>
+          <p class="text-xs font-medium text-app-secondary mt-0.5">DataStore preferences &amp; open-source stack</p>
+        </header>
+
+        <!-- Preferences (Persisted via AndroidX DataStore) -->
+        <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+          <div class="p-4 flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-bold text-app-text">Dark Mode</p>
+              <p class="text-[11px] text-app-secondary">Saved with AndroidX DataStore</p>
+            </div>
+            <button id="settings-dark-toggle" type="button" role="switch" aria-checked="false"
+              class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center">
+              <span id="settings-dark-thumb" class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span>
+            </button>
+          </div>
+
+          <div class="p-4 flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-bold text-app-text">Auto-Detect Clipboard Links</p>
+              <p class="text-[11px] text-app-secondary">Show 1-tap banner when a URL is copied</p>
+            </div>
+            <button id="clipboard-pref-toggle" type="button" aria-checked="true"
+              class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center">
+              <span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Updates & Engine Section -->
+        <div class="space-y-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">Engine &amp; Architecture</p>
+          <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+            <div class="p-4 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0">
+                  <i data-lucide="cpu" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <p class="text-xs font-bold text-app-text">NewPipe Extractor + Media3</p>
+                    <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-app-success text-[10px] font-bold">Active</span>
+                  </div>
+                  <p id="engine-version-text" class="text-[11px] text-app-secondary truncate tabular-nums">OkHttp · Koin · Room · Coroutines</p>
+                </div>
+              </div>
+              <button id="update-engine-btn" type="button"
+                class="h-9 px-3 rounded-xl bg-app-primaryTint text-app-primary text-xs font-bold shrink-0 active:scale-95 transition">
+                Update Fallback
+              </button>
+            </div>
+
+            <!-- App Update (APK) -->
+            <div class="p-4 flex items-center justify-between gap-3 border-b border-app-border">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-sky-500/15 text-sky-500 dark:text-sky-400 flex items-center justify-center shrink-0">
+                  <i data-lucide="download-cloud" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <p class="text-xs font-bold text-app-text">App Update (APK)</p>
+                    <span id="app-update-badge" class="hidden px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-500 text-[10px] font-bold">New</span>
+                  </div>
+                  <p id="app-update-subtitle" class="text-[11px] text-app-secondary truncate tabular-nums">Current: v3.4.0 · Tap to check</p>
+                </div>
+              </div>
+              <button id="check-app-update-btn" type="button"
+                class="h-9 px-3 rounded-xl bg-app-primaryTint text-app-primary text-xs font-bold shrink-0 active:scale-95 transition">
+                Check APK
+              </button>
+            </div>
+
+            <!-- Open-Source Software Entry -->
+            <button id="open-oss-modal-btn" type="button"
+              class="w-full p-4 flex items-center justify-between gap-3 text-left active:bg-app-elevated/60 transition">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-500 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                  <i data-lucide="scale" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-bold text-app-text">Open-source software</p>
+                  <p class="text-[11px] text-app-secondary truncate">NewPipe Extractor (GPLv3), Media3, Room, Koin &amp; more</p>
+                </div>
+              </div>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-app-muted shrink-0"></i>
+            </button>
+          </div>
+        </div>
+
+        <p class="text-center text-[11px] text-app-muted pb-2">JET v3.4.0 · Download at Full Speed.</p>
+      </section>
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-2 grid grid-cols-4 shrink-0">
+      <button type="button" data-nav-target="home"
+        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-primary font-bold transition">
+        <i data-lucide="home" class="w-5 h-5 pointer-events-none"></i>
+        <span class="text-[11px] pointer-events-none">Home</span>
+      </button>
+
+      <button type="button" data-nav-target="downloads"
+        class="nav-btn relative flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
+        <div class="relative pointer-events-none">
+          <i data-lucide="download" class="w-5 h-5"></i>
+          <span id="nav-dl-badge" class="hidden absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-app-primary text-white text-[9px] font-extrabold flex items-center justify-center tabular-nums">0</span>
+        </div>
+        <span class="text-[11px] pointer-events-none">Downloads</span>
+      </button>
+
+      <button type="button" data-nav-target="library"
+        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
+        <i data-lucide="folder" class="w-5 h-5 pointer-events-none"></i>
+        <span class="text-[11px] pointer-events-none">Library</span>
+      </button>
+
+      <button type="button" data-nav-target="settings"
+        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
+        <i data-lucide="settings" class="w-5 h-5 pointer-events-none"></i>
+        <span class="text-[11px] pointer-events-none">Settings</span>
+      </button>
+    </nav>
+
+    <!-- ==================== OVERLAYS & MODALS ==================== -->
+
+    <!-- 1. Format Selection Sheet -->
+    <div id="format-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end">
+      <div id="format-sheet-compact" class="sheet-up bg-app-surface border-t border-app-border rounded-t-3xl p-5 space-y-4 max-h-[88dvh] overflow-y-auto">
+        <div class="w-10 h-1 rounded-full bg-app-border mx-auto -mt-1"></div>
+
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <h3 class="text-base font-extrabold text-app-text">Download video as</h3>
+            <p id="format-stream-title" class="text-[11px] text-app-secondary truncate mt-0.5">Fetching video details...</p>
+          </div>
+          <button id="cc-toggle-btn" type="button"
+            class="px-2.5 py-1.5 rounded-xl border border-app-border bg-app-elevated text-app-secondary text-xs font-extrabold flex items-center gap-1 transition">
+            <span>CC</span>
+          </button>
+        </div>
+
+        <div id="fetching-info-bar" class="hidden p-2.5 rounded-2xl bg-app-primaryTint text-app-primary text-xs font-bold flex items-center gap-2">
+          <i data-lucide="loader-2" class="w-4 h-4 animate-spin shrink-0"></i>
+          <span>Extracting stream info via NewPipe Extractor...</span>
+        </div>
+
+        <div class="space-y-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted">Music</p>
+          <div class="space-y-1.5" id="compact-music-list"></div>
+        </div>
+
+        <div class="space-y-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted">Video</p>
+          <div class="space-y-1.5" id="compact-video-list"></div>
+        </div>
+
+        <button id="open-more-formats-btn" type="button"
+          class="w-full py-3 px-3.5 rounded-2xl bg-app-elevated flex items-center justify-between text-xs font-bold text-app-text active:scale-[0.99] transition">
+          <span>More formats</span>
+          <span class="text-app-secondary flex items-center gap-1">All <i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+        </button>
+
+        <div class="flex gap-2 pt-1">
+          <button id="close-format-modal-btn" type="button"
+            class="h-12 px-4 rounded-2xl bg-app-elevated text-app-secondary text-xs font-bold">Cancel</button>
+          <button id="confirm-format-download-btn" type="button"
+            class="flex-1 h-12 rounded-2xl bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.99] transition">
+            <i data-lucide="download" class="w-4 h-4 stroke-[2.5]"></i>
+            <span>Download</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="format-sheet-full" class="hidden sheet-up bg-app-bg w-full h-full flex flex-col">
+        <header class="px-4 py-3.5 bg-app-surface border-b border-app-border flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button id="back-to-compact-formats-btn" type="button"
+              class="w-9 h-9 rounded-xl bg-app-elevated flex items-center justify-center text-app-text">
+              <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            </button>
+            <h3 class="text-base font-extrabold text-app-text">More formats</h3>
+          </div>
+          <span class="text-[11px] font-bold text-app-primary">JET Engine</span>
+        </header>
+
+        <div class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-5">
+          <div class="space-y-2">
+            <p class="text-xs font-extrabold text-app-secondary">Music</p>
+            <div class="space-y-2" id="full-music-list"></div>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-xs font-extrabold text-app-secondary">Video</p>
+            <div class="space-y-2" id="full-video-list"></div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-app-surface border-t border-app-border">
+          <button id="confirm-full-format-download-btn" type="button"
+            class="w-full h-12 rounded-2xl bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.99] transition">
+            <i data-lucide="download" class="w-4 h-4 stroke-[2.5]"></i>
+            <span>Download</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Open-Source Software & Licenses Modal -->
+    <div id="oss-modal" class="hidden fixed inset-0 z-50 bg-app-bg flex flex-col">
+      <header class="px-4 py-3.5 bg-app-surface border-b border-app-border flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+          <button id="close-oss-modal-btn" type="button"
+            class="w-9 h-9 rounded-xl bg-app-elevated flex items-center justify-center text-app-text">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          </button>
+          <div>
+            <h3 class="text-base font-extrabold text-app-text">Open-source software</h3>
+            <p class="text-[11px] text-app-secondary">Third-party libraries &amp; licenses</p>
+          </div>
+        </div>
+        <span class="px-2 py-1 rounded-lg bg-app-primaryTint text-app-primary text-[10px] font-extrabold">9 Libraries</span>
+      </header>
+
+      <div id="oss-list-container" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-2.5"></div>
+    </div>
+
+    <!-- Toast Banner -->
+    <div id="toast-banner" class="hidden fixed top-4 left-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold">
+      <i data-lucide="zap" class="w-4 h-4 text-[#A3E635] shrink-0"></i>
+      <span id="toast-text" class="truncate">Ready</span>
+    </div>
+
+  </div>
+
+  <script>
+    (function () {
+      const defaultOssList = [
+        { name: 'NewPipe Extractor', license: 'GPLv3', category: 'Media Stream Extraction', description: 'Extracts stream metadata, audio, and video URLs from streaming services.', url: 'https://github.com/TeamNewPipe/NewPipeExtractor' },
+        { name: 'AndroidX Media3', license: 'Apache 2.0', category: 'ExoPlayer & Media Playback', description: 'Hardware-accelerated video and audio playback engine for Android.', url: 'https://developer.android.com/jetpack/androidx/releases/media3' },
+        { name: 'AndroidX Room', license: 'Apache 2.0', category: 'Local SQLite Persistence', description: 'Structured database storage for download history and metadata.', url: 'https://developer.android.com/jetpack/androidx/releases/room' },
+        { name: 'AndroidX Navigation', license: 'Apache 2.0', category: 'App Navigation Architecture', description: 'Consistent navigation and back-stack handling across screens.', url: 'https://developer.android.com/jetpack/androidx/releases/navigation' },
+        { name: 'AndroidX DataStore', license: 'Apache 2.0', category: 'Preferences Storage', description: 'Asynchronous key-value storage for theme and app settings.', url: 'https://developer.android.com/jetpack/androidx/releases/datastore' },
+        { name: 'Koin', license: 'Apache 2.0', category: 'Dependency Injection', description: 'Lightweight pragmatic dependency injection framework for Kotlin.', url: 'https://insert-koin.io' },
+        { name: 'Coil', license: 'Apache 2.0', category: 'Image Loading', description: 'Coroutine-backed image and thumbnail loading library for Android.', url: 'https://coil-kt.github.io/coil/' },
+        { name: 'OkHttp', license: 'Apache 2.0', category: 'HTTP & Stream Networking', description: 'Efficient HTTP/2 client powering NewPipe Extractor and stream downloads.', url: 'https://square.github.io/okhttp/' },
+        { name: 'Kotlin Coroutines & Serialization', license: 'Apache 2.0', category: 'Concurrency & JSON Parsing', description: 'Structured asynchronous concurrency and multiplatform JSON serialization.', url: 'https://github.com/Kotlin/kotlinx.coroutines' }
+      ];
+
+      const state = {
+        screen: 'home',
+        darkMode: false,
+        clipboardAutoDetect: true,
+        dlTab: 'active',
+        libFilter: 'all',
+        libView: 'grid',
+        libSearch: '',
+        ccEnabled: false,
+        selectedFormatId: 'vid-1080',
+        clipboardUrl: '',
+        pendingUrl: '',
+        fetchedTitle: '',
+        formats: [
+          { id: 'aud-fast', group: 'music', name: 'Fast', desc: 'M4A (128K), best for mobile play', size: 'Auto', ext: 'm4a', bitrate: '128K', maxHeight: 0, compact: true },
+          { id: 'aud-70', group: 'music', name: 'Classic MP3 (70K)', badge: 'Low', desc: 'Supports Bluetooth speakers, phones, car stereos', size: 'Auto', ext: 'mp3', bitrate: '70K', maxHeight: 0, compact: false },
+          { id: 'aud-128', group: 'music', name: 'Classic MP3 (128K)', desc: 'Supports Bluetooth speakers, phones, car stereos', size: 'Auto', ext: 'mp3', bitrate: '128K', maxHeight: 0, compact: false },
+          { id: 'aud-160', group: 'music', name: 'Classic MP3', desc: 'MP3 (160K), support Bluetooth speaker, phone, watch', size: 'Auto', ext: 'mp3', bitrate: '160K', maxHeight: 0, compact: true },
+          { id: 'aud-320', group: 'music', name: 'Classic MP3 (320K)', badge: 'HQ', desc: 'High bitrate studio audio for headphones', size: 'Auto', ext: 'mp3', bitrate: '320K', maxHeight: 0, compact: false },
+          { id: 'vid-144', group: 'video', name: 'Fast (144p)', badge: 'Low', desc: 'Smallest file size', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 144, compact: false },
+          { id: 'vid-240', group: 'video', name: 'Fast (240p)', desc: 'Low quality for quick play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 240, compact: false },
+          { id: 'vid-360', group: 'video', name: 'Fast (360p)', desc: 'Normal quality for quick play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 360, compact: true },
+          { id: 'vid-480', group: 'video', name: 'Fast (480p)', desc: 'Normal quality for quick play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 480, compact: false },
+          { id: 'vid-720', group: 'video', name: 'High quality (720p)', desc: 'HD clear view', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 720, compact: false },
+          { id: 'vid-1080', group: 'video', name: 'High quality (1080p)', desc: 'Full HD details for full screen play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 1080, compact: true },
+          { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false },
+          { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false }
+        ],
+        activeDownloads: [],
+        doneDownloads: [],
+        library: []
+      };
+
+      const $ = (id) => document.getElementById(id);
+      const hasAndroid = () => typeof window.JetAndroid !== 'undefined';
+
+      function refreshIcons() {
+        if (window.lucide && window.lucide.createIcons) {
+          window.lucide.createIcons();
+        }
+      }
+
+      let toastTimer = null;
+      function showToast(msg) {
+        if (hasAndroid() && window.JetAndroid.showToast) {
+          window.JetAndroid.showToast(msg);
+          return;
+        }
+        const el = $('toast-banner');
+        $('toast-text').textContent = msg;
+        el.classList.remove('hidden');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.add('hidden'), 2600);
+      }
+
+      // Navigation
+      function switchScreen(target) {
+        state.screen = target;
+        ['home', 'downloads', 'library', 'settings'].forEach((s) => {
+          const sec = $('screen-' + s);
+          if (sec) sec.classList.toggle('hidden', s !== target);
+        });
+        document.querySelectorAll('.nav-btn').forEach((btn) => {
+          const active = btn.dataset.navTarget === target;
+          btn.classList.toggle('text-app-primary', active);
+          btn.classList.toggle('font-bold', active);
+          btn.classList.toggle('text-app-secondary', !active);
+          btn.classList.toggle('font-semibold', !active);
+        });
+        if (target === 'library' && hasAndroid() && window.JetAndroid.refreshLibrary) {
+          window.JetAndroid.refreshLibrary();
+        }
+        $('scroll-container').scrollTop = 0;
+        refreshIcons();
+      }
+
+      document.addEventListener('click', (e) => {
+        const navBtn = e.target.closest('[data-nav-target]');
+        if (navBtn) switchScreen(navBtn.dataset.navTarget);
+      });
+
+      // Theme Sync (DataStore persisted)
+      function applyTheme(isDark, persist = true) {
+        state.darkMode = isDark;
+        document.documentElement.classList.toggle('dark', isDark);
+        const topIcon = $('topbar-theme-icon');
+        if (topIcon) topIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+        const darkToggle = $('settings-dark-toggle');
+        const darkThumb = $('settings-dark-thumb');
+        if (darkToggle && darkThumb) {
+          darkToggle.setAttribute('aria-checked', String(isDark));
+          darkToggle.classList.toggle('bg-app-primary', isDark);
+          darkToggle.classList.toggle('border-app-primary', isDark);
+          darkToggle.classList.toggle('bg-app-elevated', !isDark);
+          darkThumb.classList.toggle('translate-x-5', isDark);
+        }
+        if (persist && hasAndroid() && window.JetAndroid.setStatusBarTheme) {
+          window.JetAndroid.setStatusBarTheme(isDark);
+        }
+        refreshIcons();
+      }
+
+      function applyClipboardToggle(enabled, persist = true) {
+        state.clipboardAutoDetect = enabled;
+        const btn = $('clipboard-pref-toggle');
+        if (btn) {
+          btn.setAttribute('aria-checked', String(enabled));
+          btn.classList.toggle('bg-app-primary', enabled);
+          btn.classList.toggle('border-app-primary', enabled);
+          btn.classList.toggle('bg-app-elevated', !enabled);
+          btn.classList.toggle('border-app-border', !enabled);
+          btn.querySelector('.toggle-thumb').classList.toggle('translate-x-5', enabled);
+        }
+        if (persist && hasAndroid() && window.JetAndroid.setClipboardAutoDetect) {
+          window.JetAndroid.setClipboardAutoDetect(enabled);
+        }
+      }
+
+      $('topbar-theme-btn').addEventListener('click', () => applyTheme(!state.darkMode, true));
+      $('settings-dark-toggle').addEventListener('click', () => applyTheme(!state.darkMode, true));
+      $('clipboard-pref-toggle').addEventListener('click', () => applyClipboardToggle(!state.clipboardAutoDetect, true));
+
+      // Open-source software modal
+      function renderOssList() {
+        let items = defaultOssList;
+        if (hasAndroid() && window.JetAndroid.getOpenSourceLicensesJson) {
+          try {
+            items = JSON.parse(window.JetAndroid.getOpenSourceLicensesJson());
+          } catch (_) {}
+        }
+        $('oss-list-container').innerHTML = items.map((lib) => {
+          const isGpl = lib.license.toUpperCase().includes('GPL');
+          const badgeClass = isGpl
+            ? 'bg-amber-500/15 text-app-warning'
+            : 'bg-emerald-500/15 text-app-success';
+          return `
+            <div class="surface-card rounded-2xl p-3.5 space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs font-extrabold text-app-text">${lib.name}</p>
+                <span class="px-2 py-0.5 rounded-lg ${badgeClass} text-[10px] font-extrabold shrink-0">${lib.license}</span>
+              </div>
+              <p class="text-[11px] font-semibold text-app-primary">${lib.category}</p>
+              <p class="text-[11px] text-app-secondary leading-relaxed">${lib.description}</p>
+              <p class="text-[10px] text-app-muted truncate pt-0.5">${lib.url}</p>
+            </div>
+          `;
+        }).join('');
+      }
+
+      $('open-oss-modal-btn').addEventListener('click', () => {
+        renderOssList();
+        $('oss-modal').classList.remove('hidden');
+        refreshIcons();
+      });
+
+      $('close-oss-modal-btn').addEventListener('click', () => {
+        $('oss-modal').classList.add('hidden');
+      });
+
+      // URL Input & Clipboard
+      const urlInput = $('url-input');
+      const pasteBtnLabel = $('paste-btn-label');
+      const pasteBtnIcon = $('paste-btn-icon');
+
+      function updatePasteButtonState() {
+        const hasText = urlInput.value.trim().length > 0;
+        pasteBtnLabel.textContent = hasText ? 'Clear' : 'Paste';
+        pasteBtnIcon.setAttribute('data-lucide', hasText ? 'x' : 'clipboard');
+        refreshIcons();
+      }
+
+      urlInput.addEventListener('input', updatePasteButtonState);
+
+      $('paste-btn').addEventListener('click', async () => {
+        if (urlInput.value.trim().length > 0) {
+          urlInput.value = '';
+          updatePasteButtonState();
+          return;
+        }
+        let clipText = '';
+        if (hasAndroid() && window.JetAndroid.getClipboardUrl) {
+          clipText = window.JetAndroid.getClipboardUrl();
+        }
+        if (!clipText && navigator.clipboard && navigator.clipboard.readText) {
+          try { clipText = await navigator.clipboard.readText(); } catch (_) {}
+        }
+        if (clipText) {
+          urlInput.value = clipText;
+          updatePasteButtonState();
+        } else {
+          showToast('Copy a video link first, then tap Paste');
+        }
+      });
+
+      $('clipboard-apply-btn').addEventListener('click', () => {
+        urlInput.value = state.clipboardUrl;
+        updatePasteButtonState();
+        $('clipboard-chip').classList.add('hidden');
+      });
+
+      $('clipboard-download-btn').addEventListener('click', () => {
+        urlInput.value = state.clipboardUrl;
+        updatePasteButtonState();
+        $('clipboard-chip').classList.add('hidden');
+        openFormatModal(state.clipboardUrl);
+      });
+
+      $('clipboard-dismiss-btn').addEventListener('click', () => {
+        $('clipboard-chip').classList.add('hidden');
+      });
+
+      // Native Android Bridge Callbacks
+      window.onNativePreferencesLoaded = function (isDark, clipEnabled) {
+        applyTheme(Boolean(isDark), false);
+        applyClipboardToggle(Boolean(clipEnabled), false);
+      };
+
+      window.onNativeEngineReady = function (ready, version) {
+        if (ready) {
+          $('engine-version-text').textContent = version;
+        }
+      };
+
+      window.onNativeClipboardUrl = function (url) {
+        if (!url || !url.startsWith('http')) return;
+        state.clipboardUrl = url;
+        $('clipboard-url-label').textContent = url.replace(/^https?:\/\//, '');
+        $('clipboard-chip').classList.remove('hidden');
+      };
+
+      window.onNativeSharedUrl = function (url) {
+        if (!url) return;
+        switchScreen('home');
+        urlInput.value = url;
+        updatePasteButtonState();
+        openFormatModal(url);
+      };
+
+      window.onNativeMediaInfo = function (info) {
+        $('fetching-info-bar').classList.add('hidden');
+        if (!info || !info.ok) {
+          $('format-stream-title').textContent = state.pendingUrl;
+          showToast(info && info.error ? info.error : 'Using direct stream mode');
+          return;
+        }
+        state.fetchedTitle = info.title || state.pendingUrl;
+        $('format-stream-title').textContent = `${state.fetchedTitle} (${info.duration || ''}) · ${info.extractor || ''}`;
+        if (info.sizes) {
+          state.formats.forEach((f) => {
+            if (info.sizes[f.id]) f.size = info.sizes[f.id];
+          });
+          renderFormatLists();
+        }
+      };
+
+      window.onNativeDownloadProgress = function (id, progress, speedLabel) {
+        const item = state.activeDownloads.find((d) => d.id === id);
+        if (item) {
+          item.progress = progress;
+          item.speed = speedLabel || 'Downloading...';
+          renderDownloads();
+        }
+      };
+
+      window.onNativeDownloadComplete = function (data) {
+        const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
+        const existing = idx >= 0 ? state.activeDownloads[idx] : null;
+        if (idx >= 0) state.activeDownloads.splice(idx, 1);
+
+        const title = data.title || (existing ? existing.title : 'JET Download');
+        const fmtLabel = existing ? existing.format : 'Media';
+        state.doneDownloads.unshift({
+          id: data.id,
+          title: title,
+          format: fmtLabel,
+          size: data.size || 'Saved',
+          filePath: data.filePath || '',
+          fileUri: data.fileUri || '',
+          date: 'Just now'
+        });
+
+        $('latest-title').textContent = title;
+        $('latest-meta').textContent = `${data.size || 'Saved'} · ${fmtLabel}`;
+        $('latest-download-card').dataset.filePath = data.filePath || '';
+        $('latest-download-card').dataset.fileUri = data.fileUri || '';
+
+        renderDownloads();
+        showToast(`Saved: ${title}`);
+      };
+
+      window.onNativeDownloadError = function (data) {
+        const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
+        if (idx >= 0) state.activeDownloads.splice(idx, 1);
+        renderDownloads();
+        showToast(`Error: ${data.error || 'Download failed'}`);
+      };
+
+      window.onNativeLibraryList = function (list) {
+        if (!Array.isArray(list)) return;
+        state.library = list.map((item) => ({
+          ...item,
+          color: item.type === 'audio'
+            ? 'from-emerald-500 to-teal-700'
+            : item.type === 'document'
+              ? 'from-amber-500 to-orange-700'
+              : 'from-blue-500 to-indigo-700'
+        }));
+        if (state.library.length > 0) {
+          const first = state.library[0];
+          $('latest-title').textContent = first.title;
+          $('latest-meta').textContent = first.meta;
+          $('latest-download-card').dataset.filePath = first.filePath || '';
+          $('latest-download-card').dataset.fileUri = first.fileUri || '';
+        }
+        renderLibrary();
+      };
+
+      window.onNativeEngineUpdated = function (res) {
+        if (res && res.ok) {
+          showToast(`Fallback engine updated (${res.status})`);
+        } else {
+          showToast(res && res.error ? res.error : 'Update check complete');
+        }
+      };
+
+      // Format Selection Sheet
+      function renderFormatRow(fmt, detailed) {
+        const selected = state.selectedFormatId === fmt.id;
+        const iconName = fmt.group === 'music' ? 'music' : 'play-square';
+        const badgeHtml = fmt.badge
+          ? `<span class="ml-1.5 px-1.5 py-0.5 rounded bg-app-elevated text-app-secondary text-[10px] font-bold">${fmt.badge}</span>`
+          : '';
+        return `
+          <button type="button" data-select-format="${fmt.id}"
+            class="w-full p-3 rounded-2xl border ${selected ? 'border-app-primary bg-app-primaryTint/60' : 'border-app-border bg-app-surface'} flex items-center justify-between gap-3 text-left transition">
+            <div class="flex items-start gap-3 min-w-0">
+              <div class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0 mt-0.5">
+                <i data-lucide="${iconName}" class="w-4 h-4"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-app-text">${fmt.name}${badgeHtml}</p>
+                ${detailed ? `<p class="text-[11px] text-app-secondary mt-0.5 leading-snug">${fmt.desc}</p>` : ''}
+              </div>
+            </div>
+            <div class="flex items-center gap-2.5 shrink-0">
+              <span class="text-xs font-bold text-app-secondary tabular-nums">${fmt.size}</span>
+              <span class="w-5 h-5 rounded-full flex items-center justify-center ${selected ? 'bg-[#FACC15] text-slate-950' : 'border-2 border-app-border'}">
+                ${selected ? '<i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>' : ''}
+              </span>
+            </div>
+          </button>
+        `;
+      }
+
+      function renderFormatLists() {
+        $('compact-music-list').innerHTML = state.formats
+          .filter((f) => f.group === 'music' && f.compact)
+          .map((f) => renderFormatRow(f, false)).join('');
+        $('compact-video-list').innerHTML = state.formats
+          .filter((f) => f.group === 'video' && f.compact)
+          .map((f) => renderFormatRow(f, false)).join('');
+        $('full-music-list').innerHTML = state.formats
+          .filter((f) => f.group === 'music')
+          .map((f) => renderFormatRow(f, true)).join('');
+        $('full-video-list').innerHTML = state.formats
+          .filter((f) => f.group === 'video')
+          .map((f) => renderFormatRow(f, true)).join('');
+        refreshIcons();
+      }
+
+      function openFormatModal(rawUrl) {
+        const cleanUrl = (rawUrl || urlInput.value.trim()).trim();
+        if (!cleanUrl || !cleanUrl.startsWith('http')) {
+          showToast('Please paste a valid video or audio URL first');
+          return;
+        }
+        state.pendingUrl = cleanUrl;
+        state.fetchedTitle = cleanUrl;
+        state.formats.forEach((f) => { f.size = 'Auto'; });
+
+        $('format-stream-title').textContent = cleanUrl;
+        $('fetching-info-bar').classList.remove('hidden');
+        $('format-sheet-compact').classList.remove('hidden');
+        $('format-sheet-full').classList.add('hidden');
+        renderFormatLists();
+        $('format-modal').classList.remove('hidden');
+        refreshIcons();
+
+        if (hasAndroid() && window.JetAndroid.fetchMediaInfo) {
+          window.JetAndroid.fetchMediaInfo(cleanUrl);
+        }
+      }
+
+      $('start-download-btn').addEventListener('click', () => openFormatModal(urlInput.value.trim()));
+      $('close-format-modal-btn').addEventListener('click', () => $('format-modal').classList.add('hidden'));
+
+      $('cc-toggle-btn').addEventListener('click', () => {
+        state.ccEnabled = !state.ccEnabled;
+        const btn = $('cc-toggle-btn');
+        btn.classList.toggle('border-app-primary', state.ccEnabled);
+        btn.classList.toggle('bg-app-primaryTint', state.ccEnabled);
+        btn.classList.toggle('text-app-primary', state.ccEnabled);
+        showToast(state.ccEnabled ? 'Subtitles (CC) included' : 'Subtitles (CC) off');
+      });
+
+      $('open-more-formats-btn').addEventListener('click', () => {
+        $('format-sheet-compact').classList.add('hidden');
+        $('format-sheet-full').classList.remove('hidden');
+        renderFormatLists();
+      });
+
+      $('back-to-compact-formats-btn').addEventListener('click', () => {
+        $('format-sheet-full').classList.add('hidden');
+        $('format-sheet-compact').classList.remove('hidden');
+        renderFormatLists();
+      });
+
+      document.addEventListener('click', (e) => {
+        const fmtBtn = e.target.closest('[data-select-format]');
+        if (fmtBtn) {
+          state.selectedFormatId = fmtBtn.dataset.selectFormat;
+          renderFormatLists();
+        }
+      });
+
+      function startSelectedDownload() {
+        const fmt = state.formats.find((f) => f.id === state.selectedFormatId) || state.formats[10];
+        const targetUrl = state.pendingUrl || urlInput.value.trim();
+        if (!targetUrl) return;
+
+        const downloadId = String(Date.now());
+        const displayTitle = state.fetchedTitle && state.fetchedTitle !== targetUrl
+          ? state.fetchedTitle
+          : targetUrl;
+
+        state.activeDownloads.unshift({
+          id: downloadId,
+          title: displayTitle,
+          format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
+          size: fmt.size,
+          progress: 2,
+          speed: 'Connecting...'
+        });
+
+        $('format-modal').classList.add('hidden');
+        urlInput.value = '';
+        updatePasteButtonState();
+        renderDownloads();
+        switchScreen('downloads');
+
+        if (hasAndroid() && window.JetAndroid.startRealDownload) {
+          window.JetAndroid.startRealDownload(
+            downloadId,
+            targetUrl,
+            displayTitle,
+            fmt.group === 'music',
+            fmt.bitrate || '160K',
+            fmt.ext || 'mp4',
+            fmt.maxHeight || 1080,
+            state.ccEnabled
+          );
+        }
+      }
+
+      $('confirm-format-download-btn').addEventListener('click', startSelectedDownload);
+      $('confirm-full-format-download-btn').addEventListener('click', startSelectedDownload);
+
+      // Quick Tools
+      document.querySelectorAll('.quick-tool-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const mode = btn.dataset.quickTool;
+          if (mode === 'folder') {
+            switchScreen('library');
+            return;
+          }
+          state.selectedFormatId = mode === 'mp3' ? 'aud-320' : 'vid-1080';
+          const currentUrl = urlInput.value.trim() || state.clipboardUrl;
+          if (currentUrl) {
+            openFormatModal(currentUrl);
+          } else {
+            showToast(`Selected ${mode === 'mp3' ? 'MP3 320K' : '1080p MP4'} — paste a link to download`);
+          }
+        });
+      });
+
+      // Downloads Screen
+      function renderDownloads() {
+        const activeCount = state.activeDownloads.length;
+        const doneCount = state.doneDownloads.length;
+        $('dl-active-tab-count').textContent = activeCount;
+        $('dl-done-tab-count').textContent = doneCount;
+        $('nav-dl-badge').textContent = activeCount;
+        $('nav-dl-badge').classList.toggle('hidden', activeCount === 0);
+        $('downloads-subtitle').textContent = `${activeCount} active · ${doneCount} completed`;
+
+        const activeList = $('downloads-active-list');
+        if (activeCount === 0) {
+          activeList.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">No active downloads. Paste a link on Home to start.</div>`;
+        } else {
+          activeList.innerHTML = state.activeDownloads.map((item) => `
+            <div class="surface-card rounded-2xl p-3.5 space-y-2.5">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
+                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}</p>
+                </div>
+                <button type="button" data-dl-cancel="${item.id}" class="w-8 h-8 rounded-xl bg-app-elevated flex items-center justify-center text-app-danger shrink-0">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+              <div class="w-full h-2 rounded-full bg-app-elevated overflow-hidden">
+                <div class="h-full rounded-full bg-app-primary transition-all duration-300" style="width:${item.progress}%"></div>
+              </div>
+              <div class="flex justify-between text-[11px] font-semibold tabular-nums">
+                <span class="text-app-primary truncate">${item.speed}</span>
+                <span class="text-app-secondary shrink-0">${item.progress}%</span>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        const doneList = $('downloads-done-list');
+        if (doneCount === 0) {
+          doneList.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">Completed downloads appear here.</div>`;
+        } else {
+          doneList.innerHTML = state.doneDownloads.map((item) => `
+            <div class="surface-card rounded-2xl p-3.5 flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
+                <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size} · ${item.date}</p>
+              </div>
+              <button type="button" data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
+                class="w-9 h-9 rounded-full bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0">
+                <i data-lucide="play" class="w-4 h-4"></i>
+              </button>
+            </div>
+          `).join('');
+        }
+
+        refreshIcons();
+      }
+
+      $('dl-tab-active').addEventListener('click', () => {
+        state.dlTab = 'active';
+        $('dl-tab-active').className = 'py-2.5 rounded-xl text-xs font-bold bg-app-primary text-white shadow transition';
+        $('dl-tab-done').className = 'py-2.5 rounded-xl text-xs font-bold text-app-secondary transition';
+        $('downloads-active-list').classList.remove('hidden');
+        $('downloads-done-list').classList.add('hidden');
+      });
+
+      $('dl-tab-done').addEventListener('click', () => {
+        state.dlTab = 'done';
+        $('dl-tab-done').className = 'py-2.5 rounded-xl text-xs font-bold bg-app-primary text-white shadow transition';
+        $('dl-tab-active').className = 'py-2.5 rounded-xl text-xs font-bold text-app-secondary transition';
+        $('downloads-done-list').classList.remove('hidden');
+        $('downloads-active-list').classList.add('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        const cancelBtn = e.target.closest('[data-dl-cancel]');
+        if (cancelBtn) {
+          const id = cancelBtn.dataset.dlCancel;
+          state.activeDownloads = state.activeDownloads.filter((d) => d.id !== id);
+          if (hasAndroid() && window.JetAndroid.cancelRealDownload) {
+            window.JetAndroid.cancelRealDownload(id);
+          }
+          renderDownloads();
+          showToast('Download cancelled');
+        }
+      });
+
+      // Library Screen
+      function renderLibrary() {
+        const filtered = state.library.filter((item) => {
+          const matchCat = state.libFilter === 'all' || item.type === state.libFilter;
+          const matchSearch = item.title.toLowerCase().includes(state.libSearch.toLowerCase());
+          return matchCat && matchSearch;
+        });
+
+        $('library-item-count').textContent = `${filtered.length} files`;
+        const container = $('library-items-container');
+        container.className = state.libView === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-2.5';
+
+        if (filtered.length === 0) {
+          container.className = 'block';
+          container.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">No files in Downloads/JET yet.</div>`;
+          return;
+        }
+
+        container.innerHTML = filtered.map((item) => {
+          const icon = item.type === 'audio' ? 'music' : item.type === 'document' ? 'file-text' : 'play';
+          if (state.libView === 'grid') {
+            return `
+              <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
+                class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
+                <div class="relative h-24 bg-gradient-to-br ${item.color} flex items-center justify-center text-white">
+                  <div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center">
+                    <i data-lucide="${icon}" class="w-4 h-4"></i>
+                  </div>
+                  <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
+                </div>
+                <div class="p-2.5">
+                  <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
+                  <p class="text-[10px] text-app-secondary mt-0.5 truncate tabular-nums">${item.meta}</p>
+                </div>
+              </div>
+            `;
+          }
+          return `
+            <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
+              class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} text-white flex items-center justify-center shrink-0">
+                <i data-lucide="${icon}" class="w-5 h-5"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
+                <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.meta}</p>
+              </div>
+              <span class="text-[10px] font-bold text-app-muted tabular-nums">${item.duration}</span>
+            </div>
+          `;
+        }).join('');
+
+        refreshIcons();
+      }
+
+      $('refresh-library-btn').addEventListener('click', () => {
+        if (hasAndroid() && window.JetAndroid.refreshLibrary) {
+          window.JetAndroid.refreshLibrary();
+          showToast('Library refreshed');
+        }
+      });
+
+      document.querySelectorAll('.lib-filter-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.libFilter = btn.dataset.libFilter;
+          document.querySelectorAll('.lib-filter-btn').forEach((b) => {
+            const active = b.dataset.libFilter === state.libFilter;
+            b.className = active
+              ? 'lib-filter-btn px-3.5 py-2 rounded-full text-xs font-bold bg-app-primary text-white shadow-sm shrink-0 transition'
+              : 'lib-filter-btn surface-card px-3.5 py-2 rounded-full text-xs font-bold text-app-secondary shrink-0 transition';
+          });
+          renderLibrary();
+        });
+      });
+
+      $('library-search').addEventListener('input', (e) => {
+        state.libSearch = e.target.value;
+        renderLibrary();
+      });
+
+      $('lib-view-grid').addEventListener('click', () => {
+        state.libView = 'grid';
+        $('lib-view-grid').className = 'w-9 h-9 rounded-xl flex items-center justify-center bg-app-primary text-white shadow-sm transition';
+        $('lib-view-list').className = 'w-9 h-9 rounded-xl flex items-center justify-center text-app-secondary transition';
+        renderLibrary();
+      });
+
+      $('lib-view-list').addEventListener('click', () => {
+        state.libView = 'list';
+        $('lib-view-list').className = 'w-9 h-9 rounded-xl flex items-center justify-center bg-app-primary text-white shadow-sm transition';
+        $('lib-view-grid').className = 'w-9 h-9 rounded-xl flex items-center justify-center text-app-secondary transition';
+        renderLibrary();
+      });
+
+      // Play using AndroidX Media3 ExoPlayer
+      function playFileWithMedia3(title, filePath) {
+        if (!filePath) {
+          showToast('No file saved yet — download a video or audio first');
+          return;
+        }
+        if (hasAndroid() && window.JetAndroid.playInNativeMedia3) {
+          window.JetAndroid.playInNativeMedia3(title || 'JET Media', filePath);
+        }
+      }
+
+      $('latest-download-card').addEventListener('click', () => {
+        const card = $('latest-download-card');
+        playFileWithMedia3($('latest-title').textContent, card.dataset.filePath);
+      });
+
+      document.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-play-title]');
+        if (card) {
+          playFileWithMedia3(card.dataset.playTitle, card.dataset.filePath);
+        }
+      });
+
+      // In-App APK Self-Updater
+      let pendingApkUpdateUrl = '';
+
+      function triggerAppUpdateCheck(isManual) {
+        const sub = $('app-update-subtitle');
+        if (isManual && sub) sub.textContent = 'Checking GitHub releases...';
+        if (hasAndroid() && window.JetAndroid.checkForAppUpdate) {
+          window.JetAndroid.checkForAppUpdate(Boolean(isManual));
+        } else if (isManual) {
+          showToast('Build APK to check GitHub updates');
+        }
+      }
+
+      window.onNativeAppUpdateResult = function (res) {
+        const sub = $('app-update-subtitle');
+        const btn = $('check-app-update-btn');
+        const badge = $('app-update-badge');
+
+        if (!res || !res.ok) {
+          if (res && res.manual) {
+            if (sub) sub.textContent = res.error || 'Update check failed';
+            showToast(res.error || 'Unable to check updates');
+          }
+          return;
+        }
+
+        if (res.hasUpdate) {
+          pendingApkUpdateUrl = res.apkUrl;
+          if (sub) sub.textContent = `v${res.latestVersion} available!`;
+          if (btn) btn.textContent = 'Update';
+          if (badge) badge.classList.remove('hidden');
+
+          if (confirm(`JET v${res.latestVersion} is available!\n\n${res.changelog}\n\nDownload and install now?`)) {
+            window.JetAndroid.downloadAndInstallAppUpdate(pendingApkUpdateUrl);
+          }
+        } else {
+          if (sub) sub.textContent = `Latest installed (v${res.currentVersion})`;
+          if (res.manual) showToast('JET is already on the latest version!');
+        }
+      };
+
+      window.onNativeAppUpdateProgress = function (pct, label) {
+        const sub = $('app-update-subtitle');
+        const btn = $('check-app-update-btn');
+        if (sub) sub.textContent = label;
+        if (btn) btn.textContent = pct >= 0 && pct < 100 ? `${pct}%` : 'Update';
+      };
+
+      $('check-app-update-btn').addEventListener('click', () => {
+        if (pendingApkUpdateUrl && hasAndroid() && window.JetAndroid.downloadAndInstallAppUpdate) {
+          window.JetAndroid.downloadAndInstallAppUpdate(pendingApkUpdateUrl);
+        } else {
+          triggerAppUpdateCheck(true);
+        }
+      });
+
+      setTimeout(() => triggerAppUpdateCheck(false), 3000);
+
+      $('update-engine-btn').addEventListener('click', () => {
+        if (hasAndroid() && window.JetAndroid.updateYtDlpEngine) {
+          showToast('Updating fallback engine...');
+          window.JetAndroid.updateYtDlpEngine();
+        }
+      });
+
+      // Android Hardware Back Handler
+      window.handleAndroidBack = function () {
+        if (!$('oss-modal').classList.contains('hidden')) {
+          $('oss-modal').classList.add('hidden');
+          return true;
+        }
+        if (!$('format-modal').classList.contains('hidden')) {
+          $('format-modal').classList.add('hidden');
+          return true;
+        }
+        if (state.screen !== 'home') {
+          switchScreen('home');
+          return true;
+        }
+        return false;
+      };
+
+      renderDownloads();
+      renderLibrary();
+      refreshIcons();
+    })();
+  </script>
+</body>
+</html>
