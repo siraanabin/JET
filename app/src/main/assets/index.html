@@ -607,19 +607,19 @@
         pendingUrl: '',
         fetchedTitle: '',
         formats: [
-          { id: 'aud-fast', group: 'music', name: 'Fast', desc: 'M4A (128K), best for mobile play', size: 'Auto', ext: 'm4a', bitrate: '128K', maxHeight: 0, compact: true },
-          { id: 'aud-70', group: 'music', name: 'Classic MP3 (70K)', badge: 'Low', desc: 'Supports Bluetooth speakers, phones, car stereos', size: 'Auto', ext: 'mp3', bitrate: '70K', maxHeight: 0, compact: false },
-          { id: 'aud-128', group: 'music', name: 'Classic MP3 (128K)', desc: 'Supports Bluetooth speakers, phones, car stereos', size: 'Auto', ext: 'mp3', bitrate: '128K', maxHeight: 0, compact: false },
-          { id: 'aud-160', group: 'music', name: 'Classic MP3', desc: 'MP3 (160K), support Bluetooth speaker, phone, watch', size: 'Auto', ext: 'mp3', bitrate: '160K', maxHeight: 0, compact: true },
-          { id: 'aud-320', group: 'music', name: 'Classic MP3 (320K)', badge: 'HQ', desc: 'High bitrate studio audio for headphones', size: 'Auto', ext: 'mp3', bitrate: '320K', maxHeight: 0, compact: false },
-          { id: 'vid-144', group: 'video', name: 'Fast (144p)', badge: 'Low', desc: 'Smallest file size', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 144, compact: false },
-          { id: 'vid-240', group: 'video', name: 'Fast (240p)', desc: 'Low quality for quick play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 240, compact: false },
-          { id: 'vid-360', group: 'video', name: 'Fast (360p)', desc: 'Normal quality for quick play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 360, compact: true },
-          { id: 'vid-480', group: 'video', name: 'Fast (480p)', desc: 'Normal quality for quick play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 480, compact: false },
-          { id: 'vid-720', group: 'video', name: 'High quality (720p)', desc: 'HD clear view', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 720, compact: false },
-          { id: 'vid-1080', group: 'video', name: 'High quality (1080p)', desc: 'Full HD details for full screen play', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 1080, compact: true },
-          { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false },
-          { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', size: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false }
+          { id: 'aud-fast', group: 'music', name: 'Fast', desc: 'M4A (128K), best for mobile play', sizeText: 'Auto', ext: 'm4a', bitrate: '128K', maxHeight: 0, compact: true },
+          { id: 'aud-70', group: 'music', name: 'Classic MP3 (70K)', badge: 'Low', desc: 'Supports Bluetooth speakers, phones, car stereos', sizeText: 'Auto', ext: 'mp3', bitrate: '70K', maxHeight: 0, compact: false },
+          { id: 'aud-128', group: 'music', name: 'Classic MP3 (128K)', desc: 'Supports Bluetooth speakers, phones, car stereos', sizeText: 'Auto', ext: 'mp3', bitrate: '128K', maxHeight: 0, compact: false },
+          { id: 'aud-160', group: 'music', name: 'Classic MP3', desc: 'MP3 (160K), support Bluetooth speaker, phone, watch', sizeText: 'Auto', ext: 'mp3', bitrate: '160K', maxHeight: 0, compact: true },
+          { id: 'aud-320', group: 'music', name: 'Classic MP3 (320K)', badge: 'HQ', desc: 'High bitrate studio audio for headphones', sizeText: 'Auto', ext: 'mp3', bitrate: '320K', maxHeight: 0, compact: false },
+          { id: 'vid-144', group: 'video', name: 'Fast (144p)', badge: 'Low', desc: 'Smallest file size', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 144, compact: false },
+          { id: 'vid-240', group: 'video', name: 'Fast (240p)', desc: 'Low quality for quick play', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 240, compact: false },
+          { id: 'vid-360', group: 'video', name: 'Fast (360p)', desc: 'Normal quality for quick play', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 360, compact: true },
+          { id: 'vid-480', group: 'video', name: 'Fast (480p)', desc: 'Normal quality for quick play', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 480, compact: false },
+          { id: 'vid-720', group: 'video', name: 'High quality (720p)', desc: 'HD clear view', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 720, compact: false },
+          { id: 'vid-1080', group: 'video', name: 'High quality (1080p)', desc: 'Full HD details for full screen play', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 1080, compact: true },
+          { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false },
+          { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', sizeText: 'Auto', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false }
         ],
         activeDownloads: [],
         doneDownloads: [],
@@ -840,9 +840,9 @@
         }
         state.fetchedTitle = info.title || state.pendingUrl;
         $('format-stream-title').textContent = `${state.fetchedTitle} (${info.duration || ''}) · ${info.extractor || ''}`;
-        if (info.sizes) {
-          state.formats.forEach((f) => {
-            if (info.sizes[f.id]) f.size = info.sizes[f.id];
+        if (info.streams) {
+          state.formats.forEach((stream) => {
+            stream.sizeText = info.streams[stream.id]?.sizeText || 'Auto';
           });
           renderFormatLists();
         }
@@ -938,7 +938,7 @@
               </div>
             </div>
             <div class="flex items-center gap-2.5 shrink-0">
-              <span class="text-xs font-bold text-app-secondary tabular-nums">${fmt.size}</span>
+              <span class="text-xs font-bold text-app-secondary tabular-nums">${fmt.sizeText || 'Auto'}</span>
               <span class="w-5 h-5 rounded-full flex items-center justify-center ${selected ? 'bg-[#FACC15] text-slate-950' : 'border-2 border-app-border'}">
                 ${selected ? '<i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>' : ''}
               </span>
@@ -971,7 +971,7 @@
         }
         state.pendingUrl = cleanUrl;
         state.fetchedTitle = cleanUrl;
-        state.formats.forEach((f) => { f.size = 'Auto'; });
+        state.formats.forEach((stream) => { stream.sizeText = 'Auto'; });
 
         $('format-stream-title').textContent = cleanUrl;
         $('fetching-info-bar').classList.remove('hidden');
@@ -1032,7 +1032,7 @@
           id: downloadId,
           title: displayTitle,
           format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
-          size: fmt.size,
+          size: fmt.sizeText || 'Auto',
           progress: 2,
           speed: 'Connecting...'
         });

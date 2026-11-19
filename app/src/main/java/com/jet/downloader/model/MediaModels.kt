@@ -3,6 +3,11 @@ package com.jet.downloader.model
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class StreamSizePayload(
+    val sizeText: String = "Auto"
+)
+
+@Serializable
 data class MediaInfoPayload(
     val ok: Boolean,
     val title: String = "",
@@ -10,7 +15,7 @@ data class MediaInfoPayload(
     val thumbnail: String = "",
     val uploader: String = "",
     val extractor: String = "NewPipe Extractor",
-    val sizes: Map<String, String> = emptyMap(),
+    val streams: Map<String, StreamSizePayload> = emptyMap(),
     val error: String? = null
 )
 

@@ -592,6 +592,46 @@ class MainActivity : AppCompatActivity() {
                     // 1. Primary fast extraction via NewPipe Extractor (GPLv3) + OkHttp (Apache 2.0)
                     val info = StreamInfo.getInfo(url)
                     val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
+                    val durationSec = info.duration.toLong()
+                    val bestAudio = info.audioStreams.maxByOrNull { it.averageBitrate }
+                    val bestAudioBytes = bestAudio?.let { audio ->
+                        if (audio.contentLength > 0) {
+                            audio.contentLength
+                        } else {
+                            (audio.averageBitrate.toLong() * 1000L * durationSec) / 8L
+                        }
+                    } ?: 0L
+
+                    fun sizeText(bytes: Long): String =
+                        if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Auto"
+
+                    val streamSizes = mutableMapOf<String, StreamSizePayload>()
+                    listOf("aud-fast", "aud-70", "aud-128", "aud-160", "aud-320").forEach { id ->
+                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
+                    }
+                    listOf(
+                        "vid-144" to 144,
+                        "vid-240" to 240,
+                        "vid-360" to 360,
+                        "vid-480" to 480,
+                        "vid-720" to 720,
+                        "vid-1080" to 1080,
+                        "vid-2k" to 1440,
+                        "vid-4k" to 2160
+                    ).forEach { (id, height) ->
+                        val video = info.videoStreams
+                            .filter { it.height == height && it.isUrl }
+                            .maxByOrNull { it.bitrate }
+                        val videoBytes = video?.let {
+                            val raw = if (it.contentLength > 0) {
+                                it.contentLength
+                            } else {
+                                (it.bitrate.toLong() * durationSec) / 8L
+                            }
+                            if (it.isVideoOnly) raw + bestAudioBytes else raw
+                        } ?: 0L
+                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(videoBytes))
+                    }
 
                     val payload = MediaInfoPayload(
                         ok = true,
@@ -600,21 +640,7 @@ class MainActivity : AppCompatActivity() {
                         thumbnail = bestThumb,
                         uploader = info.uploaderName ?: "",
                         extractor = "NewPipe Extractor",
-                        sizes = mapOf(
-                            "aud-fast" to "M4A Stream",
-                            "aud-70" to "MP3 70K",
-                            "aud-128" to "MP3 128K",
-                            "aud-160" to "MP3 160K",
-                            "aud-320" to "MP3 320K",
-                            "vid-144" to "144p MP4",
-                            "vid-240" to "240p MP4",
-                            "vid-360" to "360p MP4",
-                            "vid-480" to "480p MP4",
-                            "vid-720" to "720p HD",
-                            "vid-1080" to "1080p FHD",
-                            "vid-2k" to "2K QHD",
-                            "vid-4k" to "4K UHD"
-                        )
+                        streams = streamSizes
                     )
                     callJs("onNativeMediaInfo", json.encodeToString(payload))
                 } catch (npError: Exception) {
