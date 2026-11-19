@@ -845,7 +845,7 @@
         $('clipboard-chip').classList.remove('hidden');
 
         // Open the download format sheet once for each newly copied URL.
-        if (state.clipboardAutoDetect && state.lastAutoOpenedClipboardUrl !== url) {
+        if (state.lastAutoOpenedClipboardUrl !== url) {
           state.lastAutoOpenedClipboardUrl = url;
           urlInput.value = url;
           updatePasteButtonState();
