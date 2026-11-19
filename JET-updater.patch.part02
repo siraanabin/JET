@@ -1,0 +1,136 @@
+ts() && !updatesDir.mkdirs()) {
+                    throw IOException("Could not create update cache")
+                }
+                val apkFile = File(updatesDir, "JET-update.apk")
+                if (apkFile.exists()) apkFile.delete()
+
+                val request = Request.Builder().url(apkUrl).build()
+                updateHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw IOException("APK download failed (HTTP ${response.code})")
+                    }
+                    val body = response.body ?: throw IOException("Empty APK response")
+                    val totalBytes = body.contentLength()
+                    var downloaded = 0L
+                    var lastReportedPercent = -1
+                    body.byteStream().use { input ->
+                        apkFile.outputStream().buffered().use { output ->
+                            val buffer = ByteArray(16 * 1024)
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count == -1) break
+                                output.write(buffer, 0, count)
+                                downloaded += count
+                                if (totalBytes > 0) {
+                                    val percent = ((downloaded * 100L) / totalBytes)
+                                        .toInt().coerceIn(0, 100)
+                                    if (percent != lastReportedPercent) {
+                                        lastReportedPercent = percent
+                                        val label = String.format(
+                                            java.util.Locale.US,
+                                            "%.1f / %.1f MB",
+                                            downloaded / 1048576.0,
+                                            totalBytes / 1048576.0
+                                        )
+                                        sendJsCallback(
+                                            "onNativeAppUpdateProgress",
+                                            percent,
+                                            label
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!apkFile.exists() || apkFile.length() <= 0L) {
+                    throw IOException("Downloaded APK is empty")
+                }
+
+                sendJsCallback("onNativeAppUpdateProgress", 100, "Download complete")
+                runOnUiThread {
+                    pendingInstallFile = apkFile
+                    if (canInstallPackages()) {
+                        pendingInstallFile = null
+                        installDownloadedApk(apkFile)
+                    } else {
+                        Toast.makeText(
+                            this,
+                            "Allow JET to install unknown apps, then return here",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val settingsIntent = Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:$packageName")
+                        )
+                        startActivity(settingsIntent)
+                    }
+                }
+            } catch (error: Exception) {
+                sendJsCallback(
+                    "onNativeAppUpdateError",
+                    error.message ?: "APK download failed"
+                )
+            }
+        }
+    }
+
+    private fun installDownloadedApk(apkFile: File) {
+        try {
+            val apkUri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apkFile
+            )
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(installIntent)
+        } catch (error: Exception) {
+            sendJsCallback(
+                "onNativeAppUpdateError",
+                error.message ?: "Could not open Android installer"
+            )
+        }
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+@@ -128,7 +342,7 @@
+     }
+
+     private fun extractFirstUrl(text: String): String? {
+-        val regex = Regex("(https?://[^\s]+)")
++        val regex = Regex("(https?://[^\\s]+)")
+         return regex.find(text)?.value
+     }
+
+@@ -217,6 +431,16 @@
+             }
+         }
+
++        @JavascriptInterface
++        fun checkForAppUpdate(isManual: Boolean) {
++            this@MainActivity.checkForAppUpdate(isManual)
++        }
++
++        @JavascriptInterface
++        fun downloadAndInstallAppUpdate(apkUrl: String) {
++            this@MainActivity.downloadAndInstallAppUpdate(apkUrl)
++        }
++
+         @JavascriptInterface
+         fun showToast(message: String) {
+             runOnUiThread {
+diff --git a/app/src/main/res/xml/file_paths.xml b/app/src/main/res/xml/file_paths.xml
+new file mode 100644
+index 0000000..6d69fca
+--- /dev/null
++++ b/app/src/main/res/xml/file_paths.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<paths xmlns:android="http://schemas.android.com/apk/res/android">
++    <cache-path name="update_apks" path="updates/" />
++</paths>
