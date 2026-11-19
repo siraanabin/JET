@@ -14,8 +14,15 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Unzip JET Project
-        run: unzip -o JET-Android-GitHub.zip
+      - name: Unzip & Prepare JET Project
+        run: |
+          if ls *.zip 1> /dev/null 2>&1; then
+            for f in *.zip; do unzip -o "$f"; done
+          fi
+          if [ ! -f "settings.gradle.kts" ] && [ -f "JET-Android/settings.gradle.kts" ]; then
+            cp -r JET-Android/* .
+          fi
+          python3 -c 'p="app/src/main/java/com/jet/downloader/MainActivity.kt"; s=open(p).read(); open(p,"w").write(s.replace("\\s","\\\\s"))'
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -43,4 +50,3 @@ jobs:
           name: JET-Android-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
-          
