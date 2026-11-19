@@ -141,18 +141,84 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun estimateStreamBytes(contentUrl: String, bitrateBitsPerSecond: Long, durationSeconds: Long): Long {
+    private val streamSizeCache = ConcurrentHashMap<String, Long>()
+
+    // Must match JetOkHttpDownloader's User-Agent.
+    private val extractorUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
+
+    /** Called from Dispatchers.IO. Resolves URL clen, then a one-byte range response, then bitrate. */
+    private fun estimateStreamBytes(
+        contentUrl: String,
+        bitrateBitsPerSecond: Long,
+        durationSeconds: Long
+    ): Long {
+        if (contentUrl.isBlank()) return 0L
+        streamSizeCache[contentUrl]?.let { return it }
+
         val clenBytes = try {
             Uri.parse(contentUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L }
         } catch (_: Exception) {
             null
         }
-        if (clenBytes != null) return clenBytes
-        return if (bitrateBitsPerSecond > 0L && durationSeconds > 0L) {
-            (bitrateBitsPerSecond * durationSeconds) / 8L
+        if (clenBytes != null) {
+            streamSizeCache[contentUrl] = clenBytes
+            return clenBytes
+        }
+
+        val rangedBytes = try {
+            val request = okhttp3.Request.Builder()
+                .url(contentUrl)
+                .header("User-Agent", extractorUserAgent)
+                .header("Referer", "https://www.youtube.com/")
+                .header("Range", "bytes=0-0")
+                .get()
+                .build()
+
+            okHttpClient.newBuilder()
+                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .callTimeout(7, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+                .newCall(request)
+                .execute()
+                .use { response ->
+                    val totalFromRange = response.header("Content-Range")
+                        ?.substringAfterLast('/', "")
+                        ?.trim()
+                        ?.toLongOrNull()
+                        ?.takeIf { it > 0L }
+
+                    when {
+                        totalFromRange != null -> totalFromRange
+                        // A 206 response's Content-Length is usually just the one requested byte.
+                        response.code == 200 -> response.header("Content-Length")
+                            ?.toLongOrNull()
+                            ?.takeIf { it > 1L }
+                        else -> null
+                    }
+                }
+        } catch (_: Exception) {
+            null
+        }
+
+        if (rangedBytes != null && rangedBytes > 0L) {
+            streamSizeCache[contentUrl] = rangedBytes
+            return rangedBytes
+        }
+
+        // Bitrate fallback covers HLS and hosts that do not expose a total byte count.
+        val estimatedBytes = if (bitrateBitsPerSecond > 0L && durationSeconds > 0L) {
+            try {
+                Math.multiplyExact(bitrateBitsPerSecond, durationSeconds) / 8L
+            } catch (_: ArithmeticException) {
+                Long.MAX_VALUE
+            }
         } else {
             0L
         }
+        if (estimatedBytes > 0L) streamSizeCache[contentUrl] = estimatedBytes
+        return estimatedBytes
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -394,13 +460,23 @@ class MainActivity : AppCompatActivity() {
                 val clip = clipboard?.primaryClip
                 if (clip != null && clip.itemCount > 0) {
                     val text = clip.getItemAt(0).coerceToText(this@MainActivity)?.toString()?.trim() ?: return@launch
-                    val url = extractFirstUrl(text)
-                    if (url != null) {
+                    val url = extractFirstUrl(text) ?: return@launch
+                    val prefs = getSharedPreferences("jet_clipboard_detection", Context.MODE_PRIVATE)
+                    val lastUrl = prefs.getString("last_detected_video_url", null)
+                    if (url != lastUrl) {
+                        prefs.edit().putString("last_detected_video_url", url).apply()
                         callJs("onNativeClipboardUrl", JSONObject.quote(url))
                     }
                 }
             } catch (_: Exception) {
             }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && !isFinishing && ::webView.isInitialized) {
+            checkSystemClipboard()
         }
     }
 
