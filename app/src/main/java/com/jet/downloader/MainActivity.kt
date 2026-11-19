@@ -53,6 +53,7 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -481,8 +482,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun extractFirstUrl(text: String): String? {
-        val regex = Regex("(https?://\\S+)")
-        return regex.find(text)?.value
+        val regex = Regex(
+            "(?i)(https?://)?(?:www\\.|m\\.|music\\.)?(?:youtube\\.com|youtu\\.be|facebook\\.com|fb\\.watch|instagram\\.com|tiktok\\.com)/[^\\s<>\\\"']+"
+        )
+        val match = regex.find(text)?.value ?: return null
+        val cleanUrl = match.trimEnd('.', ',', ';', ')', ']', '}')
+        return if (cleanUrl.startsWith("http://", true) || cleanUrl.startsWith("https://", true)) {
+            cleanUrl
+        } else {
+            "https://$cleanUrl"
+        }
     }
 
     private fun callJs(fnName: String, rawArgs: String) {
@@ -759,9 +768,11 @@ class MainActivity : AppCompatActivity() {
                         .maxByOrNull { it.averageBitrate }
                     // Prefer stream content length when exposed by the extractor; otherwise use URL clen,
                     // then bitrate × duration / 8 for a stable per-format estimate.
-                    val bestAudioBytes = bestAudio?.let { audio ->
-                        estimateStreamBytes(audio.content, audio.averageBitrate.toLong(), durationSec)
-                    } ?: 0L
+                    val bestAudioBytesJob = bestAudio?.let { audio ->
+                        async(Dispatchers.IO) {
+                            estimateStreamBytes(audio.content, audio.averageBitrate.toLong(), durationSec)
+                        }
+                    }
 
                     fun sizeText(bytes: Long): String =
                         if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
@@ -777,7 +788,8 @@ class MainActivity : AppCompatActivity() {
                         val estimatedMp3Bytes = (bitrateKbps * 1000L * durationSec) / 8L
                         streamSizes[id] = StreamSizePayload(sizeText = sizeText(estimatedMp3Bytes))
                     }
-                    listOf(
+                    val bestAudioBytes = bestAudioBytesJob?.await() ?: 0L
+                    val videoSizeJobs = listOf(
                         "vid-144" to 144,
                         "vid-240" to 240,
                         "vid-360" to 360,
@@ -786,15 +798,19 @@ class MainActivity : AppCompatActivity() {
                         "vid-1080" to 1080,
                         "vid-2k" to 1440,
                         "vid-4k" to 2160
-                    ).forEach { (id, height) ->
-                        val video = info.videoStreams
-                            .filter { it.height == height && it.isUrl }
-                            .maxByOrNull { it.bitrate }
-                        val videoBytes = video?.let {
-                            val raw = estimateStreamBytes(it.content, it.bitrate.toLong(), durationSec)
-                            if (it.isVideoOnly) raw + bestAudioBytes else raw
-                        } ?: 0L
-                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(videoBytes))
+                    ).map { (id, height) ->
+                        id to async(Dispatchers.IO) {
+                            val video = info.videoStreams
+                                .filter { it.height == height && it.isUrl }
+                                .maxByOrNull { it.bitrate }
+                            video?.let {
+                                val raw = estimateStreamBytes(it.content, it.bitrate.toLong(), durationSec)
+                                if (it.isVideoOnly) raw + bestAudioBytes else raw
+                            } ?: 0L
+                        }
+                    }
+                    videoSizeJobs.forEach { (id, job) ->
+                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(job.await()))
                     }
 
                     val payload = MediaInfoPayload(
