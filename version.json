@@ -1,6 +1,6 @@
 {
-  "versionCode": 340,
-  "versionName": "3.4.0",
+  "versionCode": 341,
+  "versionName": "3.4.1",
   "apkUrl": "https://github.com/siraanabin/JET/releases/latest/download/JET-release.apk",
-  "changelog": "• NewPipe Extractor + Media3 player\n• Built-in In-App APK Self-Updater"
+  "changelog": "• In-app update: 3.4.0 to 3.4.1\n• Release and version metadata synchronized"
 }
