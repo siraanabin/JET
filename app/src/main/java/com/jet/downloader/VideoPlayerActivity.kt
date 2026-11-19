@@ -359,11 +359,11 @@ class VideoPlayerActivity : AppCompatActivity() {
             setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "mp3", "m4a", "opus") }
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(4, 3, 4, 3)
-                layoutParams = LinearLayout.LayoutParams(dp(76), -1)
+            val card = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(68), dp(42)).apply { marginEnd = dp(6) }
                 tag = file.absolutePath
+                background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
+                clipToOutline = true
                 setOnClickListener {
                     currentPath = file.absolutePath
                     titleView.text = file.nameWithoutExtension
@@ -374,15 +374,16 @@ class VideoPlayerActivity : AppCompatActivity() {
                 }
             }
             val image = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(64), dp(38))
+                layoutParams = FrameLayout.LayoutParams(-1, -1)
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundResource(R.drawable.player_thumbnail_bg)
                 clipToOutline = true
+                tag = file.absolutePath
             }
+            card.addView(image)
             val cached = thumbCache.get(file.absolutePath)
-            if (cached != null) {
-                image.setImageBitmap(cached)
-            } else {
+            if (cached != null) image.setImageBitmap(cached) else {
+                // Extract frames on a worker thread; never decode thumbnails on the UI thread.
                 thumbExecutor.execute {
                     var bitmap: android.graphics.Bitmap? = null
                     val retriever = MediaMetadataRetriever()
@@ -396,20 +397,11 @@ class VideoPlayerActivity : AppCompatActivity() {
                     bitmap?.let { decoded ->
                         thumbCache.put(file.absolutePath, decoded)
                         runOnUiThread {
-                            if (!isDestroyed && image.parent != null) image.setImageBitmap(decoded)
+                            if (!isDestroyed && image.tag == file.absolutePath) image.setImageBitmap(decoded)
                         }
                     }
                 }
             }
-            val name = TextView(this).apply {
-                text = file.nameWithoutExtension
-                setTextColor(-1)
-                textSize = 9f
-                maxLines = 1
-                gravity = Gravity.CENTER
-            }
-            card.addView(image)
-            card.addView(name)
             playlist.addView(card)
         }
         refreshSelection()
@@ -419,8 +411,8 @@ class VideoPlayerActivity : AppCompatActivity() {
             val child = playlist.getChildAt(i)
             val selected = child.tag == currentPath
             child.setBackgroundResource(if (selected) R.drawable.player_playlist_selected else R.drawable.player_playlist_item)
-            child.scaleX = if (selected) 1.06f else 1f
-            child.scaleY = if (selected) 1.06f else 1f
+            child.scaleX = if (selected) 1.05f else 1f
+            child.scaleY = if (selected) 1.05f else 1f
         }
     }
     private fun backgroundAudio() {

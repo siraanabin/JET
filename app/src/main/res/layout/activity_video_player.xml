@@ -41,7 +41,7 @@
                 android:contentDescription="Rewind 10 seconds" android:src="@drawable/ic_player_rewind" android:tint="#FFFFFF" />
             <ImageButton android:id="@+id/player_play" android:layout_width="68dp" android:layout_height="68dp"
                 android:background="@drawable/bg_player_glass_circle" android:contentDescription="Play or pause"
-                android:padding="14dp" android:src="@drawable/ic_player_play" android:tint="#FFFFFF" />
+                android:padding="16dp" android:src="@drawable/ic_player_play" android:tint="#FFFFFF" />
             <ImageButton android:id="@+id/player_forward" android:layout_width="52dp" android:layout_height="52dp"
                 android:layout_marginStart="44dp" android:background="@drawable/bg_player_toolbar_btn"
                 android:contentDescription="Forward 10 seconds" android:src="@drawable/ic_player_forward" android:tint="#FFFFFF" />
@@ -65,46 +65,45 @@
             </LinearLayout>
             <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
                 android:gravity="center" android:orientation="horizontal">
-                <ImageButton android:id="@+id/player_lock" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Lock" android:src="@drawable/ic_player_lock" />
-                <ImageButton android:id="@+id/player_mute" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Mute" android:src="@drawable/ic_player_mute" />
-                <ImageButton android:id="@+id/player_pip" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Picture in picture" android:src="@drawable/ic_player_pip" />
-                <ImageButton android:id="@+id/player_aspect" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Zoom mode" android:src="@drawable/ic_player_zoom" />
+                <ImageButton android:id="@+id/player_lock" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Lock" android:src="@drawable/ic_player_lock" />
+                <ImageButton android:id="@+id/player_mute" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Mute" android:src="@drawable/ic_player_mute" />
+                <ImageButton android:id="@+id/player_pip" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Picture in picture" android:src="@drawable/ic_player_pip" />
+                <ImageButton android:id="@+id/player_aspect" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Zoom mode" android:src="@drawable/ic_player_zoom" />
                 <FrameLayout android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp">
                     <ImageButton android:id="@+id/player_speed" android:layout_width="match_parent" android:layout_height="match_parent"
-                        android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Playback speed"
+                        android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Playback speed"
                         android:src="@drawable/ic_player_speed" android:tint="#FFFFFF" />
                     <TextView android:id="@+id/player_speed_label" android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_gravity="bottom" android:gravity="center" android:text="1x" android:textColor="#FFFFFF" android:textSize="8sp" />
+                        android:layout_width="wrap_content" android:layout_gravity="bottom|end" android:layout_marginEnd="2dp" android:layout_marginBottom="2dp" android:gravity="center" android:paddingHorizontal="2dp" android:text="1.0x" android:textColor="#FFFFFF" android:textSize="7sp" android:background="@drawable/bg_player_speed_badge" />
                 </FrameLayout>
-                <ImageButton android:id="@+id/player_background" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
-                <ImageButton android:id="@+id/player_rotate" style="@style/PlayerToolbarButton" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
+                <ImageButton android:id="@+id/player_background" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
+                <ImageButton android:id="@+id/player_rotate" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
             </LinearLayout>
-            <HorizontalScrollView android:layout_width="match_parent" android:layout_height="54dp"
+            <HorizontalScrollView android:layout_width="match_parent" android:layout_height="52dp"
                 android:fillViewport="false" android:scrollbars="none">
                 <LinearLayout android:id="@+id/player_playlist" android:layout_width="wrap_content"
                     android:layout_height="match_parent" android:orientation="horizontal" />
             </HorizontalScrollView>
         </LinearLayout>
 
-        <LinearLayout android:id="@+id/player_brightness_hud" android:layout_width="48dp" android:layout_height="170dp"
+        <LinearLayout android:id="@+id/player_brightness_hud" android:layout_width="46dp" android:layout_height="168dp"
             android:layout_gravity="center_vertical|end" android:layout_marginEnd="24dp" android:gravity="center"
             android:orientation="vertical" android:padding="8dp" android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
             <TextView android:id="@+id/player_brightness_icon" android:layout_width="wrap_content" android:layout_height="28dp"
                 android:text="☼" android:textColor="#FFFFFF" android:textSize="22sp" />
             <ProgressBar android:id="@+id/player_hud_progress" style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="110dp" android:layout_height="6dp" android:rotation="-90"
-                android:max="100" android:progressTint="#FFFFFF" android:progressBackgroundTint="#55FFFFFF" />
+                android:layout_width="6dp" android:layout_height="96dp" android:progressDrawable="@drawable/bg_player_vertical_progress"
+                android:max="100" />
             <TextView android:id="@+id/player_hud_percent" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_marginTop="8dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
         </LinearLayout>
-        <LinearLayout android:id="@+id/player_volume_hud" android:layout_width="48dp" android:layout_height="170dp"
+        <LinearLayout android:id="@+id/player_volume_hud" android:layout_width="46dp" android:layout_height="168dp"
             android:layout_gravity="center_vertical|start" android:layout_marginStart="24dp" android:gravity="center"
             android:orientation="vertical" android:padding="8dp" android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
             <TextView android:id="@+id/player_volume_icon" android:layout_width="wrap_content" android:layout_height="28dp"
                 android:text="◖" android:textColor="#FFFFFF" android:textSize="22sp" />
-            <ProgressBar style="?android:attr/progressBarStyleHorizontal" android:id="@+id/player_volume_progress" android:layout_width="110dp"
-                android:layout_height="6dp" android:rotation="-90" android:max="100"
-                android:progressTint="#FFFFFF" android:progressBackgroundTint="#55FFFFFF" />
+            <ProgressBar style="?android:attr/progressBarStyleHorizontal" android:id="@+id/player_volume_progress" android:layout_width="6dp"
+                android:layout_height="96dp" android:progressDrawable="@drawable/bg_player_vertical_progress" android:max="100" />
             <TextView android:id="@+id/player_volume_percent" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_marginTop="8dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
         </LinearLayout>
