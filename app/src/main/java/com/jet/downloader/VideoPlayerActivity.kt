@@ -124,10 +124,18 @@ class VideoPlayerActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.player_cc).alpha = if (ccEnabled) 1f else .45f
         }
         findViewById<ImageButton>(R.id.player_more).setOnClickListener { showMore() }
+        val unlockButton = findViewById<Button>(R.id.player_unlock)
         findViewById<Button>(R.id.player_lock).setOnClickListener {
-            locked = !locked
-            controls.visibility = if (locked) View.GONE else View.VISIBLE
-            Toast.makeText(this, if (locked) "Screen locked" else "Unlocked", Toast.LENGTH_SHORT).show()
+            locked = true
+            controls.visibility = View.GONE
+            unlockButton.visibility = View.VISIBLE
+            Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
+        }
+        unlockButton.setOnClickListener {
+            locked = false
+            controls.visibility = View.VISIBLE
+            unlockButton.visibility = View.GONE
+            Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
         }
         findViewById<Button>(R.id.player_mute).setOnClickListener {
             muted = !muted
@@ -269,7 +277,8 @@ class VideoPlayerActivity : AppCompatActivity() {
     override fun onUserLeaveHint() { super.onUserLeaveHint(); if (Build.VERSION.SDK_INT >= 26) enterPip() }
     override fun onPictureInPictureModeChanged(inPip: Boolean, config: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, config)
-        controls.visibility = if (inPip) View.GONE else View.VISIBLE
+        controls.visibility = if (inPip || locked) View.GONE else View.VISIBLE
+        findViewById<Button>(R.id.player_unlock).visibility = if (inPip) View.GONE else if (locked) View.VISIBLE else View.GONE
     }
     private fun seekBy(delta: Long) {
         val p = player ?: return
