@@ -647,17 +647,28 @@ class MainActivity : AppCompatActivity() {
                     val info = getOrFetchStreamInfo(url)
                     val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
                     val durationSec = info.duration.toLong()
-                    val bestAudio = info.audioStreams.maxByOrNull { it.averageBitrate }
+                    val bestAudio = info.audioStreams
+                        .filter { it.isUrl }
+                        .maxByOrNull { it.averageBitrate }
+                    // NewPipe Extractor 0.24.2 does not expose Stream.contentLength.
+                    // Prefer YouTube's URL clen parameter, then use bitrate × duration / 8.
                     val bestAudioBytes = bestAudio?.let { audio ->
-                        estimateStreamBytes(audio.content, audio.averageBitrate.toLong() * 1000L, durationSec)
+                        estimateStreamBytes(audio.content, audio.averageBitrate.toLong(), durationSec)
                     } ?: 0L
 
                     fun sizeText(bytes: Long): String =
-                        if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Auto"
+                        if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
 
                     val streamSizes = mutableMapOf<String, StreamSizePayload>()
-                    listOf("aud-fast", "aud-70", "aud-128", "aud-160", "aud-320").forEach { id ->
-                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
+                    streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
+                    listOf(
+                        "aud-70" to 70L,
+                        "aud-128" to 128L,
+                        "aud-160" to 160L,
+                        "aud-320" to 320L
+                    ).forEach { (id, bitrateKbps) ->
+                        val estimatedMp3Bytes = (bitrateKbps * 1000L * durationSec) / 8L
+                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(estimatedMp3Bytes))
                     }
                     listOf(
                         "vid-144" to 144,
@@ -738,7 +749,7 @@ class MainActivity : AppCompatActivity() {
                     if (!includeSubtitles && (isAudio && audioExt.equals("m4a", ignoreCase = true) || (!isAudio && maxHeight <= 720))) {
                         try {
                             callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 8, ${JSONObject.quote("NewPipe Extractor...")}")
-                            val info = StreamInfo.getInfo(url)
+                            val info = getOrFetchStreamInfo(url)
                             val safeTitle = sanitizeFileName(info.name ?: title)
 
                             val targetStreamUrl: String?
