@@ -58,10 +58,9 @@ class NetworkMonitor(
         override fun onAvailable(network: Network) = evaluateAndNotify()
 
         override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-            val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            // Read the active network snapshot so a secondary unvalidated network
+            // cannot incorrectly mark an otherwise working connection as offline.
             evaluateAndNotify()
-            if (!validated) notifyIfChanged(false)
         }
 
         override fun onLost(network: Network) = evaluateAndNotify()
