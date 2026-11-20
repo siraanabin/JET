@@ -1,6 +1,7 @@
 package com.jet.downloader
 
 import android.Manifest
+import android.app.DownloadManager
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
@@ -1341,69 +1342,122 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-        // Replace siraanabin/JET with your GitHub repository path
-        private val appUpdateJsonUrl = "https://raw.githubusercontent.com/siraanabin/JET/main/version.json"
+        private val latestReleaseApiUrl =
+            "https://api.github.com/repos/siraanabin/JET/releases/latest"
+
+        private fun compareVersionStrings(remoteVersion: String, installedVersion: String): Int {
+            fun parts(value: String): List<Int> = value.trim()
+                .removePrefix("v")
+                .removePrefix("V")
+                .substringBefore('-')
+                .substringBefore('+')
+                .split('.')
+                .map { it.toIntOrNull() ?: 0 }
+
+            val remote = parts(remoteVersion)
+            val installed = parts(installedVersion)
+            for (index in 0 until maxOf(remote.size, installed.size)) {
+                val left = remote.getOrElse(index) { 0 }
+                val right = installed.getOrElse(index) { 0 }
+                if (left != right) return left.compareTo(right)
+            }
+            return 0
+        }
 
         @JavascriptInterface
         fun checkForAppUpdate(isManual: Boolean) {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    val req = okhttp3.Request.Builder()
-                        .url(appUpdateJsonUrl)
+                    val request = okhttp3.Request.Builder()
+                        .url(latestReleaseApiUrl)
+                        .header("Accept", "application/vnd.github+json")
+                        .header("X-GitHub-Api-Version", "2022-11-28")
                         .header("Cache-Control", "no-cache")
                         .build()
 
-                    okHttpClient.newCall(req).execute().use { resp ->
-                        if (!resp.isSuccessful || resp.body == null) {
-                            if (isManual) {
-                                val err = JSONObject().apply {
-                                    put("ok", false)
-                                    put("error", "Update server unreachable (${resp.code})")
-                                }
-                                callJs("onNativeAppUpdateResult", err.toString())
+                    okHttpClient.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful || response.body == null) {
+                            val error = JSONObject().apply {
+                                put("ok", false)
+                                put("manual", isManual)
+                                put("error", "GitHub Releases unavailable (${response.code})")
                             }
+                            callJs("onNativeAppUpdateResult", error.toString())
                             return@use
                         }
 
-                        val remote = JSONObject(resp.body!!.string())
-                        val remoteCode = remote.optLong("versionCode", 0L)
-                        val remoteName = remote.optString("versionName", "")
-                        val apkUrl = remote.optString("apkUrl", "")
-                        val changelog = remote.optString("changelog", "Bug fixes and performance improvements.")
+                        val release = JSONObject(response.body!!.string())
+                        val tagVersion = release.optString("tag_name", "").trim()
+                        val releaseNotes = release.optString("body", "").trim()
+                        val assets = release.optJSONArray("assets")
+                        var apkUrl = ""
+                        if (assets != null) {
+                            var fallbackApkUrl = ""
+                            for (index in 0 until assets.length()) {
+                                val asset = assets.optJSONObject(index) ?: continue
+                                val name = asset.optString("name", "")
+                                val url = asset.optString("browser_download_url", "")
+                                if (!url.startsWith("https://") || !name.endsWith(".apk", ignoreCase = true)) continue
+                                if (name.equals("app-release.apk", ignoreCase = true)) {
+                                    apkUrl = url
+                                    break
+                                }
+                                if (name.equals("JET-release.apk", ignoreCase = true) && fallbackApkUrl.isEmpty()) {
+                                    fallbackApkUrl = url
+                                } else if (fallbackApkUrl.isEmpty()) {
+                                    fallbackApkUrl = url
+                                }
+                            }
+                            if (apkUrl.isEmpty()) apkUrl = fallbackApkUrl
+                        }
 
-                        val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
                         } else {
                             @Suppress("DEPRECATION")
                             packageManager.getPackageInfo(packageName, 0)
                         }
-                        val currentCode = PackageInfoCompat.getLongVersionCode(pInfo)
+                        val installedVersion = packageInfo.versionName ?: "0"
+                        val versionIsNewer = tagVersion.isNotBlank() &&
+                            compareVersionStrings(tagVersion, installedVersion) > 0
+                        if (versionIsNewer && apkUrl.isBlank()) {
+                            throw IllegalStateException("The latest GitHub Release has no downloadable APK asset.")
+                        }
+                        val hasUpdate = versionIsNewer
 
                         val result = JSONObject().apply {
                             put("ok", true)
                             put("manual", isManual)
-                            put("hasUpdate", remoteCode > currentCode && apkUrl.isNotEmpty())
-                            put("currentVersion", pInfo.versionName ?: "3.4.0")
-                            put("latestVersion", remoteName)
+                            put("hasUpdate", hasUpdate)
+                            put("currentVersion", installedVersion)
+                            put("latestVersion", tagVersion.removePrefix("v").removePrefix("V"))
+                            put("tagName", tagVersion)
+                            put("releaseName", release.optString("name", "JET Update"))
+                            put("changelog", releaseNotes.ifBlank { "No release notes provided." })
                             put("apkUrl", apkUrl)
-                            put("changelog", changelog)
+                            put("releaseUrl", release.optString("html_url", ""))
                         }
                         callJs("onNativeAppUpdateResult", result.toString())
                     }
-                } catch (e: Exception) {
-                    if (isManual) {
-                        val err = JSONObject().apply {
-                            put("ok", false)
-                            put("error", e.message ?: "Update check failed")
-                        }
-                        callJs("onNativeAppUpdateResult", err.toString())
+                } catch (error: Exception) {
+                    val result = JSONObject().apply {
+                        put("ok", false)
+                        put("manual", isManual)
+                        put("error", error.message ?: "Update check failed")
                     }
+                    callJs("onNativeAppUpdateResult", result.toString())
                 }
             }
         }
 
         @JavascriptInterface
         fun downloadAndInstallAppUpdate(apkUrl: String) {
+            val parsedUrl = Uri.parse(apkUrl)
+            if (parsedUrl.scheme != "https" || parsedUrl.host != "github.com") {
+                callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Invalid GitHub APK URL")}")
+                return
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
                 runOnUiThread {
                     Toast.makeText(
@@ -1418,63 +1472,44 @@ class MainActivity : AppCompatActivity() {
                         )
                     )
                 }
-                callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Permission required")}")
+                callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Install permission required")}")
                 return
             }
 
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val updateDir = File(cacheDir, "updates").apply { if (!exists()) mkdirs() }
-                    val apkFile = File(updateDir, "JET-update.apk")
-                    if (apkFile.exists()) apkFile.delete()
+            try {
+                val downloadDirectory = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                    ?: throw IllegalStateException("App download directory unavailable")
+                val apkFile = File(downloadDirectory, "JET-update.apk")
+                if (apkFile.exists()) apkFile.delete()
 
-                    val req = okhttp3.Request.Builder().url(apkUrl).build()
-                    okHttpClient.newCall(req).execute().use { resp ->
-                        if (!resp.isSuccessful || resp.body == null) {
-                            callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Download failed (${resp.code})")}")
-                            return@use
-                        }
-
-                        val body = resp.body!!
-                        val totalBytes = body.contentLength()
-                        var downloaded = 0L
-                        var lastNotify = 0L
-
-                        body.byteStream().use { input ->
-                            FileOutputStream(apkFile).use { output ->
-                                val buffer = ByteArray(16 * 1024)
-                                var read: Int
-                                while (input.read(buffer).also { read = it } != -1) {
-                                    output.write(buffer, 0, read)
-                                    downloaded += read
-                                    val now = System.currentTimeMillis()
-                                    if (now - lastNotify >= 350) {
-                                        val pct = if (totalBytes > 0) ((downloaded * 100) / totalBytes).toInt() else 50
-                                        callJs("onNativeAppUpdateProgress", "$pct, ${JSONObject.quote("Downloading APK... $pct%")}")
-                                        lastNotify = now
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (apkFile.exists() && apkFile.length() > 0L) {
-                        callJs("onNativeAppUpdateProgress", "100, ${JSONObject.quote("Launching installer...")}")
-                        val apkUri = FileProvider.getUriForFile(
-                            this@MainActivity,
-                            "${applicationContext.packageName}.fileprovider",
-                            apkFile
-                        )
-                        val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(apkUri, "application/vnd.android.package-archive")
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        runOnUiThread { startActivity(installIntent) }
-                    }
-                } catch (e: Exception) {
-                    callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote(e.message ?: "Update error")}")
+                val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                    setTitle("JET App Update")
+                    setDescription("Downloading the latest signed JET APK")
+                    setMimeType("application/vnd.android.package-archive")
+                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setAllowedOverMetered(true)
+                    setAllowedOverRoaming(false)
+                    setDestinationInExternalFilesDir(
+                        this@MainActivity,
+                        Environment.DIRECTORY_DOWNLOADS,
+                        "JET-update.apk"
+                    )
                 }
+                val downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                val downloadId = downloadManager.enqueue(request)
+                getSharedPreferences("jet_app_update", Context.MODE_PRIVATE)
+                    .edit()
+                    .putLong("download_id", downloadId)
+                    .apply()
+                callJs(
+                    "onNativeAppUpdateProgress",
+                    "0, ${JSONObject.quote("Download started in notification")}"
+                )
+            } catch (error: Exception) {
+                callJs(
+                    "onNativeAppUpdateProgress",
+                    "-1, ${JSONObject.quote(error.message ?: "Unable to start APK download")}"
+                )
             }
         }
 

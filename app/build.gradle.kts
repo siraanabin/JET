@@ -19,8 +19,8 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 341
-        versionName = "3.4.1"
+        versionCode = 342
+        versionName = "3.4.2"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -37,6 +37,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            resValue("string", "app_name", "JET Debug")
+        }
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false

@@ -1,8 +1,8 @@
-name: Build JET Offline UI Debug APK
+name: Build JET Debug APK
 
 on:
   push:
-    branches: [main, jet-v2-integration]
+    branches: [main, jet-v2-integration, debug-inapp-updater]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-debug:
-    name: Build JET Offline UI Debug APK
+    name: Build JET Debug APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -146,7 +146,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: JET-Offline-UI-Debug-APK
+          name: JET Debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
