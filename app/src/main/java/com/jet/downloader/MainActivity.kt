@@ -929,7 +929,6 @@ class MainActivity : AppCompatActivity() {
                         }
                         val bestAudioBytes = bestAudioFormat?.let {
                             formatBytes(
-                                it,
                                 it.fileSize,
                                 it.fileSizeApproximate,
                                 it.url,
@@ -951,8 +950,7 @@ class MainActivity : AppCompatActivity() {
                             }
                             val bytes = audioFormat?.let {
                                 formatBytes(
-                                    it,
-                                    it.fileSize,
+                                it.fileSize,
                                     it.fileSizeApproximate,
                                     it.url,
                                     (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
