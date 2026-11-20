@@ -845,11 +845,13 @@
 
       window.onNativeClipboardUrl = function (url) {
         console.log("Clipboard URL received: " + String(url || ""));
-        if (typeof url !== 'string' || !/^https?:\\/\\//i.test(url)) return;
+        if (typeof url !== 'string') return;
+        const normalizedUrl = url.toLowerCase();
+        if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) return;
         state.clipboardUrl = url;
         const clipboardLabel = $('clipboard-url-label');
         const clipboardChip = $('clipboard-chip');
-        if (clipboardLabel) clipboardLabel.textContent = url.replace(/^https?:\\/\\//i, '');
+        if (clipboardLabel) clipboardLabel.textContent = url.slice(url.indexOf('://') + 3);
         if (clipboardChip) clipboardChip.classList.remove('hidden');
 
         // Open the download format sheet once for each newly copied URL.
