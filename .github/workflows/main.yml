@@ -23,8 +23,8 @@ jobs:
           from pathlib import Path
           v = json.loads(Path('version.json').read_text())
           g = Path('app/build.gradle.kts').read_text()
-          code = int(re.search(r'versionCode\\s*=\\s*(\\d+)', g).group(1))
-          name = re.search(r'versionName\\s*=\\s*"([^"]+)"', g).group(1)
+          code = int(re.search(r'versionCode\s*=\s*(\d+)', g).group(1))
+          name = re.search(r'versionName\s*=\s*"([^"]+)"', g).group(1)
           assert code == v['versionCode'], (code, v['versionCode'])
           assert name == v['versionName'], (name, v['versionName'])
           print(f"JET {name} (versionCode {code})")
@@ -122,7 +122,7 @@ jobs:
             -o ./app/src/main/assets/css/tailwind.min.css \
             --minify
           test -s app/src/main/assets/css/tailwind.min.css
-          if grep -E 'cdn\\.tailwindcss|unpkg\\.com/lucide|fonts\\.googleapis' app/src/main/assets/index.html; then
+          if grep -E 'cdn\.tailwindcss|unpkg\.com/lucide|fonts\.googleapis' app/src/main/assets/index.html; then
             echo "A remote UI CDN reference remains in index.html" >&2
             exit 1
           fi
