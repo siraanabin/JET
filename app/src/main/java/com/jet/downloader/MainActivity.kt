@@ -1568,7 +1568,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-              @JavascriptInterface
         fun downloadAndInstallAppUpdate(apkUrl: String) {
             val parsedUrl = Uri.parse(apkUrl)
             if (parsedUrl.scheme != "https" || parsedUrl.host != "github.com") {
