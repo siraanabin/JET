@@ -1560,5 +1560,76 @@
   });
 })();
 </script>
+
+  <!-- yt-dlp Engine Update Modal -->
+  <div id="engine-update-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-5 py-6" role="dialog" aria-modal="true" aria-labelledby="engine-update-title">
+    <div class="surface-card w-full max-w-sm rounded-3xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M20 7h-9"/><path d="M14 3 10 7l4 4"/><path d="M4 17h9"/><path d="m10 13 4 4-4 4"/></svg>
+        </div>
+        <h2 id="engine-update-title" class="text-lg font-extrabold text-app-text">Update Required</h2>
+      </div>
+      <p id="engine-update-message" class="text-sm leading-relaxed text-app-secondary">A new engine update is required to download this video. Please update now to fix errors and get up to 50% faster downloads!</p>
+      <p id="engine-update-status" class="hidden text-xs text-app-secondary" aria-live="polite"></p>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="engine-update-cancel" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Cancel</button>
+        <button id="engine-update-now" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold">Update Now</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const modal = document.getElementById('engine-update-modal');
+      const cancel = document.getElementById('engine-update-cancel');
+      const update = document.getElementById('engine-update-now');
+      const status = document.getElementById('engine-update-status');
+      const message = document.getElementById('engine-update-message');
+
+      function closeModal() { modal.classList.add('hidden'); }
+
+      window.onNativeEngineUpdateRequired = function (reason) {
+        if (reason && typeof reason === 'object') reason = reason.message || reason.error || '';
+        message.textContent = 'A new engine update is required to download this video. Please update now to fix errors and get up to 50% faster downloads!';
+        status.textContent = reason ? 'Detected: ' + String(reason).slice(0, 180) : '';
+        status.classList.toggle('hidden', !reason);
+        update.disabled = false;
+        update.textContent = 'Update Now';
+        modal.classList.remove('hidden');
+      };
+
+      cancel.addEventListener('click', closeModal);
+      update.addEventListener('click', function () {
+        if (!window.JetAndroid || !window.JetAndroid.updateYtDlpEngine) {
+          status.textContent = 'Native engine updater is unavailable.';
+          status.classList.remove('hidden');
+          return;
+        }
+        update.disabled = true;
+        update.textContent = 'Updating...';
+        status.textContent = 'Downloading and installing the latest engine...';
+        status.classList.remove('hidden');
+        window.JetAndroid.updateYtDlpEngine();
+      });
+
+      window.onNativeEngineUpdated = function (result) {
+        if (typeof result === 'string') {
+          try { result = JSON.parse(result); } catch (_) { result = { ok: false, error: result }; }
+        }
+        if (result && result.ok) {
+          status.textContent = 'Engine updated successfully (' + (result.version || 'latest') + ').';
+          status.classList.remove('hidden');
+          update.textContent = 'Updated';
+          window.setTimeout(closeModal, 900);
+        } else {
+          update.disabled = false;
+          update.textContent = 'Update Now';
+          status.textContent = (result && result.error) || 'Update failed. Check your internet connection and try again.';
+          status.classList.remove('hidden');
+        }
+      };
+    })();
+  </script>
+
 </body>
 </html>
