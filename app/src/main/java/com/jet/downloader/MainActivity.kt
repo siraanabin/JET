@@ -821,7 +821,7 @@ class MainActivity : AppCompatActivity() {
                     val bestAudioBytesJob = bestAudio?.let { audio ->
                         async(Dispatchers.IO) {
                             // NewPipe reports averageBitrate in kbps; estimateStreamBytes expects bits/sec.
-                            estimateStreamBytes(audio.content, audio.averageBitrate.toLong() * 1000L, durationSec)
+                            estimateStreamBytes(audio.content, audio.averageBitrate * 1000L, durationSec)
                         }
                     }
 
