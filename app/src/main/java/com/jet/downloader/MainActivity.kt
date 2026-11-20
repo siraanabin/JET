@@ -901,34 +901,16 @@ class MainActivity : AppCompatActivity() {
                         val durationSec = info.duration.toLong()
                         val formats = info.formats.orEmpty()
 
-                        fun optionalLongField(target: Any, vararg fieldNames: String): Long? {
-                            for (fieldName in fieldNames) {
-                                var type: Class<*>? = target.javaClass
-                                while (type != null) {
-                                    try {
-                                        val field = type.getDeclaredField(fieldName)
-                                        field.isAccessible = true
-                                        val value = field.get(target)
-                                        if (value is Number && value.toLong() > 0L) return value.toLong()
-                                    } catch (_: Exception) {
-                                    }
-                                    type = type.superclass
-                                }
-                            }
-                            return null
-                        }
-
-                        fun formatBytes(format: Any, exactBytes: Long, urlValue: String, bitrateKbps: Long): Long {
+                        fun formatBytes(
+                            exactBytes: Long,
+                            approximateBytes: Long,
+                            urlValue: String?,
+                            bitrateKbps: Long
+                        ): Long {
                             if (exactBytes > 0L) return exactBytes
-                            val approximateBytes = optionalLongField(
-                                format,
-                                "filesize_approx",
-                                "filesizeApproximate",
-                                "fileSizeApproximate"
-                            )
-                            if (approximateBytes != null) return approximateBytes
+                            if (approximateBytes > 0L) return approximateBytes
                             return estimateStreamBytes(
-                                urlValue,
+                                urlValue.orEmpty(),
                                 bitrateKbps.coerceAtLeast(0L) * 1000L,
                                 durationSec
                             )
@@ -948,7 +930,8 @@ class MainActivity : AppCompatActivity() {
                         val bestAudioBytes = bestAudioFormat?.let {
                             formatBytes(
                                 it,
-                                it.filesize,
+                                it.fileSize,
+                                it.fileSizeApproximate,
                                 it.url,
                                 (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
                             )
@@ -969,7 +952,8 @@ class MainActivity : AppCompatActivity() {
                             val bytes = audioFormat?.let {
                                 formatBytes(
                                     it,
-                                    it.filesize,
+                                    it.fileSize,
+                                    it.fileSizeApproximate,
                                     it.url,
                                     (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
                                 )
@@ -999,13 +983,13 @@ class MainActivity : AppCompatActivity() {
                                         shortSide(it.width, it.height) in 1..targetShortSide
                                 }
                                 .maxWithOrNull(
-                                    compareBy<com.sapher.youtubedl.mapper.VideoFormat>(
+                                    compareBy< com.yausername.youtubedl_android.mapper.VideoFormat>(
                                         { shortSide(it.width, it.height) },
                                         { it.tbr }
                                     )
                                 )
                             val videoBytes = videoFormat?.let {
-                                formatBytes(it, it.filesize, it.url, it.tbr.toLong())
+                                formatBytes(it.fileSize, it.fileSizeApproximate, it.url, it.tbr.toLong())
                             } ?: 0L
                             val isVideoOnly = videoFormat?.acodec == null || videoFormat?.acodec == "none"
                             val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
