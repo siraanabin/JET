@@ -508,7 +508,7 @@ class MainActivity : AppCompatActivity() {
         try {
             val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
             val rawText = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString()?.trim().orEmpty()
-            val matchedUrl = Regex("""https?://[^\\s<>"']+""", RegexOption.IGNORE_CASE).find(rawText)?.value ?: return
+            val matchedUrl = Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE).find(rawText)?.value ?: return
             if (matchedUrl == lastDeliveredClipboardUrl) return
 
             val quoted = org.json.JSONObject.quote(matchedUrl)
@@ -935,7 +935,7 @@ class MainActivity : AppCompatActivity() {
                                 it.url,
                                 (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble()
                             )
-                        } ?: 0L
+                        } ?: (320.0 * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
 
                         val streamSizes = mutableMapOf<String, StreamSizePayload>()
                         listOf(
