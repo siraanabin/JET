@@ -569,6 +569,15 @@
         <p class="text-[11px] font-bold uppercase tracking-wide text-app-secondary">What's new</p>
         <div id="app-update-notes" class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-app-text">Release notes will appear here.</div>
       </div>
+      <div id="app-update-progress" class="hidden space-y-2" aria-live="polite">
+        <div class="flex items-center justify-between gap-3">
+          <span id="app-update-progress-label" class="text-xs text-app-secondary">Preparing download…</span>
+          <span id="app-update-progress-percent" class="text-sm font-bold tabular-nums text-app-primary">0%</span>
+        </div>
+        <div class="h-2.5 w-full overflow-hidden rounded-full bg-app-elevated">
+          <div id="app-update-progress-bar" class="h-full rounded-full bg-app-primary transition-[width] duration-300" style="width:0%"></div>
+        </div>
+      </div>
       <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">The matching signed APK will be downloaded from GitHub Releases.</p>
       <div class="grid grid-cols-2 gap-2">
         <button id="app-update-later" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Later</button>
@@ -1431,18 +1440,32 @@
 
       window.onNativeAppUpdateProgress = function (pct, label) {
         const sub = $('app-update-subtitle');
+        const progress = $('app-update-progress');
+        const progressLabel = $('app-update-progress-label');
+        const progressPercent = $('app-update-progress-percent');
+        const progressBar = $('app-update-progress-bar');
         if (sub) sub.textContent = label || 'Preparing APK download...';
+
         if (pct < 0) {
+          if (progress) progress.classList.add('hidden');
           appUpdateInstall.disabled = false;
           appUpdateInstall.textContent = 'Try Again';
           appUpdateStatus.textContent = label || 'Download failed.';
           appUpdateStatus.classList.remove('hidden');
-        } else {
-          appUpdateInstall.disabled = true;
-          appUpdateInstall.textContent = 'Download started';
-          appUpdateStatus.textContent = label || 'APK download started. Check your notifications for progress.';
-          appUpdateStatus.classList.remove('hidden');
+          return;
         }
+
+        const safePct = Math.max(0, Math.min(100, Number(pct) || 0));
+        if (progress) progress.classList.remove('hidden');
+        if (progressLabel) progressLabel.textContent = label || 'Downloading APK…';
+        if (progressPercent) progressPercent.textContent = safePct + '%';
+        if (progressBar) progressBar.style.width = safePct + '%';
+        appUpdateInstall.disabled = true;
+        appUpdateInstall.textContent = safePct >= 100 ? 'Downloaded' : 'Downloading ' + safePct + '%';
+        appUpdateStatus.textContent = safePct >= 100
+          ? 'APK downloaded. Tap the download notification to install.'
+          : 'Downloading update…';
+        appUpdateStatus.classList.remove('hidden');
       };
 
       $('check-app-update-btn').addEventListener('click', () => {
