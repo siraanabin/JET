@@ -143,6 +143,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val streamSizeCache = ConcurrentHashMap<String, Long>()
+    // Keep googlevideo range probes below the concurrency level that commonly triggers 403s.
+    private val streamProbeSemaphore = java.util.concurrent.Semaphore(2)
 
     // Must match JetOkHttpDownloader's User-Agent.
     private val extractorUserAgent =
@@ -168,37 +170,43 @@ class MainActivity : AppCompatActivity() {
         }
 
         val rangedBytes = try {
-            val request = okhttp3.Request.Builder()
-                .url(contentUrl)
-                .header("User-Agent", extractorUserAgent)
-                .header("Referer", "https://www.youtube.com/")
-                .header("Range", "bytes=0-0")
-                .get()
-                .build()
+            streamProbeSemaphore.acquire()
+            try {
+                val request = okhttp3.Request.Builder()
+                    .url(contentUrl)
+                    .header("User-Agent", extractorUserAgent)
+                    .header("Referer", "https://www.youtube.com/")
+                    .header("Accept-Encoding", "identity")
+                    .header("Range", "bytes=0-0")
+                    .get()
+                    .build()
 
-            okHttpClient.newBuilder()
-                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .callTimeout(7, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-                .newCall(request)
-                .execute()
-                .use { response ->
-                    val totalFromRange = response.header("Content-Range")
-                        ?.substringAfterLast('/', "")
-                        ?.trim()
-                        ?.toLongOrNull()
-                        ?.takeIf { it > 0L }
-
-                    when {
-                        totalFromRange != null -> totalFromRange
-                        // A 206 response's Content-Length is usually just the one requested byte.
-                        response.code == 200 -> response.header("Content-Length")
+                okHttpClient.newBuilder()
+                    .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .callTimeout(7, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                    .newCall(request)
+                    .execute()
+                    .use { response ->
+                        val totalFromRange = response.header("Content-Range")
+                            ?.substringAfterLast('/', "")
+                            ?.trim()
                             ?.toLongOrNull()
-                            ?.takeIf { it > 1L }
-                        else -> null
+                            ?.takeIf { it > 0L }
+
+                        when {
+                            totalFromRange != null -> totalFromRange
+                            // A 206 response's Content-Length is usually just the one requested byte.
+                            response.code == 200 -> response.header("Content-Length")
+                                ?.toLongOrNull()
+                                ?.takeIf { it > 1L }
+                            else -> null
+                        }
                     }
-                }
+            } finally {
+                streamProbeSemaphore.release()
+            }
         } catch (_: Exception) {
             null
         }
@@ -809,16 +817,19 @@ class MainActivity : AppCompatActivity() {
                     val bestAudio = info.audioStreams
                         .filter { it.isUrl }
                         .maxByOrNull { it.averageBitrate }
-                    // Prefer stream content length when exposed by the extractor; otherwise use URL clen,
-                    // then bitrate × duration / 8 for a stable per-format estimate.
+
                     val bestAudioBytesJob = bestAudio?.let { audio ->
                         async(Dispatchers.IO) {
-                            estimateStreamBytes(audio.content, audio.averageBitrate.toLong(), durationSec)
+                            // NewPipe reports averageBitrate in kbps; estimateStreamBytes expects bits/sec.
+                            estimateStreamBytes(audio.content, audio.averageBitrate.toLong() * 1000L, durationSec)
                         }
                     }
 
                     fun sizeText(bytes: Long): String =
                         if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
+
+                    fun shortSide(width: Int, height: Int): Int =
+                        if (width > 0) minOf(width, height) else height
 
                     val streamSizes = mutableMapOf<String, StreamSizePayload>()
                     listOf(
@@ -830,7 +841,9 @@ class MainActivity : AppCompatActivity() {
                         val estimatedMp3Bytes = (bitrateKbps * 1000L * durationSec) / 8L
                         streamSizes[id] = StreamSizePayload(sizeText = sizeText(estimatedMp3Bytes))
                     }
-                    // Start audio and every available video stream lookup together.
+
+                    // Use the smallest video dimension as the resolution class. This supports
+                    // landscape, cinematic and portrait/Shorts formats without height equality checks.
                     val videoSizeJobs = listOf(
                         "vid-144" to 144,
                         "vid-240" to 240,
@@ -840,16 +853,24 @@ class MainActivity : AppCompatActivity() {
                         "vid-1080" to 1080,
                         "vid-2k" to 1440,
                         "vid-4k" to 2160
-                    ).map { (id, height) ->
+                    ).map { (id, targetShortSide) ->
                         id to async(Dispatchers.IO) {
                             val video = info.videoStreams
-                                .filter { it.height == height && it.isUrl }
-                                .maxByOrNull { it.bitrate }
+                                .filter {
+                                    it.isUrl && shortSide(it.width, it.height) in 1..targetShortSide
+                                }
+                                .maxWithOrNull(
+                                    compareBy<org.schabi.newpipe.extractor.stream.VideoStream>(
+                                        { shortSide(it.width, it.height) },
+                                        { it.bitrate }
+                                    )
+                                )
                             video?.let {
                                 estimateStreamBytes(it.content, it.bitrate.toLong(), durationSec) to it.isVideoOnly
                             } ?: (0L to false)
                         }
                     }
+
                     val bestAudioBytes = bestAudioBytesJob?.await() ?: 0L
                     streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
                     videoSizeJobs.forEach { (id, job) ->
@@ -877,13 +898,130 @@ class MainActivity : AppCompatActivity() {
                             ytDlpReady = true
                         }
                         val info = YoutubeDL.getInstance().getInfo(url)
+                        val durationSec = info.duration.toLong()
+                        val formats = info.formats.orEmpty()
+
+                        fun optionalLongField(target: Any, vararg fieldNames: String): Long? {
+                            for (fieldName in fieldNames) {
+                                var type: Class<*>? = target.javaClass
+                                while (type != null) {
+                                    try {
+                                        val field = type.getDeclaredField(fieldName)
+                                        field.isAccessible = true
+                                        val value = field.get(target)
+                                        if (value is Number && value.toLong() > 0L) return value.toLong()
+                                    } catch (_: Exception) {
+                                    }
+                                    type = type.superclass
+                                }
+                            }
+                            return null
+                        }
+
+                        fun formatBytes(format: Any, exactBytes: Long, urlValue: String, bitrateKbps: Long): Long {
+                            if (exactBytes > 0L) return exactBytes
+                            val approximateBytes = optionalLongField(
+                                format,
+                                "filesize_approx",
+                                "filesizeApproximate",
+                                "fileSizeApproximate"
+                            )
+                            if (approximateBytes != null) return approximateBytes
+                            return estimateStreamBytes(
+                                urlValue,
+                                bitrateKbps.coerceAtLeast(0L) * 1000L,
+                                durationSec
+                            )
+                        }
+
+                        fun shortSide(width: Int, height: Int): Int =
+                            if (width > 0) minOf(width, height) else height
+
+                        val audioFormats = formats.filter {
+                            it.acodec != null && it.acodec != "none" &&
+                                (it.vcodec == null || it.vcodec == "none") &&
+                                !it.url.isNullOrBlank()
+                        }
+                        val bestAudioFormat = audioFormats.maxByOrNull {
+                            (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
+                        }
+                        val bestAudioBytes = bestAudioFormat?.let {
+                            formatBytes(
+                                it,
+                                it.filesize,
+                                it.url,
+                                (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
+                            )
+                        } ?: 0L
+
+                        val streamSizes = mutableMapOf<String, StreamSizePayload>()
+                        listOf(
+                            "aud-70" to 70L,
+                            "aud-128" to 128L,
+                            "aud-160" to 160L,
+                            "aud-320" to 320L
+                        ).forEach { (id, targetKbps) ->
+                            val audioFormat = audioFormats.minByOrNull {
+                                kotlin.math.abs(
+                                    (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong() - targetKbps
+                                )
+                            }
+                            val bytes = audioFormat?.let {
+                                formatBytes(
+                                    it,
+                                    it.filesize,
+                                    it.url,
+                                    (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
+                                )
+                            } ?: 0L
+                            streamSizes[id] = StreamSizePayload(
+                                sizeText = if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
+                            )
+                        }
+                        streamSizes["aud-fast"] = StreamSizePayload(
+                            sizeText = if (bestAudioBytes > 0L) String.format(Locale.US, "%.1f MB", bestAudioBytes / (1024.0 * 1024.0)) else "Size N/A"
+                        )
+
+                        listOf(
+                            "vid-144" to 144,
+                            "vid-240" to 240,
+                            "vid-360" to 360,
+                            "vid-480" to 480,
+                            "vid-720" to 720,
+                            "vid-1080" to 1080,
+                            "vid-2k" to 1440,
+                            "vid-4k" to 2160
+                        ).forEach { (id, targetShortSide) ->
+                            val videoFormat = formats
+                                .filter {
+                                    it.vcodec != null && it.vcodec != "none" &&
+                                        !it.url.isNullOrBlank() &&
+                                        shortSide(it.width, it.height) in 1..targetShortSide
+                                }
+                                .maxWithOrNull(
+                                    compareBy<com.sapher.youtubedl.mapper.VideoFormat>(
+                                        { shortSide(it.width, it.height) },
+                                        { it.tbr }
+                                    )
+                                )
+                            val videoBytes = videoFormat?.let {
+                                formatBytes(it, it.filesize, it.url, it.tbr.toLong())
+                            } ?: 0L
+                            val isVideoOnly = videoFormat?.acodec == null || videoFormat?.acodec == "none"
+                            val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
+                            streamSizes[id] = StreamSizePayload(
+                                sizeText = if (totalBytes > 0L) String.format(Locale.US, "%.1f MB", totalBytes / (1024.0 * 1024.0)) else "Size N/A"
+                            )
+                        }
+
                         val payload = MediaInfoPayload(
                             ok = true,
                             title = info.title ?: "JET Media Stream",
                             duration = formatDuration(info.duration),
                             thumbnail = info.thumbnail ?: "",
                             uploader = info.uploader ?: "",
-                            extractor = "yt-dlp Fallback"
+                            extractor = "yt-dlp Fallback",
+                            streams = streamSizes
                         )
                         callJs("onNativeMediaInfo", json.encodeToString(payload))
                     } catch (e: Exception) {
