@@ -1538,7 +1538,6 @@ class MainActivity : AppCompatActivity() {
                             put("releaseUrl", release.optString("html_url", ""))
                         }
                         callJs("onNativeAppUpdateResult", result.toString())
-                    }
                 } catch (error: Exception) {
                     val result = JSONObject().apply {
                         put("ok", false)
