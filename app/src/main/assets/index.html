@@ -550,6 +550,33 @@
 
   </div>
 
+  <!-- GitHub Release App Update Modal -->
+  <div id="app-update-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-5 py-6" role="dialog" aria-modal="true" aria-labelledby="app-update-title">
+    <div class="surface-card w-full max-w-md rounded-3xl p-5 space-y-4 shadow-2xl border border-app-border">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-2xl bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+          </div>
+          <div class="min-w-0">
+            <h2 id="app-update-title" class="text-lg font-extrabold text-app-text">Update available</h2>
+            <p id="app-update-version" class="text-xs text-app-secondary">A new JET version is ready.</p>
+          </div>
+        </div>
+        <button id="app-update-close" type="button" class="w-8 h-8 rounded-lg text-app-muted hover:bg-app-elevated" aria-label="Close update dialog">×</button>
+      </div>
+      <div class="rounded-2xl bg-app-elevated/60 p-3 space-y-2">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-app-secondary">What's new</p>
+        <div id="app-update-notes" class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-app-text">Release notes will appear here.</div>
+      </div>
+      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">A signed APK will be downloaded from GitHub Releases.</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="app-update-later" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Later</button>
+        <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download &amp; Install</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       const $ = (id) => document.getElementById(id);
@@ -1602,33 +1629,6 @@
   });
 })();
 </script>
-
-  <!-- GitHub Release App Update Modal -->
-  <div id="app-update-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-5 py-6" role="dialog" aria-modal="true" aria-labelledby="app-update-title">
-    <div class="surface-card w-full max-w-md rounded-3xl p-5 space-y-4 shadow-2xl border border-app-border">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-11 h-11 rounded-2xl bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
-          </div>
-          <div class="min-w-0">
-            <h2 id="app-update-title" class="text-lg font-extrabold text-app-text">Update available</h2>
-            <p id="app-update-version" class="text-xs text-app-secondary">A new JET version is ready.</p>
-          </div>
-        </div>
-        <button id="app-update-close" type="button" class="w-8 h-8 rounded-lg text-app-muted hover:bg-app-elevated" aria-label="Close update dialog">×</button>
-      </div>
-      <div class="rounded-2xl bg-app-elevated/60 p-3 space-y-2">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-app-secondary">What's new</p>
-        <div id="app-update-notes" class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-app-text">Release notes will appear here.</div>
-      </div>
-      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">A signed APK will be downloaded from GitHub Releases.</p>
-      <div class="grid grid-cols-2 gap-2">
-        <button id="app-update-later" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Later</button>
-        <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download &amp; Install</button>
-      </div>
-    </div>
-  </div>
 
   <!-- yt-dlp Engine Update Modal -->
   <div id="engine-update-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5 py-6" role="dialog" aria-modal="true" aria-labelledby="engine-update-title">
