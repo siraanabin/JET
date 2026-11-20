@@ -569,7 +569,7 @@
         <p class="text-[11px] font-bold uppercase tracking-wide text-app-secondary">What's new</p>
         <div id="app-update-notes" class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-app-text">Release notes will appear here.</div>
       </div>
-      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">A signed APK will be downloaded from GitHub Releases.</p>
+      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">The matching signed APK will be downloaded from GitHub Releases.</p>
       <div class="grid grid-cols-2 gap-2">
         <button id="app-update-later" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Later</button>
         <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download &amp; Install</button>
@@ -1412,7 +1412,8 @@
           if (sub) sub.textContent = `v${res.latestVersion} available`;
           if (btn) btn.textContent = 'View Update';
           if (badge) badge.classList.remove('hidden');
-          appUpdateVersion.textContent = `JET v${res.latestVersion} is available`;
+          const updateAppName = res.appName || 'JET';
+          appUpdateVersion.textContent = `${updateAppName} v${res.latestVersion} is available`;
           appUpdateNotes.textContent = res.changelog || 'No release notes provided.';
           appUpdateStatus.textContent = res.releaseName || 'A new version is ready to install.';
           appUpdateStatus.classList.remove('hidden');
