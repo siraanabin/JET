@@ -891,6 +891,14 @@ class MainActivity : AppCompatActivity() {
                     fun sizeText(bytes: Long): String =
                         if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Approx. unavailable"
 
+                    // NewPipe stream bitrates are in kbps; convert to bytes using duration.
+                    fun bitrateSizeBytes(bitrateKbps: Double): Long =
+                        if (bitrateKbps > 0.0 && durationSec > 0L) {
+                            (bitrateKbps * 1000.0 / 8.0 * durationSec).toLong()
+                        } else {
+                            0L
+                        }
+
                     fun shortSide(width: Int, height: Int): Int =
                         if (width > 0) minOf(width, height) else height
 
@@ -929,7 +937,16 @@ class MainActivity : AppCompatActivity() {
                                     )
                                 )
                             video?.let {
-                                estimateStreamBytes(it.content, it.bitrate.toLong(), durationSec) to it.isVideoOnly
+                                // Prefer the URL/Content-Length estimate; if unavailable,
+                                // estimate from video bitrate and duration.
+                                val probedBytes = estimateStreamBytes(
+                                    it.content,
+                                    it.bitrate.toLong() * 1000L,
+                                    durationSec
+                                )
+                                val videoBytes = probedBytes.takeIf { bytes -> bytes > 0L }
+                                    ?: bitrateSizeBytes(it.bitrate.toDouble())
+                                videoBytes to it.isVideoOnly
                             } ?: (0L to false)
                         }
                     }
@@ -977,8 +994,9 @@ class MainActivity : AppCompatActivity() {
                         ): Long {
                             if (exactBytes > 0L) return exactBytes
                             if (approximateBytes > 0L) return approximateBytes
+                            // yt-dlp tbr/abr are in kbps. Estimate bytes from bitrate and duration.
                             if (bitrateKbps > 0.0 && durationSec > 0L) {
-                                return (bitrateKbps * 1000.0 * durationSec / 8.0).toLong()
+                                return (bitrateKbps * 1000.0 / 8.0 * durationSec).toLong()
                             }
                             return 0L
                         }
