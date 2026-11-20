@@ -105,7 +105,7 @@ dependencies {
     implementation("androidx.webkit:webkit:1.11.0")
 
     // NewPipe Extractor (GPLv3)
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.24.2")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")
 
     // AndroidX Media3 (Apache 2.0)
     val media3Version = "1.4.1"
@@ -141,7 +141,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Native yt-dlp + FFmpeg fallback & muxing engine
-    val youtubeDlVersion = "0.17.2"
+    val youtubeDlVersion = "0.18.1"
     implementation("io.github.junkfood02.youtubedl-android:library:$youtubeDlVersion")
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$youtubeDlVersion")
 }
