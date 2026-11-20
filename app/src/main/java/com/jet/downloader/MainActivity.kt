@@ -1602,8 +1602,80 @@ class MainActivity : AppCompatActivity() {
                     .apply()
                 callJs(
                     "onNativeAppUpdateProgress",
-                    "0, ${JSONObject.quote("Download started in notification")}"
+                    "0, ${JSONObject.quote("Starting APK download…")}"
                 )
+
+                // Query DownloadManager while the APK is downloading and stream
+                // the real byte-based percentage into the in-app update dialog.
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val query = DownloadManager.Query().setFilterById(downloadId)
+                    while (true) {
+                        var shouldStop = false
+                        var progress = 0
+                        var statusLabel = "Downloading APK…"
+                        var failureMessage: String? = null
+
+                        downloadManager.query(query)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val status = cursor.getInt(
+                                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)
+                                )
+                                val downloaded = cursor.getLong(
+                                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                                )
+                                val total = cursor.getLong(
+                                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                                )
+                                progress = if (total > 0L) {
+                                    ((downloaded * 100L) / total).toInt().coerceIn(0, 99)
+                                } else {
+                                    0
+                                }
+                                statusLabel = if (total > 0L) {
+                                    "Downloading APK · $progress% · ${formatBytes(downloaded)} / ${formatBytes(total)}"
+                                } else {
+                                    "Downloading APK · ${formatBytes(downloaded)}"
+                                }
+
+                                when (status) {
+                                    DownloadManager.STATUS_SUCCESSFUL -> {
+                                        progress = 100
+                                        statusLabel = "Download complete · 100% · Install from notification"
+                                        shouldStop = true
+                                    }
+                                    DownloadManager.STATUS_FAILED -> {
+                                        val reason = cursor.getInt(
+                                            cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)
+                                        )
+                                        failureMessage = "APK download failed (code $reason)"
+                                        shouldStop = true
+                                    }
+                                }
+                            } else {
+                                failureMessage = "APK download could not be found"
+                                shouldStop = true
+                            }
+                        } ?: run {
+                            failureMessage = "Unable to read APK download progress"
+                            shouldStop = true
+                        }
+
+                        if (failureMessage != null) {
+                            callJs(
+                                "onNativeAppUpdateProgress",
+                                "-1, ${JSONObject.quote(failureMessage)}"
+                            )
+                            break
+                        }
+
+                        callJs(
+                            "onNativeAppUpdateProgress",
+                            "$progress, ${JSONObject.quote(statusLabel)}"
+                        )
+                        if (shouldStop) break
+                        Thread.sleep(500)
+                    }
+                }
             } catch (error: Exception) {
                 callJs(
                     "onNativeAppUpdateProgress",
