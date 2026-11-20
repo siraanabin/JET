@@ -1,6 +1,6 @@
 {
-  "versionCode": 343,
-  "versionName": "3.4.3",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.4.3/JET-debug.apk",
-  "changelog": "• Separate JET Debug in-app update channel\n• Consistently signed Debug APK for future in-app updates\n• yt-dlp and NewPipe extractor fixes"
+  "versionCode": 344,
+  "versionName": "3.4.4",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.4.4/JET-debug.apk",
+  "changelog": "• Separate JET Debug in-app update channel\n• Consistently signed Debug APK for future in-app updates\n• Prefer size-bearing HTTPS video streams over HLS manifests\n• Add IPv4 and retry options for yt-dlp downloads"
 }
