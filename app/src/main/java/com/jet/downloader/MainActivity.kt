@@ -1045,13 +1045,14 @@ class MainActivity : AppCompatActivity() {
                             "vid-2k" to 1440,
                             "vid-4k" to 2160
                         ).forEach { (id, targetShortSide) ->
-                            val videoCandidates = formats.filter {
-                                it.vcodec != null && it.vcodec != "none" &&
-                                    !it.url.isNullOrBlank() &&
-                                    it.url.startsWith("https://", ignoreCase = true) &&
-                                    !it.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true) &&
-                                    !it.url.substringBefore('?').endsWith(".mpd", ignoreCase = true) &&
-                                    shortSide(it.width, it.height) in 1..targetShortSide
+                            val videoCandidates = formats.filter { format ->
+                                val streamUrl = format.url ?: return@filter false
+                                format.vcodec != null && format.vcodec != "none" &&
+                                    streamUrl.isNotBlank() &&
+                                    streamUrl.startsWith("https://", ignoreCase = true) &&
+                                    !streamUrl.substringBefore('?').endsWith(".m3u8", ignoreCase = true) &&
+                                    !streamUrl.substringBefore('?').endsWith(".mpd", ignoreCase = true) &&
+                                    shortSide(format.width, format.height) in 1..targetShortSide
                             }
                             // Prefer direct HTTPS MP4/WebM/DASH media formats that expose
                             // an exact or approximate byte count; never let an HLS manifest
