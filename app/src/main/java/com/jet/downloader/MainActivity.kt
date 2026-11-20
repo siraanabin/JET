@@ -1377,6 +1377,47 @@ class MainActivity : AppCompatActivity() {
         private val releasesApiUrl =
             "https://api.github.com/repos/siraanabin/JET/releases?per_page=100"
 
+        /**
+         * GitHub's unauthenticated Releases API can return HTTP 403 when its
+         * rate limit is exhausted. For Debug builds, fall back to GitHub's
+         * public Releases HTML and derive the standard release asset URL.
+         */
+        private fun fetchLatestDebugReleaseFromWeb(): JSONObject {
+            val pageRequest = okhttp3.Request.Builder()
+                .url("https://github.com/siraanabin/JET/releases")
+                .header("User-Agent", "JET-Android-Updater")
+                .header("Cache-Control", "no-cache")
+                .build()
+            val pageHtml = okHttpClient.newCall(pageRequest).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IllegalStateException("GitHub Debug releases page unavailable (${response.code})")
+                }
+                response.body?.string()
+                    ?: throw IllegalStateException("GitHub Debug releases page was empty.")
+            }
+
+            val tags = Regex("""/siraanabin/JET/releases/tag/(debug-v[0-9A-Za-z._-]+)""")
+                .findAll(pageHtml)
+                .map { it.groupValues[1] }
+                .distinct()
+                .toList()
+            val latestTag = tags.maxWithOrNull { left, right ->
+                compareVersionStrings(left.removePrefix("debug-v"), right.removePrefix("debug-v"))
+            } ?: throw IllegalStateException("No published JET Debug update was found.")
+
+            val assetUrl = "https://github.com/siraanabin/JET/releases/download/$latestTag/JET-debug.apk"
+            return JSONObject().apply {
+                put("tag_name", latestTag)
+                put("name", "JET Debug ${latestTag.removePrefix("debug-v")}")
+                put("body", "Debug update")
+                put("html_url", "https://github.com/siraanabin/JET/releases/tag/$latestTag")
+                put("assets", org.json.JSONArray().put(JSONObject().apply {
+                    put("name", "JET-debug.apk")
+                    put("browser_download_url", assetUrl)
+                }))
+            }
+        }
+
         private fun compareVersionStrings(remoteVersion: String, installedVersion: String): Int {
             fun parts(value: String): List<Int> = value.trim()
                 .removePrefix("v")
@@ -1402,36 +1443,49 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val isDebugApp = packageName.endsWith(".debug")
                     val apiUrl = if (isDebugApp) releasesApiUrl else latestReleaseApiUrl
-                    val request = okhttp3.Request.Builder()
-                        .url(apiUrl)
-                        .header("Accept", "application/vnd.github+json")
-                        .header("X-GitHub-Api-Version", "2022-11-28")
-                        .header("Cache-Control", "no-cache")
-                        .build()
-
-                    okHttpClient.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful || response.body == null) {
-                            val error = JSONObject().apply {
-                                put("ok", false)
-                                put("manual", isManual)
-                                put("error", "GitHub Releases unavailable (${response.code})")
+                    val release = if (isDebugApp) {
+                        val request = okhttp3.Request.Builder()
+                            .url(apiUrl)
+                            .header("Accept", "application/vnd.github+json")
+                            .header("X-GitHub-Api-Version", "2022-11-28")
+                            .header("Cache-Control", "no-cache")
+                            .build()
+                        try {
+                            okHttpClient.newCall(request).execute().use { response ->
+                                if (!response.isSuccessful || response.body == null) {
+                                    throw IllegalStateException("GitHub Releases API unavailable (${response.code})")
+                                }
+                                val releases = org.json.JSONArray(response.body!!.string())
+                                (0 until releases.length())
+                                    .mapNotNull { releases.optJSONObject(it) }
+                                    .filter { candidate ->
+                                        candidate.optBoolean("prerelease", false) &&
+                                            candidate.optString("tag_name", "").startsWith("debug-v")
+                                    }
+                                    .maxWithOrNull { left, right ->
+                                        compareVersionStrings(
+                                            left.optString("tag_name").removePrefix("debug-v"),
+                                            right.optString("tag_name").removePrefix("debug-v")
+                                        )
+                                    } ?: throw IllegalStateException("No published JET Debug update is available yet.")
                             }
-                            callJs("onNativeAppUpdateResult", error.toString())
-                            return@use
+                        } catch (apiError: Exception) {
+                            fetchLatestDebugReleaseFromWeb()
                         }
-
-                        val responseText = response.body!!.string()
-                        val release = if (isDebugApp) {
-                            val releases = org.json.JSONArray(responseText)
-                            (0 until releases.length())
-                                .mapNotNull { releases.optJSONObject(it) }
-                                .firstOrNull { candidate ->
-                                    candidate.optBoolean("prerelease", false) &&
-                                        candidate.optString("tag_name", "").startsWith("debug-v")
-                                } ?: throw IllegalStateException("No published JET Debug update is available yet.")
-                        } else {
-                            JSONObject(responseText)
+                    } else {
+                        val request = okhttp3.Request.Builder()
+                            .url(apiUrl)
+                            .header("Accept", "application/vnd.github+json")
+                            .header("X-GitHub-Api-Version", "2022-11-28")
+                            .header("Cache-Control", "no-cache")
+                            .build()
+                        okHttpClient.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful || response.body == null) {
+                                throw IllegalStateException("GitHub Releases unavailable (${response.code})")
+                            }
+                            JSONObject(response.body!!.string())
                         }
+                    }
 
                         val tagName = release.optString("tag_name", "").trim()
                         val tagVersion = if (isDebugApp) {
