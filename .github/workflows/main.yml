@@ -2,7 +2,7 @@ name: Build JET Offline UI Debug APK
 
 on:
   push:
-    branches: [main, jet-v2-integration]
+    branches: [main, jet-v2-integration, debug-inapp-updater]
   workflow_dispatch:
 
 permissions:
