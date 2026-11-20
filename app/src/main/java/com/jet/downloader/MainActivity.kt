@@ -950,7 +950,7 @@ class MainActivity : AppCompatActivity() {
                             }
                             val bytes = audioFormat?.let {
                                 formatBytes(
-                                it.fileSize,
+                                    it.fileSize,
                                     it.fileSizeApproximate,
                                     it.url,
                                     (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
@@ -989,7 +989,7 @@ class MainActivity : AppCompatActivity() {
                             val videoBytes = videoFormat?.let {
                                 formatBytes(it.fileSize, it.fileSizeApproximate, it.url, it.tbr.toLong())
                             } ?: 0L
-                            val isVideoOnly = videoFormat?.acodec == null || videoFormat?.acodec == "none"
+                            val isVideoOnly = videoFormat != null && (videoFormat.acodec == null || videoFormat.acodec == "none")
                             val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
                             streamSizes[id] = StreamSizePayload(
                                 sizeText = if (totalBytes > 0L) String.format(Locale.US, "%.1f MB", totalBytes / (1024.0 * 1024.0)) else "Size N/A"
