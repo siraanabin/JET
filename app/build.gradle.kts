@@ -39,6 +39,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("release")
             resValue("string", "app_name", "JET Debug")
         }
         release {
