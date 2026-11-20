@@ -6,7 +6,7 @@
   <title>JET — Download at Full Speed.</title>
   <link rel="stylesheet" href="./fonts/fonts.css" />
   <link rel="stylesheet" href="./css/tailwind.min.css" />
-  <script defer src="./js/lucide.min.js"></script>
+  <script src="./js/lucide.min.js"></script>
   <style>
     :root {
       --bg-canvas: #F4F6FB;
@@ -876,6 +876,7 @@
 
       window.onNativeMediaInfo = function (info) {
         $('fetching-info-bar').classList.add('hidden');
+        if (info && info.ok) hideJetRetryBanner();
         if (!info || !info.ok) {
           const failedUrl = state.pendingUrl;
           showJetRetryBanner(info && info.error ? info.error : 'Could not load media information.', () => openFormatModal(failedUrl), 'Could not fetch media info');
@@ -903,6 +904,9 @@
       };
 
       window.onNativeDownloadComplete = function (data) {
+        state.retryDownloadArgs = null;
+        state.retryDownloadRecord = null;
+        hideJetRetryBanner();
         const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
         const existing = idx >= 0 ? state.activeDownloads[idx] : null;
         if (idx >= 0) state.activeDownloads.splice(idx, 1);
