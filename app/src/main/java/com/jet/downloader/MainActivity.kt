@@ -945,7 +945,8 @@ class MainActivity : AppCompatActivity() {
                             addOption("--dump-single-json")
                             addOption("--no-playlist")
                             addOption("--no-warnings")
-                            addOption("--extractor-args", "youtube:player_client=ios,android,web")
+                            // Let the bundled current yt-dlp choose supported YouTube clients.
+                            // Forcing android/ios/web can require unavailable PO tokens and hide formats.
                         }
                         val info = synchronized(ytDlpEngineLock) {
                             YoutubeDL.getInstance().getInfo(metadataRequest)
@@ -1170,7 +1171,7 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("-o", "${outDir.absolutePath}/%(title).80B [%(id)s].%(ext)s")
                     request.addOption("--no-mtime")
                     request.addOption("--no-playlist")
-                    request.addOption("--extractor-args", "youtube:player_client=ios,android,web")
+                    // Do not pin Android/iOS clients: current YouTube requires PO tokens for them.
 
                     if (isAudio) {
                         request.addOption("-x")
