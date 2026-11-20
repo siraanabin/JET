@@ -264,6 +264,7 @@ class MainActivity : AppCompatActivity() {
         settings.loadWithOverviewMode = true
 
         webView.addJavascriptInterface(JetNativeBridge(), "JetAndroid")
+        webView.addJavascriptInterface(JetNetworkBridge(), "JetNetwork")
         webView.webChromeClient = WebChromeClient()
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -276,9 +277,24 @@ class MainActivity : AppCompatActivity() {
                 }
                 checkSystemClipboard()
                 pushScannedLibraryToWeb()
+                syncNetworkStateToJs()
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: android.webkit.WebResourceRequest?,
+                error: android.webkit.WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                if (request?.isForMainFrame == true && request.url.scheme != "file") {
+                    callJs("onNetworkStateChanged", "false")
+                }
             }
         }
 
+        networkMonitor = NetworkMonitor(applicationContext) { online ->
+            syncNetworkStateToJs(online)
+        }
         handleIncomingIntent(intent)
         webView.loadUrl("file:///android_asset/index.html")
 
@@ -299,6 +315,33 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    private lateinit var networkMonitor: NetworkMonitor
+
+    private inner class JetNetworkBridge {
+        @JavascriptInterface
+        fun isOnline(): Boolean = if (::networkMonitor.isInitialized) networkMonitor.isOnline() else false
+    }
+
+    private fun syncNetworkStateToJs(online: Boolean? = null) {
+        if (!::webView.isInitialized) return
+        val current = online ?: if (::networkMonitor.isInitialized) networkMonitor.isOnline() else false
+        webView.post {
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript("if (window.onNetworkStateChanged) window.onNetworkStateChanged($current);", null)
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (::networkMonitor.isInitialized) networkMonitor.start()
+    }
+
+    override fun onStop() {
+        if (::networkMonitor.isInitialized) networkMonitor.stop()
+        super.onStop()
     }
 
     private fun setupNativeMedia3PlayerOverlay() {
