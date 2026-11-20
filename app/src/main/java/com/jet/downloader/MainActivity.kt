@@ -53,7 +53,6 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -106,18 +105,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Shared network options for metadata extraction and media downloads.
-     * Keep YouTube player-client selection automatic; hard-coding a client can
-     * trigger PO-token requirements and hide otherwise available formats.
+     * Keep extraction responsive without disabling TLS verification or pinning a
+     * YouTube client that may require a PO token.
      */
     private fun applyYtDlpNetworkOptions(request: YoutubeDLRequest) {
         request.addOption("--force-ipv4")
-        request.addOption("--socket-timeout", "30")
-        request.addOption("--retries", "10")
-        request.addOption("--fragment-retries", "10")
-        request.addOption("--extractor-retries", "3")
-        request.addOption("--file-access-retries", "3")
+        request.addOption("--socket-timeout", "10")
+        request.addOption("--retries", "2")
+        request.addOption("--fragment-retries", "2")
+        request.addOption("--extractor-retries", "1")
+        request.addOption("--file-access-retries", "1")
         request.addOption("--hls-prefer-native")
+        request.addOption("--extractor-args", "youtube:player_skip=webpage,configs")
+    }
+
+    private fun estimateBytesFromBitrateKbps(bitrateKbps: Double, durationSeconds: Long): Long {
+        if (bitrateKbps <= 0.0 || durationSeconds <= 0L) return 0L
+        return (bitrateKbps * 1000.0 / 8.0 * durationSeconds)
+            .coerceAtMost(Long.MAX_VALUE.toDouble())
+            .toLong()
+            .coerceAtLeast(0L)
+    }
+
+    private fun fallbackVideoBitrateKbps(shortSide: Int): Double = when {
+        shortSide <= 144 -> 100.0
+        shortSide <= 240 -> 250.0
+        shortSide <= 360 -> 700.0
+        shortSide <= 480 -> 1_200.0
+        shortSide <= 720 -> 2_500.0
+        shortSide <= 1080 -> 3_500.0
+        shortSide <= 1440 -> 6_000.0
+        else -> 12_000.0
+    }
+
+    private fun isNewPipeFailureCached(url: String): Boolean {
+        val failedAt = streamInfoFailureAt[url] ?: return false
+        if (System.currentTimeMillis() - failedAt < 60_000L) return true
+        streamInfoFailureAt.remove(url, failedAt)
+        return false
     }
 
     private fun isEngineUpdateRequired(error: Throwable): Boolean {
@@ -148,6 +173,9 @@ class MainActivity : AppCompatActivity() {
         synchronized(streamInfoCache) {
             streamInfoCache.get(url)?.let { return it }
         }
+        if (isNewPipeFailureCached(url)) {
+            throw IllegalStateException("NewPipe extraction recently failed for this URL")
+        }
         val pending = CompletableDeferred<StreamInfo>()
         val existing = streamInfoInFlight.putIfAbsent(url, pending)
         if (existing != null) return existing.await()
@@ -157,6 +185,7 @@ class MainActivity : AppCompatActivity() {
             pending.complete(info)
             return info
         } catch (error: Exception) {
+            streamInfoFailureAt[url] = System.currentTimeMillis()
             pending.completeExceptionally(error)
             throw error
         } finally {
@@ -191,93 +220,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val streamSizeCache = ConcurrentHashMap<String, Long>()
-    // Keep googlevideo range probes below the concurrency level that commonly triggers 403s.
-    private val streamProbeSemaphore = java.util.concurrent.Semaphore(2)
-
-    // Must match JetOkHttpDownloader's User-Agent.
-    private val extractorUserAgent =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
-
-    /** Called from Dispatchers.IO. Resolves URL clen, then a one-byte range response, then bitrate. */
-    private fun estimateStreamBytes(
-        contentUrl: String,
-        bitrateBitsPerSecond: Long,
-        durationSeconds: Long
-    ): Long {
-        if (contentUrl.isBlank()) return 0L
-        streamSizeCache[contentUrl]?.let { return it }
-
-        val clenBytes = try {
-            Uri.parse(contentUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L }
-        } catch (_: Exception) {
-            null
-        }
-        if (clenBytes != null) {
-            streamSizeCache[contentUrl] = clenBytes
-            return clenBytes
-        }
-
-        val rangedBytes = try {
-            streamProbeSemaphore.acquire()
-            try {
-                val request = okhttp3.Request.Builder()
-                    .url(contentUrl)
-                    .header("User-Agent", extractorUserAgent)
-                    .header("Referer", "https://www.youtube.com/")
-                    .header("Accept-Encoding", "identity")
-                    .header("Range", "bytes=0-0")
-                    .get()
-                    .build()
-
-                okHttpClient.newBuilder()
-                    .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                    .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                    .callTimeout(7, java.util.concurrent.TimeUnit.SECONDS)
-                    .build()
-                    .newCall(request)
-                    .execute()
-                    .use { response ->
-                        val totalFromRange = response.header("Content-Range")
-                            ?.substringAfterLast('/', "")
-                            ?.trim()
-                            ?.toLongOrNull()
-                            ?.takeIf { it > 0L }
-
-                        when {
-                            totalFromRange != null -> totalFromRange
-                            // A 206 response's Content-Length is usually just the one requested byte.
-                            response.code == 200 -> response.header("Content-Length")
-                                ?.toLongOrNull()
-                                ?.takeIf { it > 1L }
-                            else -> null
-                        }
-                    }
-            } finally {
-                streamProbeSemaphore.release()
-            }
-        } catch (_: Exception) {
-            null
-        }
-
-        if (rangedBytes != null && rangedBytes > 0L) {
-            streamSizeCache[contentUrl] = rangedBytes
-            return rangedBytes
-        }
-
-        // Bitrate fallback covers HLS and hosts that do not expose a total byte count.
-        val estimatedBytes = if (bitrateBitsPerSecond > 0L && durationSeconds > 0L) {
-            try {
-                Math.multiplyExact(bitrateBitsPerSecond, durationSeconds) / 8L
-            } catch (_: ArithmeticException) {
-                Long.MAX_VALUE
-            }
-        } else {
-            0L
-        }
-        if (estimatedBytes > 0L) streamSizeCache[contentUrl] = estimatedBytes
-        return estimatedBytes
-    }
+    private val streamInfoFailureAt = ConcurrentHashMap<String, Long>()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -881,23 +824,8 @@ class MainActivity : AppCompatActivity() {
                         .filter { it.isUrl }
                         .maxByOrNull { it.averageBitrate }
 
-                    val bestAudioBytesJob = bestAudio?.let { audio ->
-                        async(Dispatchers.IO) {
-                            // NewPipe reports averageBitrate in kbps; estimateStreamBytes expects bits/sec.
-                            estimateStreamBytes(audio.content, audio.averageBitrate * 1000L, durationSec)
-                        }
-                    }
-
                     fun sizeText(bytes: Long): String =
                         if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Approx. unavailable"
-
-                    // NewPipe stream bitrates are in kbps; convert to bytes using duration.
-                    fun bitrateSizeBytes(bitrateKbps: Double): Long =
-                        if (bitrateKbps > 0.0 && durationSec > 0L) {
-                            (bitrateKbps * 1000.0 / 8.0 * durationSec).toLong()
-                        } else {
-                            0L
-                        }
 
                     fun shortSide(width: Int, height: Int): Int =
                         if (width > 0) minOf(width, height) else height
@@ -915,7 +843,14 @@ class MainActivity : AppCompatActivity() {
 
                     // Use the smallest video dimension as the resolution class. This supports
                     // landscape, cinematic and portrait/Shorts formats without height equality checks.
-                    val videoSizeJobs = listOf(
+                    // Estimate locally from duration and bitrate; never wait for HTTP probes.
+                    val bestAudioBytes = estimateBytesFromBitrateKbps(
+                        bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0,
+                        durationSec
+                    )
+                    streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
+
+                    listOf(
                         "vid-144" to 144,
                         "vid-240" to 240,
                         "vid-360" to 360,
@@ -924,38 +859,24 @@ class MainActivity : AppCompatActivity() {
                         "vid-1080" to 1080,
                         "vid-2k" to 1440,
                         "vid-4k" to 2160
-                    ).map { (id, targetShortSide) ->
-                        id to async(Dispatchers.IO) {
-                            val video = info.videoStreams
-                                .filter {
-                                    it.isUrl && shortSide(it.width, it.height) in 1..targetShortSide
-                                }
-                                .maxWithOrNull(
-                                    compareBy<org.schabi.newpipe.extractor.stream.VideoStream>(
-                                        { shortSide(it.width, it.height) },
-                                        { it.bitrate }
-                                    )
+                    ).forEach { (id, targetShortSide) ->
+                        val video = info.videoStreams
+                            .filter {
+                                it.isUrl && shortSide(it.width, it.height) in 1..targetShortSide
+                            }
+                            .maxWithOrNull(
+                                compareBy<org.schabi.newpipe.extractor.stream.VideoStream>(
+                                    { shortSide(it.width, it.height) },
+                                    { it.bitrate }
                                 )
-                            video?.let {
-                                // Prefer the URL/Content-Length estimate; if unavailable,
-                                // estimate from video bitrate and duration.
-                                val probedBytes = estimateStreamBytes(
-                                    it.content,
-                                    it.bitrate.toLong() * 1000L,
-                                    durationSec
-                                )
-                                val videoBytes = probedBytes.takeIf { bytes -> bytes > 0L }
-                                    ?: bitrateSizeBytes(it.bitrate.toDouble())
-                                videoBytes to it.isVideoOnly
-                            } ?: (0L to false)
-                        }
-                    }
+                            )
 
-                    val bestAudioBytes = bestAudioBytesJob?.await() ?: 0L
-                    streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
-                    videoSizeJobs.forEach { (id, job) ->
-                        val (videoBytes, isVideoOnly) = job.await()
-                        val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
+                        val actualShortSide = video?.let { shortSide(it.width, it.height) } ?: targetShortSide
+                        val videoKbps = video?.bitrate?.takeIf { it > 0 }?.toDouble()
+                            ?: fallbackVideoBitrateKbps(actualShortSide)
+                        val videoBytes = estimateBytesFromBitrateKbps(videoKbps, durationSec)
+                        val needsAudio = video == null || video.isVideoOnly || video.bitrate <= 0
+                        val totalBytes = videoBytes + if (needsAudio) bestAudioBytes else 0L
                         streamSizes[id] = StreamSizePayload(sizeText = sizeText(totalBytes))
                     }
 
@@ -1023,7 +944,7 @@ class MainActivity : AppCompatActivity() {
                                 (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble(),
                                 durationSec
                             )
-                        } ?: (320.0 * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
+                        }?.takeIf { it > 0L } ?: estimateBytesFromBitrateKbps(128.0, durationSec)
 
                         val streamSizes = mutableMapOf<String, StreamSizePayload>()
                         listOf(
@@ -1089,8 +1010,15 @@ class MainActivity : AppCompatActivity() {
                                     it.tbr.toDouble(),
                                     durationSec
                                 )
-                            } ?: 0L
-                            val isVideoOnly = videoFormat != null && (videoFormat.acodec == null || videoFormat.acodec == "none")
+                            }?.takeIf { it > 0L } ?: estimateBytesFromBitrateKbps(
+                                videoFormat?.tbr?.takeIf { it > 0 }?.toDouble()
+                                    ?: fallbackVideoBitrateKbps(targetShortSide),
+                                durationSec
+                            )
+                            val isVideoOnly = videoFormat == null ||
+                                videoFormat.acodec == null ||
+                                videoFormat.acodec == "none" ||
+                                videoFormat.tbr <= 0
                             val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
                             streamSizes[id] = StreamSizePayload(
                                 sizeText = sizeLabel(totalBytes)
@@ -1137,7 +1065,10 @@ class MainActivity : AppCompatActivity() {
                 try {
                     // Fast direct stream download via NewPipe Extractor + OkHttp when muxing isn't needed
                     var downloadedViaNewPipe = false
-                    if (!includeSubtitles && (isAudio && audioExt.equals("m4a", ignoreCase = true) || (!isAudio && maxHeight <= 720))) {
+                    if (!isNewPipeFailureCached(url) &&
+                        !includeSubtitles &&
+                        (isAudio && audioExt.equals("m4a", ignoreCase = true) || (!isAudio && maxHeight <= 720))
+                    ) {
                         try {
                             callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 8, ${JSONObject.quote("NewPipe Extractor...")}")
                             val info = getOrFetchStreamInfo(url)
