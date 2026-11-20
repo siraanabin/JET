@@ -1,7 +1,6 @@
 package com.jet.downloader
 
 import android.Manifest
-import android.app.DownloadManager
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
@@ -66,6 +65,7 @@ import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import com.jet.downloader.network.JetOkHttpDownloader
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -1550,6 +1550,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+              @JavascriptInterface
         fun downloadAndInstallAppUpdate(apkUrl: String) {
             val parsedUrl = Uri.parse(apkUrl)
             if (parsedUrl.scheme != "https" || parsedUrl.host != "github.com") {
@@ -1575,112 +1576,100 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            try {
-                val downloadDirectory = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                    ?: throw IllegalStateException("App download directory unavailable")
-                val apkFile = File(downloadDirectory, "JET-update.apk")
-                if (apkFile.exists()) apkFile.delete()
+            lifecycleScope.launch {
+                val apkFile = File(cacheDir, "updates/JET-update.apk")
+                try {
+                    withContext(Dispatchers.IO) {
+                        val updateDirectory = apkFile.parentFile
+                            ?: throw IllegalStateException("App update directory unavailable")
+                        if (!updateDirectory.exists() && !updateDirectory.mkdirs()) {
+                            throw IllegalStateException("Unable to create app update directory")
+                        }
+                        if (apkFile.exists() && !apkFile.delete()) {
+                            throw IllegalStateException("Unable to replace previous APK")
+                        }
 
-                val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
-                    setTitle("JET App Update")
-                    setDescription("Downloading the latest signed JET APK")
-                    setMimeType("application/vnd.android.package-archive")
-                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    setAllowedOverMetered(true)
-                    setAllowedOverRoaming(false)
-                    setDestinationInExternalFilesDir(
+                        val request = okhttp3.Request.Builder()
+                            .url(apkUrl)
+                            .header("User-Agent", "JET-Android-Updater")
+                            .header("Accept", "application/vnd.android.package-archive, application/octet-stream")
+                            .build()
+
+                        okHttpClient.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                throw IllegalStateException("APK download failed (HTTP ${response.code})")
+                            }
+                            if (response.request.url.scheme != "https") {
+                                throw IllegalStateException("APK download redirected to an insecure URL")
+                            }
+                            val body = response.body
+                                ?: throw IllegalStateException("APK download response was empty")
+                            val totalBytes = body.contentLength()
+                            var downloadedBytes = 0L
+                            val buffer = ByteArray(64 * 1024)
+
+                            body.byteStream().use { input ->
+                                FileOutputStream(apkFile).use { output ->
+                                    while (true) {
+                                        val count = input.read(buffer)
+                                        if (count == -1) break
+                                        output.write(buffer, 0, count)
+                                        downloadedBytes += count
+
+                                        val percent = if (totalBytes > 0L) {
+                                            ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(0, 99)
+                                        } else {
+                                            0
+                                        }
+                                        val progressText = if (totalBytes > 0L) {
+                                            "Downloading APK · $percent% · ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}"
+                                        } else {
+                                            "Downloading APK · ${formatBytes(downloadedBytes)}"
+                                        }
+                                        callJs(
+                                            "onNativeAppUpdateProgress",
+                                            "$percent, ${JSONObject.quote(progressText)}"
+                                        )
+                                    }
+                                    output.flush()
+                                }
+                            }
+                        }
+
+                        if (!apkFile.isFile || apkFile.length() < 1024L) {
+                            throw IllegalStateException("Downloaded APK is incomplete")
+                        }
+                        FileInputStream(apkFile).use { input ->
+                            if (input.read() != 0x50 || input.read() != 0x4B) {
+                                throw IllegalStateException("Downloaded file is not a valid APK archive")
+                            }
+                        }
+                    }
+
+                    callJs(
+                        "onNativeAppUpdateProgress",
+                        "100, ${JSONObject.quote("Download complete · 100% · Opening installer…")}"
+                    )
+                    val apkUri = FileProvider.getUriForFile(
                         this@MainActivity,
-                        Environment.DIRECTORY_DOWNLOADS,
-                        "JET-update.apk"
+                        "${applicationContext.packageName}.fileprovider",
+                        apkFile
+                    )
+                    val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(apkUri, "application/vnd.android.package-archive")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(installIntent)
+                } catch (error: Exception) {
+                    withContext(Dispatchers.IO) {
+                        if (apkFile.exists()) apkFile.delete()
+                    }
+                    callJs(
+                        "onNativeAppUpdateProgress",
+                        "-1, ${JSONObject.quote(error.message ?: "Unable to download APK update")}"
                     )
                 }
-                val downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                val downloadId = downloadManager.enqueue(request)
-                getSharedPreferences("jet_app_update", Context.MODE_PRIVATE)
-                    .edit()
-                    .putLong("download_id", downloadId)
-                    .apply()
-                callJs(
-                    "onNativeAppUpdateProgress",
-                    "0, ${JSONObject.quote("Starting APK download…")}"
-                )
-
-                // Query DownloadManager while the APK is downloading and stream
-                // the real byte-based percentage into the in-app update dialog.
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val query = DownloadManager.Query().setFilterById(downloadId)
-                    while (true) {
-                        var shouldStop = false
-                        var progress = 0
-                        var statusLabel = "Downloading APK…"
-                        var failureMessage: String? = null
-
-                        downloadManager.query(query)?.use { cursor ->
-                            if (cursor.moveToFirst()) {
-                                val status = cursor.getInt(
-                                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)
-                                )
-                                val downloaded = cursor.getLong(
-                                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
-                                )
-                                val total = cursor.getLong(
-                                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
-                                )
-                                progress = if (total > 0L) {
-                                    ((downloaded * 100L) / total).toInt().coerceIn(0, 99)
-                                } else {
-                                    0
-                                }
-                                statusLabel = if (total > 0L) {
-                                    "Downloading APK · $progress% · ${formatBytes(downloaded)} / ${formatBytes(total)}"
-                                } else {
-                                    "Downloading APK · ${formatBytes(downloaded)}"
-                                }
-
-                                when (status) {
-                                    DownloadManager.STATUS_SUCCESSFUL -> {
-                                        progress = 100
-                                        statusLabel = "Download complete · 100% · Install from notification"
-                                        shouldStop = true
-                                    }
-                                    DownloadManager.STATUS_FAILED -> {
-                                        val reason = cursor.getInt(
-                                            cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)
-                                        )
-                                        failureMessage = "APK download failed (code $reason)"
-                                        shouldStop = true
-                                    }
-                                }
-                            } else {
-                                failureMessage = "APK download could not be found"
-                                shouldStop = true
-                            }
-                        } ?: run {
-                            failureMessage = "Unable to read APK download progress"
-                            shouldStop = true
-                        }
-
-                        if (failureMessage != null) {
-                            callJs(
-                                "onNativeAppUpdateProgress",
-                                "-1, ${JSONObject.quote(failureMessage)}"
-                            )
-                            break
-                        }
-
-                        callJs(
-                            "onNativeAppUpdateProgress",
-                            "$progress, ${JSONObject.quote(statusLabel)}"
-                        )
-                        if (shouldStop) break
-                        Thread.sleep(500)
-                    }
-                }
-            } catch (error: Exception) {
-                callJs(
-                    "onNativeAppUpdateProgress",
-                    "-1, ${JSONObject.quote(error.message ?: "Unable to start APK download")}"
-                )
             }
         }
 
