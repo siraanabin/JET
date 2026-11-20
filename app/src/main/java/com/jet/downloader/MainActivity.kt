@@ -91,6 +91,38 @@ class MainActivity : AppCompatActivity() {
 
     @Volatile
     private var ytDlpReady: Boolean = false
+    // Serializes yt-dlp initialization, extraction, downloads and updates.
+    private val ytDlpEngineLock = Any()
+
+    private fun ensureYtDlpInitialized() {
+        synchronized(ytDlpEngineLock) {
+            if (!ytDlpReady) {
+                YoutubeDL.getInstance().init(applicationContext)
+                FFmpeg.getInstance().init(applicationContext)
+                ytDlpReady = true
+            }
+        }
+    }
+
+    private fun isEngineUpdateRequired(error: Throwable): Boolean {
+        val messages = generateSequence(error) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase(Locale.US)
+        val patterns = listOf(
+            "http error 400", "http 400", "precondition check failed",
+            "po token", "po_token", "potoken", "nsig extraction failed",
+            "signature extraction failed", "please update yt-dlp",
+            "sign in to confirm you're not a bot"
+        )
+        return patterns.any { messages.contains(it) }
+    }
+
+    private fun notifyEngineUpdateRequired(error: Throwable) {
+        if (isEngineUpdateRequired(error)) {
+            callJs("onNativeEngineUpdateRequired", JSONObject.quote(error.message ?: "Engine update required"))
+        }
+    }
 
     // Reuse extracted stream metadata across prefetch and modal-open requests.
     private val streamInfoCache = LruCache<String, StreamInfo>(8)
@@ -459,9 +491,18 @@ class MainActivity : AppCompatActivity() {
     private fun initializeFallbackEngine() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                YoutubeDL.getInstance().init(applicationContext)
-                FFmpeg.getInstance().init(applicationContext)
-                ytDlpReady = true
+                ensureYtDlpInitialized()
+                // Best-effort silent refresh; keep the installed engine if offline.
+                try {
+                    synchronized(ytDlpEngineLock) {
+                        YoutubeDL.getInstance().updateYoutubeDL(
+                            applicationContext,
+                            YoutubeDL.UpdateChannel.STABLE
+                        )
+                    }
+                } catch (_: Exception) {
+                    // Network/update failures must not prevent app startup.
+                }
                 withContext(Dispatchers.Main) {
                     if (::webView.isInitialized) notifyEngineState()
                 }
@@ -898,18 +939,16 @@ class MainActivity : AppCompatActivity() {
                 } catch (npError: Exception) {
                     // 2. Fallback to yt-dlp for sites outside NewPipe Extractor
                     try {
-                        if (!ytDlpReady) {
-                            YoutubeDL.getInstance().init(applicationContext)
-                            FFmpeg.getInstance().init(applicationContext)
-                            ytDlpReady = true
-                        }
+                        ensureYtDlpInitialized()
                         val metadataRequest = YoutubeDLRequest(url).apply {
                             addOption("--dump-single-json")
                             addOption("--no-playlist")
                             addOption("--no-warnings")
                             addOption("--extractor-args", "youtube:player_client=ios,android,web")
                         }
-                        val info = YoutubeDL.getInstance().getInfo(metadataRequest)
+                        val info = synchronized(ytDlpEngineLock) {
+                            YoutubeDL.getInstance().getInfo(metadataRequest)
+                        }
                         val durationSec = info.duration.toLong()
                         val formats = info.formats.orEmpty()
 
@@ -1027,6 +1066,8 @@ class MainActivity : AppCompatActivity() {
                         )
                         callJs("onNativeMediaInfo", json.encodeToString(payload))
                     } catch (e: Exception) {
+                        notifyEngineUpdateRequired(e)
+                        notifyEngineUpdateRequired(npError)
                         val errPayload = MediaInfoPayload(
                             ok = false,
                             error = npError.message ?: e.message ?: "Unable to parse URL"
@@ -1149,7 +1190,8 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val speedRegex = Regex("at\\s+([0-9.]+\\s*[KMG]i?B/s)")
-                    YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, etaInSeconds, line ->
+                    synchronized(ytDlpEngineLock) {
+                        YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, etaInSeconds, line ->
                         val pct = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else 5
                         val speedMatch = speedRegex.find(line)?.groupValues?.getOrNull(1)
                         val speedLabel = when {
@@ -1157,7 +1199,8 @@ class MainActivity : AppCompatActivity() {
                             line.contains("Merging", ignoreCase = true) || line.contains("ExtractAudio", ignoreCase = true) -> "FFmpeg processing..."
                             else -> "Downloading..."
                         }
-                        callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}")
+                            callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}")
+                        }
                     }
 
                     val afterFiles = outDir.listFiles()
@@ -1175,6 +1218,7 @@ class MainActivity : AppCompatActivity() {
                         callJs("onNativeDownloadError", json.encodeToString(fail))
                     }
                 } catch (e: Exception) {
+                    notifyEngineUpdateRequired(e)
                     val fail = DownloadErrorPayload(downloadId, e.message ?: "Download failed")
                     callJs("onNativeDownloadError", json.encodeToString(fail))
                 }
@@ -1276,23 +1320,26 @@ class MainActivity : AppCompatActivity() {
         fun updateYtDlpEngine() {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    val status = YoutubeDL.getInstance().updateYoutubeDL(
-                        applicationContext,
-                        YoutubeDL.UpdateChannel.STABLE
-                    )
-                    val ver = YoutubeDL.getInstance().version(applicationContext) ?: "Latest"
-                    val res = JSONObject().apply {
+                    val status = synchronized(ytDlpEngineLock) {
+                        ensureYtDlpInitialized()
+                        YoutubeDL.getInstance().updateYoutubeDL(
+                            applicationContext,
+                            YoutubeDL.UpdateChannel.STABLE
+                        )
+                    }
+                    val version = YoutubeDL.getInstance().version(applicationContext) ?: "Latest"
+                    val result = JSONObject().apply {
                         put("ok", true)
                         put("status", status?.name ?: "DONE")
-                        put("version", ver)
+                        put("version", version)
                     }
-                    callJs("onNativeEngineUpdated", res.toString())
+                    callJs("onNativeEngineUpdated", result.toString())
                 } catch (e: Exception) {
-                    val res = JSONObject().apply {
+                    val result = JSONObject().apply {
                         put("ok", false)
-                        put("error", e.message ?: "Update failed")
+                        put("error", e.message ?: "Engine update failed")
                     }
-                    callJs("onNativeEngineUpdated", res.toString())
+                    callJs("onNativeEngineUpdated", result.toString())
                 }
             }
         }
