@@ -305,6 +305,7 @@ class MainActivity : AppCompatActivity() {
             syncNetworkStateToJs(online)
         }
         handleIncomingIntent(intent)
+        webView.clearCache(true)
         webView.loadUrl("file:///android_asset/index.html")
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
