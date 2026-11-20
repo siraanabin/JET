@@ -1,4 +1,4 @@
-name: Build JET Android Debug APK
+name: Build JET Offline UI Debug APK
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-debug:
-    name: Build JET Debug APK
+    name: Build JET Offline UI Debug APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,12 +23,109 @@ jobs:
           from pathlib import Path
           v = json.loads(Path('version.json').read_text())
           g = Path('app/build.gradle.kts').read_text()
-          code = int(re.search(r'versionCode\s*=\s*(\d+)', g).group(1))
-          name = re.search(r'versionName\s*=\s*"([^"]+)"', g).group(1)
+          code = int(re.search(r'versionCode\\s*=\\s*(\\d+)', g).group(1))
+          name = re.search(r'versionName\\s*=\\s*"([^"]+)"', g).group(1)
           assert code == v['versionCode'], (code, v['versionCode'])
           assert name == v['versionName'], (name, v['versionName'])
           print(f"JET {name} (versionCode {code})")
           PY
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download pinned offline UI assets
+        run: |
+          set -euo pipefail
+          ASSETS="app/src/main/assets"
+          mkdir -p "$ASSETS/js" "$ASSETS/css" "$ASSETS/fonts" "$ASSETS/licenses"
+
+          curl --fail --location --retry 3 --retry-delay 2 \
+            "https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js" \
+            -o "$ASSETS/js/lucide.min.js"
+
+          for weight in 400 500 600 700 800; do
+            curl --fail --location --retry 3 --retry-delay 2 \
+              "https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@5.1.0/files/plus-jakarta-sans-latin-${weight}-normal.woff2" \
+              -o "$ASSETS/fonts/plus-jakarta-sans-${weight}.woff2"
+          done
+
+          cat > "$ASSETS/fonts/fonts.css" <<'CSS'
+          @font-face {
+            font-family: "Plus Jakarta Sans";
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url("./plus-jakarta-sans-400.woff2") format("woff2");
+          }
+          @font-face {
+            font-family: "Plus Jakarta Sans";
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url("./plus-jakarta-sans-500.woff2") format("woff2");
+          }
+          @font-face {
+            font-family: "Plus Jakarta Sans";
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url("./plus-jakarta-sans-600.woff2") format("woff2");
+          }
+          @font-face {
+            font-family: "Plus Jakarta Sans";
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url("./plus-jakarta-sans-700.woff2") format("woff2");
+          }
+          @font-face {
+            font-family: "Plus Jakarta Sans";
+            font-style: normal;
+            font-weight: 800;
+            font-display: swap;
+            src: url("./plus-jakarta-sans-800.woff2") format("woff2");
+          }
+          CSS
+
+          curl --fail --location --retry 3 \
+            "https://raw.githubusercontent.com/tailwindlabs/tailwindcss/v3.4.17/LICENSE" \
+            -o "$ASSETS/licenses/TAILWIND-MIT.txt"
+          curl --fail --location --retry 3 \
+            "https://cdn.jsdelivr.net/npm/lucide@0.460.0/LICENSE" \
+            -o "$ASSETS/licenses/LUCIDE-ISC.txt"
+          curl --fail --location --retry 3 \
+            "https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@5.1.0/LICENSE" \
+            -o "$ASSETS/licenses/PLUS-JAKARTA-SANS-OFL-1.1.txt"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("app/src/main/assets")
+          lucide = root / "js/lucide.min.js"
+          assert lucide.stat().st_size > 10000, "Lucide UMD download looks incomplete"
+          assert b"createIcons" in lucide.read_bytes(), "Downloaded Lucide file is not the expected UMD build"
+          for p in sorted((root / "fonts").glob("*.woff2")):
+              data = p.read_bytes()
+              assert data[:4] == b"wOF2" and len(data) > 1000, f"Invalid WOFF2: {p}"
+          for p in (root / "licenses").iterdir():
+              assert p.stat().st_size > 100, f"Missing license text: {p}"
+          print("Offline font, icon and license assets validated.")
+          PY
+
+      - name: Compile Tailwind CSS 3.4.17
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false tailwindcss@3.4.17
+          npx tailwindcss@3.4.17 -c ./tailwind.config.js \
+            -i ./input.css \
+            -o ./app/src/main/assets/css/tailwind.min.css \
+            --minify
+          test -s app/src/main/assets/css/tailwind.min.css
+          if grep -E 'cdn\\.tailwindcss|unpkg\\.com/lucide|fonts\\.googleapis' app/src/main/assets/index.html; then
+            echo "A remote UI CDN reference remains in index.html" >&2
+            exit 1
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -49,7 +146,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: JET-Android-Debug-APK
+          name: JET-Offline-UI-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
