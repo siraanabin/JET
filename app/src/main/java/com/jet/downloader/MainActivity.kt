@@ -105,8 +105,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Keep extraction responsive without disabling TLS verification or pinning a
-     * YouTube client that may require a PO token.
+     * Prefer mobile YouTube clients to avoid the stricter web-client PO-token path.
+     * Keep TLS verification enabled and retain short network timeouts.
      */
     private fun applyYtDlpNetworkOptions(request: YoutubeDLRequest) {
         request.addOption("--force-ipv4")
@@ -116,7 +116,10 @@ class MainActivity : AppCompatActivity() {
         request.addOption("--extractor-retries", "1")
         request.addOption("--file-access-retries", "1")
         request.addOption("--hls-prefer-native")
-        request.addOption("--extractor-args", "youtube:player_skip=webpage,configs")
+        request.addOption(
+            "--extractor-args",
+            "youtube:player_client=android,ios;player_skip=webpage,configs"
+        )
     }
 
     private fun estimateBytesFromBitrateKbps(bitrateKbps: Double, durationSeconds: Long): Long {
@@ -456,7 +459,7 @@ class MainActivity : AppCompatActivity() {
                     synchronized(ytDlpEngineLock) {
                         YoutubeDL.getInstance().updateYoutubeDL(
                             applicationContext,
-                            YoutubeDL.UpdateChannel.STABLE
+                            YoutubeDL.UpdateChannel.NIGHTLY
                         )
                     }
                 } catch (_: Exception) {
@@ -1300,7 +1303,7 @@ class MainActivity : AppCompatActivity() {
                         ensureYtDlpInitialized()
                         YoutubeDL.getInstance().updateYoutubeDL(
                             applicationContext,
-                            YoutubeDL.UpdateChannel.STABLE
+                            YoutubeDL.UpdateChannel.NIGHTLY
                         )
                     }
                     val version = YoutubeDL.getInstance().version(applicationContext) ?: "Latest"
@@ -1311,9 +1314,23 @@ class MainActivity : AppCompatActivity() {
                     }
                     callJs("onNativeEngineUpdated", result.toString())
                 } catch (e: Exception) {
+                    // A failed update must not disable an already-installed, usable engine.
+                    val installedVersion = runCatching {
+                        YoutubeDL.getInstance().version(applicationContext)
+                    }.getOrNull()
+                    val engineStillUsable = ytDlpReady && !installedVersion.isNullOrBlank()
                     val result = JSONObject().apply {
                         put("ok", false)
-                        put("error", e.message ?: "Engine update failed")
+                        put("recoverable", engineStillUsable)
+                        if (engineStillUsable) put("version", installedVersion)
+                        put(
+                            "error",
+                            if (engineStillUsable) {
+                                "Engine update failed; keeping the installed engine. " + (e.message ?: "")
+                            } else {
+                                e.message ?: "Engine update failed"
+                            }
+                        )
                     }
                     callJs("onNativeEngineUpdated", result.toString())
                 }

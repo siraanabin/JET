@@ -1714,6 +1714,9 @@
           status.classList.remove('hidden');
           update.textContent = 'Updated';
           window.setTimeout(closeModal, 900);
+        } else if (result && result.recoverable) {
+          closeModal();
+          showToast('Engine update failed; keeping the installed engine. You can continue trying the download.');
         } else {
           update.disabled = false;
           update.textContent = 'Update Now';
