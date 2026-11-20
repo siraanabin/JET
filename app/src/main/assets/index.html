@@ -4,43 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>JET — Download at Full Speed.</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script>
-    if (window.tailwind) {
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-            },
-            colors: {
-              app: {
-                bg: 'var(--bg-canvas)',
-                surface: 'var(--bg-surface)',
-                elevated: 'var(--bg-elevated)',
-                border: 'var(--border-subtle)',
-                primary: 'var(--accent-primary)',
-                primaryHover: 'var(--accent-hover)',
-                primaryTint: 'var(--accent-tint)',
-                text: 'var(--text-primary)',
-                secondary: 'var(--text-secondary)',
-                muted: 'var(--text-muted)',
-                success: 'var(--status-success)',
-                warning: 'var(--status-warning)',
-                danger: 'var(--status-danger)',
-                nav: 'var(--bg-nav)',
-              },
-            },
-          },
-        },
-      };
-    }
-  </script>
+  <link rel="stylesheet" href="./fonts/fonts.css" />
+  <link rel="stylesheet" href="./css/tailwind.min.css" />
+  <script defer src="./js/lucide.min.js"></script>
   <style>
     :root {
       --bg-canvas: #F4F6FB;
@@ -571,6 +537,16 @@
       <div id="oss-list-container" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-2.5"></div>
     </div>
 
+    <!-- Offline / retry banner -->
+    <div id="jet-retry-banner" class="hidden fixed left-3 right-3 bottom-20 z-40 rounded-2xl border border-app-border bg-app-surface shadow-xl px-4 py-3 items-center gap-3">
+      <div class="min-w-0 flex-1">
+        <p id="jet-retry-title" class="text-xs font-extrabold text-app-text">Connection unavailable</p>
+        <p id="jet-retry-message" class="text-[11px] text-app-secondary mt-0.5">Check your internet connection and retry.</p>
+      </div>
+      <button id="jet-retry-button" type="button" class="shrink-0 rounded-xl bg-app-primary text-white px-3 py-2 text-xs font-bold">Retry</button>
+      <button id="jet-retry-dismiss" type="button" aria-label="Dismiss" class="shrink-0 text-app-muted p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+
     <!-- Toast Banner -->
     <div id="toast-banner" class="hidden fixed top-4 left-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold">
       <i data-lucide="zap" class="w-4 h-4 text-[#A3E635] shrink-0"></i>
@@ -592,6 +568,40 @@
         { name: 'OkHttp', license: 'Apache 2.0', category: 'HTTP & Stream Networking', description: 'Efficient HTTP/2 client powering NewPipe Extractor and stream downloads.', url: 'https://square.github.io/okhttp/' },
         { name: 'Kotlin Coroutines & Serialization', license: 'Apache 2.0', category: 'Concurrency & JSON Parsing', description: 'Structured asynchronous concurrency and multiplatform JSON serialization.', url: 'https://github.com/Kotlin/kotlinx.coroutines' }
       ];
+
+      let jetRetryCallback = null;
+      let jetIsOnline = true;
+
+      function showJetRetryBanner(message, retryCallback, title = 'Connection unavailable') {
+        jetRetryCallback = typeof retryCallback === 'function' ? retryCallback : null;
+        $('jet-retry-title').textContent = title;
+        $('jet-retry-message').textContent = message || 'Check your internet connection and retry.';
+        $('jet-retry-button').classList.toggle('hidden', !jetRetryCallback);
+        $('jet-retry-banner').classList.remove('hidden');
+        $('jet-retry-banner').classList.add('flex');
+        refreshIcons();
+      }
+
+      function hideJetRetryBanner() {
+        $('jet-retry-banner').classList.add('hidden');
+        $('jet-retry-banner').classList.remove('flex');
+        jetRetryCallback = null;
+      }
+
+      window.onNetworkStateChanged = function (online) {
+        jetIsOnline = Boolean(online);
+        if (jetIsOnline && !jetRetryCallback) hideJetRetryBanner();
+        if (!jetIsOnline) showJetRetryBanner('Some online actions are paused. Home, Library and Downloads remain available offline.', jetRetryCallback, 'You are offline');
+      };
+
+      $('jet-retry-button').addEventListener('click', () => {
+        if (!jetIsOnline) {
+          showJetRetryBanner('Still offline. Connect to the internet, then retry.', jetRetryCallback, 'You are offline');
+          return;
+        }
+        if (jetRetryCallback) jetRetryCallback();
+      });
+      $('jet-retry-dismiss').addEventListener('click', hideJetRetryBanner);
 
       const state = {
         screen: 'home',
@@ -867,6 +877,8 @@
       window.onNativeMediaInfo = function (info) {
         $('fetching-info-bar').classList.add('hidden');
         if (!info || !info.ok) {
+          const failedUrl = state.pendingUrl;
+          showJetRetryBanner(info && info.error ? info.error : 'Could not load media information.', () => openFormatModal(failedUrl), 'Could not fetch media info');
           state.formats.forEach((stream) => { stream.sizeText = 'Size N/A'; });
           renderFormatLists();
           $('format-stream-title').textContent = state.pendingUrl;
@@ -921,6 +933,16 @@
         if (idx >= 0) state.activeDownloads.splice(idx, 1);
         renderDownloads();
         showToast(`Error: ${data.error || 'Download failed'}`);
+        if (state.retryDownloadArgs) {
+          const args = state.retryDownloadArgs;
+          const record = state.retryDownloadRecord;
+          showJetRetryBanner(data.error || 'Download failed.', () => {
+            if (!jetIsOnline) return;
+            if (record) state.activeDownloads.unshift({ ...record, progress: 2, speed: 'Retrying...' });
+            renderDownloads();
+            if (hasAndroid() && window.JetAndroid.startRealDownload) window.JetAndroid.startRealDownload(...args);
+          }, 'Download interrupted');
+        }
       };
 
       window.onNativeLibraryList = function (list) {
@@ -1076,17 +1098,18 @@
         renderDownloads();
         switchScreen('downloads');
 
+        const requestArgs = [
+          downloadId, targetUrl, displayTitle, fmt.group === 'music',
+          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, state.ccEnabled
+        ];
+        state.retryDownloadArgs = requestArgs;
+        state.retryDownloadRecord = {
+          id: downloadId, title: displayTitle,
+          format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
+          size: fmt.sizeText || 'Size N/A', progress: 2, speed: 'Retrying...'
+        };
         if (hasAndroid() && window.JetAndroid.startRealDownload) {
-          window.JetAndroid.startRealDownload(
-            downloadId,
-            targetUrl,
-            displayTitle,
-            fmt.group === 'music',
-            fmt.bitrate || '160K',
-            fmt.ext || 'mp4',
-            fmt.maxHeight || 1080,
-            state.ccEnabled
-          );
+          window.JetAndroid.startRealDownload(...requestArgs);
         }
       }
 
