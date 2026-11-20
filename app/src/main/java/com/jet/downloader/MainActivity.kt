@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
     private var exoPlayer: ExoPlayer? = null
 
     private var pendingSharedUrl: String? = null
+    private var lastDeliveredClipboardUrl: String? = null
     private var currentPlayingPath: String = ""
 
     @Volatile
@@ -283,7 +284,7 @@ class MainActivity : AppCompatActivity() {
                     callJs("onNativeSharedUrl", JSONObject.quote(shared))
                     pendingSharedUrl = null
                 }
-                checkSystemClipboard()
+                dispatchClipboardUrlToWebView()
                 pushScannedLibraryToWeb()
                 syncNetworkStateToJs()
             }
@@ -483,7 +484,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (::webView.isInitialized) {
             webView.postDelayed({
-                checkSystemClipboard()
+                dispatchClipboardUrlToWebView()
                 pushScannedLibraryToWeb()
             }, 350)
         }
@@ -503,32 +504,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkSystemClipboard() {
-        lifecycleScope.launch {
-            val autoDetect = preferencesManager.clipboardDetectFlow.first()
-            if (!autoDetect) return@launch
-            try {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                val clip = clipboard?.primaryClip
-                if (clip != null && clip.itemCount > 0) {
-                    val text = clip.getItemAt(0).coerceToText(this@MainActivity)?.toString()?.trim() ?: return@launch
-                    val url = extractFirstUrl(text) ?: return@launch
-                    val prefs = getSharedPreferences("jet_clipboard_detection", Context.MODE_PRIVATE)
-                    val lastUrl = prefs.getString("last_detected_video_url", null)
-                    if (url != lastUrl) {
-                        prefs.edit().putString("last_detected_video_url", url).apply()
-                        callJs("onNativeClipboardUrl", JSONObject.quote(url))
-                    }
+    private fun dispatchClipboardUrlToWebView() {
+        try {
+            val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+            val rawText = clipboard?.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString()?.trim().orEmpty()
+            val matchedUrl = Regex("""https?://[^\\s<>"']+""", RegexOption.IGNORE_CASE).find(rawText)?.value ?: return
+            if (matchedUrl == lastDeliveredClipboardUrl) return
+
+            val quoted = org.json.JSONObject.quote(matchedUrl)
+            val js = """
+                (function(u){
+                  if (typeof window.onNativeClipboardUrl === 'function') { window.onNativeClipboardUrl(u); return 'DELIVERED'; }
+                  if (typeof window.onClipboardLinkDetected === 'function') { window.onClipboardLinkDetected(u); return 'DELIVERED'; }
+                  if (typeof window.handleClipboardUrl === 'function') { window.handleClipboardUrl(u); return 'DELIVERED'; }
+                  return 'NOT_READY';
+                })($quoted);
+            """.trimIndent()
+            webView.evaluateJavascript(js) { res ->
+                if (res != null && res.contains("DELIVERED")) {
+                    lastDeliveredClipboardUrl = matchedUrl
                 }
-            } catch (_: Exception) {
             }
+        } catch (_: Exception) {
         }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus && !isFinishing && ::webView.isInitialized && webView.progress >= 100) {
-            checkSystemClipboard()
+        if (hasFocus && !isFinishing && ::webView.isInitialized) {
+            webView.postDelayed({ dispatchClipboardUrlToWebView() }, 250L)
+            webView.postDelayed({ dispatchClipboardUrlToWebView() }, 900L)
         }
     }
 
@@ -905,15 +910,11 @@ class MainActivity : AppCompatActivity() {
                             exactBytes: Long,
                             approximateBytes: Long,
                             urlValue: String?,
-                            bitrateKbps: Long
+                            bitrateKbps: Double
                         ): Long {
                             if (exactBytes > 0L) return exactBytes
                             if (approximateBytes > 0L) return approximateBytes
-                            return estimateStreamBytes(
-                                urlValue.orEmpty(),
-                                bitrateKbps.coerceAtLeast(0L) * 1000L,
-                                durationSec
-                            )
+                            return (bitrateKbps.coerceAtLeast(0.0) * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
                         }
 
                         fun shortSide(width: Int, height: Int): Int =
@@ -932,7 +933,7 @@ class MainActivity : AppCompatActivity() {
                                 it.fileSize,
                                 it.fileSizeApproximate,
                                 it.url,
-                                (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
+                                (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble()
                             )
                         } ?: 0L
 
@@ -953,9 +954,9 @@ class MainActivity : AppCompatActivity() {
                                     it.fileSize,
                                     it.fileSizeApproximate,
                                     it.url,
-                                    (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
+                                    (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble()
                                 )
-                            } ?: 0L
+                            } ?: (targetKbps.toDouble() * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
                             streamSizes[id] = StreamSizePayload(
                                 sizeText = if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
                             )
@@ -987,7 +988,7 @@ class MainActivity : AppCompatActivity() {
                                     )
                                 )
                             val videoBytes = videoFormat?.let {
-                                formatBytes(it.fileSize, it.fileSizeApproximate, it.url, it.tbr.toLong())
+                                formatBytes(it.fileSize, it.fileSizeApproximate, it.url, it.tbr.toDouble())
                             } ?: 0L
                             val isVideoOnly = videoFormat != null && (videoFormat.acodec == null || videoFormat.acodec == "none")
                             val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
