@@ -1162,11 +1162,7 @@ class MainActivity : AppCompatActivity() {
                     if (downloadedViaNewPipe) return@launch
 
                     // Adaptive 1080p/2K/4K FFmpeg muxing or MP3 conversion via yt-dlp + FFmpeg
-                    if (!ytDlpReady) {
-                        YoutubeDL.getInstance().init(applicationContext)
-                        FFmpeg.getInstance().init(applicationContext)
-                        ytDlpReady = true
-                    }
+                    ensureYtDlpInitialized()
 
                     val beforeFiles = outDir.listFiles()?.map { it.absolutePath }?.toSet() ?: emptySet()
                     val request = YoutubeDLRequest(url)
