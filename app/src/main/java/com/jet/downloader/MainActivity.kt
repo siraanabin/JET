@@ -1398,11 +1398,15 @@ class MainActivity : AppCompatActivity() {
                                 val name = asset.optString("name", "")
                                 val url = asset.optString("browser_download_url", "")
                                 if (!url.startsWith("https://") || !name.endsWith(".apk", ignoreCase = true)) continue
-                                if (name.equals("JET-release.apk", ignoreCase = true)) {
+                                if (name.equals("app-release.apk", ignoreCase = true)) {
                                     apkUrl = url
                                     break
                                 }
-                                if (fallbackApkUrl.isEmpty()) fallbackApkUrl = url
+                                if (name.equals("JET-release.apk", ignoreCase = true) && fallbackApkUrl.isEmpty()) {
+                                    fallbackApkUrl = url
+                                } else if (fallbackApkUrl.isEmpty()) {
+                                    fallbackApkUrl = url
+                                }
                             }
                             if (apkUrl.isEmpty()) apkUrl = fallbackApkUrl
                         }
