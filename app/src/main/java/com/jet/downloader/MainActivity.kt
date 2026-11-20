@@ -1414,9 +1414,12 @@ class MainActivity : AppCompatActivity() {
                             packageManager.getPackageInfo(packageName, 0)
                         }
                         val installedVersion = packageInfo.versionName ?: "0"
-                        val hasUpdate = tagVersion.isNotBlank() &&
-                            compareVersionStrings(tagVersion, installedVersion) > 0 &&
-                            apkUrl.isNotBlank()
+                        val versionIsNewer = tagVersion.isNotBlank() &&
+                            compareVersionStrings(tagVersion, installedVersion) > 0
+                        if (versionIsNewer && apkUrl.isBlank()) {
+                            throw IllegalStateException("The latest GitHub Release has no downloadable APK asset.")
+                        }
+                        val hasUpdate = versionIsNewer
 
                         val result = JSONObject().apply {
                             put("ok", true)
