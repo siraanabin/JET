@@ -1345,6 +1345,8 @@ class MainActivity : AppCompatActivity() {
 
         private val latestReleaseApiUrl =
             "https://api.github.com/repos/siraanabin/JET/releases/latest"
+        private val releasesApiUrl =
+            "https://api.github.com/repos/siraanabin/JET/releases?per_page=100"
 
         private fun compareVersionStrings(remoteVersion: String, installedVersion: String): Int {
             fun parts(value: String): List<Int> = value.trim()
@@ -1369,8 +1371,10 @@ class MainActivity : AppCompatActivity() {
         fun checkForAppUpdate(isManual: Boolean) {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
+                    val isDebugApp = packageName.endsWith(".debug")
+                    val apiUrl = if (isDebugApp) releasesApiUrl else latestReleaseApiUrl
                     val request = okhttp3.Request.Builder()
-                        .url(latestReleaseApiUrl)
+                        .url(apiUrl)
                         .header("Accept", "application/vnd.github+json")
                         .header("X-GitHub-Api-Version", "2022-11-28")
                         .header("Cache-Control", "no-cache")
@@ -1387,29 +1391,40 @@ class MainActivity : AppCompatActivity() {
                             return@use
                         }
 
-                        val release = JSONObject(response.body!!.string())
-                        val tagVersion = release.optString("tag_name", "").trim()
+                        val responseText = response.body!!.string()
+                        val release = if (isDebugApp) {
+                            val releases = org.json.JSONArray(responseText)
+                            (0 until releases.length())
+                                .mapNotNull { releases.optJSONObject(it) }
+                                .firstOrNull { candidate ->
+                                    candidate.optBoolean("prerelease", false) &&
+                                        candidate.optString("tag_name", "").startsWith("debug-v")
+                                } ?: throw IllegalStateException("No published JET Debug update is available yet.")
+                        } else {
+                            JSONObject(responseText)
+                        }
+
+                        val tagName = release.optString("tag_name", "").trim()
+                        val tagVersion = if (isDebugApp) {
+                            tagName.removePrefix("debug-v")
+                        } else {
+                            tagName.removePrefix("v").removePrefix("V")
+                        }
                         val releaseNotes = release.optString("body", "").trim()
                         val assets = release.optJSONArray("assets")
+                        val expectedAssetName = if (isDebugApp) "JET-debug.apk" else "app-release.apk"
                         var apkUrl = ""
                         if (assets != null) {
-                            var fallbackApkUrl = ""
                             for (index in 0 until assets.length()) {
                                 val asset = assets.optJSONObject(index) ?: continue
-                                val name = asset.optString("name", "")
-                                val url = asset.optString("browser_download_url", "")
-                                if (!url.startsWith("https://") || !name.endsWith(".apk", ignoreCase = true)) continue
-                                if (name.equals("app-release.apk", ignoreCase = true)) {
-                                    apkUrl = url
-                                    break
-                                }
-                                if (name.equals("JET-release.apk", ignoreCase = true) && fallbackApkUrl.isEmpty()) {
-                                    fallbackApkUrl = url
-                                } else if (fallbackApkUrl.isEmpty()) {
-                                    fallbackApkUrl = url
+                                if (asset.optString("name", "").equals(expectedAssetName, ignoreCase = true)) {
+                                    val url = asset.optString("browser_download_url", "")
+                                    if (url.startsWith("https://github.com/")) {
+                                        apkUrl = url
+                                        break
+                                    }
                                 }
                             }
-                            if (apkUrl.isEmpty()) apkUrl = fallbackApkUrl
                         }
 
                         val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1422,18 +1437,19 @@ class MainActivity : AppCompatActivity() {
                         val versionIsNewer = tagVersion.isNotBlank() &&
                             compareVersionStrings(tagVersion, installedVersion) > 0
                         if (versionIsNewer && apkUrl.isBlank()) {
-                            throw IllegalStateException("The latest GitHub Release has no downloadable APK asset.")
+                            throw IllegalStateException("The matching ${if (isDebugApp) "JET Debug" else "JET Release"} APK asset is missing from its GitHub update.")
                         }
-                        val hasUpdate = versionIsNewer
 
+                        val appLabel = if (isDebugApp) "JET Debug" else "JET"
                         val result = JSONObject().apply {
                             put("ok", true)
                             put("manual", isManual)
-                            put("hasUpdate", hasUpdate)
+                            put("hasUpdate", versionIsNewer)
                             put("currentVersion", installedVersion)
-                            put("latestVersion", tagVersion.removePrefix("v").removePrefix("V"))
-                            put("tagName", tagVersion)
-                            put("releaseName", release.optString("name", "JET Update"))
+                            put("latestVersion", tagVersion)
+                            put("tagName", tagName)
+                            put("appName", appLabel)
+                            put("releaseName", release.optString("name", "$appLabel Update"))
                             put("changelog", releaseNotes.ifBlank { "No release notes provided." })
                             put("apkUrl", apkUrl)
                             put("releaseUrl", release.optString("html_url", ""))
