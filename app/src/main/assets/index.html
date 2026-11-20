@@ -1461,9 +1461,9 @@
         if (progressPercent) progressPercent.textContent = safePct + '%';
         if (progressBar) progressBar.style.width = safePct + '%';
         appUpdateInstall.disabled = true;
-        appUpdateInstall.textContent = safePct >= 100 ? 'Downloaded' : 'Downloading ' + safePct + '%';
+        appUpdateInstall.textContent = safePct >= 100 ? 'Opening installer…' : 'Downloading ' + safePct + '%';
         appUpdateStatus.textContent = safePct >= 100
-          ? 'APK downloaded. Tap the download notification to install.'
+          ? 'APK downloaded. Opening Android installer…'
           : 'Downloading update…';
         appUpdateStatus.classList.remove('hidden');
       };
