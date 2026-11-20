@@ -1,6 +1,6 @@
 {
-  "versionCode": 342,
-  "versionName": "3.4.2",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/latest/download/JET-release.apk",
-  "changelog": "• Added separate JET Debug installation\n• GitHub in-app updater improvements\n• Updated app to 3.4.2"
+  "versionCode": 343,
+  "versionName": "3.4.3",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.4.3/JET-debug.apk",
+  "changelog": "• Separate JET Debug in-app update channel\n• Consistently signed Debug APK for future in-app updates\n• yt-dlp and NewPipe extractor fixes"
 }
