@@ -2,7 +2,7 @@ name: Build JET Debug APK
 
 on:
   push:
-    branches: [main, jet-v2-integration, debug-inapp-updater, debug-ytdlp-newpipe-fixes]
+    branches: [main, jet-v2-integration, debug-inapp-updater, debug-ytdlp-newpipe-fixes, debug-video-size-network-fix]
   workflow_dispatch:
 
 permissions:
