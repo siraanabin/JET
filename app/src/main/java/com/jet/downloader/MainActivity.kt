@@ -105,6 +105,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Shared network options for metadata extraction and media downloads.
+     * Keep YouTube player-client selection automatic; hard-coding a client can
+     * trigger PO-token requirements and hide otherwise available formats.
+     */
+    private fun applyYtDlpNetworkOptions(request: YoutubeDLRequest) {
+        request.addOption("--force-ipv4")
+        request.addOption("--socket-timeout", "30")
+        request.addOption("--retries", "10")
+        request.addOption("--fragment-retries", "10")
+        request.addOption("--extractor-retries", "3")
+        request.addOption("--file-access-retries", "3")
+        request.addOption("--hls-prefer-native")
+    }
+
     private fun isEngineUpdateRequired(error: Throwable): Boolean {
         val messages = generateSequence(error) { it.cause }
             .mapNotNull { it.message }
@@ -945,8 +960,8 @@ class MainActivity : AppCompatActivity() {
                             addOption("--dump-single-json")
                             addOption("--no-playlist")
                             addOption("--no-warnings")
-                            // Let the bundled current yt-dlp choose supported YouTube clients.
-                            // Forcing android/ios/web can require unavailable PO tokens and hide formats.
+                            applyYtDlpNetworkOptions(this)
+                            // Let yt-dlp choose supported YouTube clients automatically.
                         }
                         val info = synchronized(ytDlpEngineLock) {
                             YoutubeDL.getInstance().getInfo(metadataRequest)
@@ -1030,18 +1045,24 @@ class MainActivity : AppCompatActivity() {
                             "vid-2k" to 1440,
                             "vid-4k" to 2160
                         ).forEach { (id, targetShortSide) ->
-                            val videoFormat = formats
-                                .filter {
-                                    it.vcodec != null && it.vcodec != "none" &&
-                                        !it.url.isNullOrBlank() &&
-                                        shortSide(it.width, it.height) in 1..targetShortSide
-                                }
-                                .maxWithOrNull(
-                                    compareBy< com.yausername.youtubedl_android.mapper.VideoFormat>(
-                                        { shortSide(it.width, it.height) },
-                                        { it.tbr }
-                                    )
+                            val videoCandidates = formats.filter {
+                                it.vcodec != null && it.vcodec != "none" &&
+                                    !it.url.isNullOrBlank() &&
+                                    it.url.startsWith("https://", ignoreCase = true) &&
+                                    !it.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true) &&
+                                    !it.url.substringBefore('?').endsWith(".mpd", ignoreCase = true) &&
+                                    shortSide(it.width, it.height) in 1..targetShortSide
+                            }
+                            // Prefer direct HTTPS MP4/WebM/DASH media formats that expose
+                            // an exact or approximate byte count; never let an HLS manifest
+                            // outrank a downloadable media stream just because its bitrate is high.
+                            val videoFormat = videoCandidates.maxWithOrNull(
+                                compareBy<com.yausername.youtubedl_android.mapper.VideoFormat>(
+                                    { if (it.fileSize > 0L || it.fileSizeApproximate > 0L) 1 else 0 },
+                                    { shortSide(it.width, it.height) },
+                                    { it.tbr }
                                 )
+                            )
                             val videoBytes = videoFormat?.let {
                                 formatBytes(
                                     it.fileSize,
@@ -1171,14 +1192,21 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("-o", "${outDir.absolutePath}/%(title).80B [%(id)s].%(ext)s")
                     request.addOption("--no-mtime")
                     request.addOption("--no-playlist")
-                    // Do not pin Android/iOS clients: current YouTube requires PO tokens for them.
+                    applyYtDlpNetworkOptions(request)
+                    // Do not pin Android/iOS clients: current YouTube may require PO tokens.
 
                     if (isAudio) {
                         request.addOption("-x")
                         request.addOption("--audio-format", audioExt.lowercase(Locale.US))
                         request.addOption("--audio-quality", audioBitrate)
                     } else {
-                        val selector = "bestvideo[height<=${maxHeight}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]/best"
+                        // Prefer direct HTTPS progressive/DASH MP4, then WebM. The
+                        // protocol filter avoids selecting HLS .m3u8 manifests as files.
+                        val selector =
+                            "bestvideo[height<=${maxHeight}][ext=mp4][protocol^=http]+bestaudio[ext=m4a]/" +
+                            "bestvideo[height<=${maxHeight}][ext=webm][protocol^=http]+bestaudio/" +
+                            "bestvideo[height<=${maxHeight}][protocol^=http]+bestaudio/" +
+                            "best[height<=${maxHeight}][protocol^=http]/best"
                         request.addOption("-f", selector)
                         request.addOption("--merge-output-format", "mp4")
                         if (includeSubtitles) {
