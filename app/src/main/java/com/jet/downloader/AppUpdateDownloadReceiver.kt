@@ -35,10 +35,12 @@ class AppUpdateDownloadReceiver : BroadcastReceiver() {
             return
         }
 
-        val apkFile = File(
-            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-            "JET-update.apk"
-        )
+        val downloadDirectory = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        if (downloadDirectory == null) {
+            Toast.makeText(context, "JET download storage is unavailable.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val apkFile = File(downloadDirectory, "JET-update.apk")
         if (!apkFile.isFile || apkFile.length() <= 0L) {
             Toast.makeText(context, "Downloaded JET APK could not be found.", Toast.LENGTH_LONG).show()
             return
