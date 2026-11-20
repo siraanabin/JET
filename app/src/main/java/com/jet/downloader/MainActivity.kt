@@ -832,7 +832,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     fun sizeText(bytes: Long): String =
-                        if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
+                        if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Approx. unavailable"
 
                     fun shortSide(width: Int, height: Int): Int =
                         if (width > 0) minOf(width, height) else height
@@ -903,20 +903,33 @@ class MainActivity : AppCompatActivity() {
                             FFmpeg.getInstance().init(applicationContext)
                             ytDlpReady = true
                         }
-                        val info = YoutubeDL.getInstance().getInfo(url)
+                        val metadataRequest = YoutubeDLRequest(url).apply {
+                            addOption("--dump-single-json")
+                            addOption("--no-playlist")
+                            addOption("--no-warnings")
+                            addOption("--extractor-args", "youtube:player_client=ios,android,web")
+                        }
+                        val info = YoutubeDL.getInstance().getInfo(metadataRequest)
                         val durationSec = info.duration.toLong()
                         val formats = info.formats.orEmpty()
 
                         fun formatBytes(
                             exactBytes: Long,
                             approximateBytes: Long,
-                            urlValue: String?,
-                            bitrateKbps: Double
+                            bitrateKbps: Double,
+                            durationSec: Long
                         ): Long {
                             if (exactBytes > 0L) return exactBytes
                             if (approximateBytes > 0L) return approximateBytes
-                            return (bitrateKbps.coerceAtLeast(0.0) * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
+                            if (bitrateKbps > 0.0 && durationSec > 0L) {
+                                return (bitrateKbps * 1000.0 * durationSec / 8.0).toLong()
+                            }
+                            return 0L
                         }
+
+                        fun sizeLabel(bytes: Long): String =
+                            if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+                            else "Approx. unavailable"
 
                         fun shortSide(width: Int, height: Int): Int =
                             if (width > 0) minOf(width, height) else height
@@ -933,8 +946,8 @@ class MainActivity : AppCompatActivity() {
                             formatBytes(
                                 it.fileSize,
                                 it.fileSizeApproximate,
-                                it.url,
-                                (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble()
+                                (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble(),
+                                durationSec
                             )
                         } ?: (320.0 * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
 
@@ -954,16 +967,16 @@ class MainActivity : AppCompatActivity() {
                                 formatBytes(
                                     it.fileSize,
                                     it.fileSizeApproximate,
-                                    it.url,
-                                    (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble()
+                                    (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble(),
+                                    durationSec
                                 )
                             } ?: (targetKbps.toDouble() * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
                             streamSizes[id] = StreamSizePayload(
-                                sizeText = if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Size N/A"
+                                sizeText = sizeLabel(bytes)
                             )
                         }
                         streamSizes["aud-fast"] = StreamSizePayload(
-                            sizeText = if (bestAudioBytes > 0L) String.format(Locale.US, "%.1f MB", bestAudioBytes / (1024.0 * 1024.0)) else "Size N/A"
+                            sizeText = sizeLabel(bestAudioBytes)
                         )
 
                         listOf(
@@ -989,12 +1002,17 @@ class MainActivity : AppCompatActivity() {
                                     )
                                 )
                             val videoBytes = videoFormat?.let {
-                                formatBytes(it.fileSize, it.fileSizeApproximate, it.url, it.tbr.toDouble())
+                                formatBytes(
+                                    it.fileSize,
+                                    it.fileSizeApproximate,
+                                    it.tbr.toDouble(),
+                                    durationSec
+                                )
                             } ?: 0L
                             val isVideoOnly = videoFormat != null && (videoFormat.acodec == null || videoFormat.acodec == "none")
                             val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
                             streamSizes[id] = StreamSizePayload(
-                                sizeText = if (totalBytes > 0L) String.format(Locale.US, "%.1f MB", totalBytes / (1024.0 * 1024.0)) else "Size N/A"
+                                sizeText = sizeLabel(totalBytes)
                             )
                         }
 
@@ -1114,6 +1132,7 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("-o", "${outDir.absolutePath}/%(title).80B [%(id)s].%(ext)s")
                     request.addOption("--no-mtime")
                     request.addOption("--no-playlist")
+                    request.addOption("--extractor-args", "youtube:player_client=ios,android,web")
 
                     if (isAudio) {
                         request.addOption("-x")
