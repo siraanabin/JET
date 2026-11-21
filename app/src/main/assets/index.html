@@ -437,6 +437,7 @@
         <div class="w-10 h-1 rounded-full bg-app-border mx-auto -mt-1"></div>
 
         <div class="flex items-center justify-between gap-2">
+          <img id="format-stream-thumbnail" class="hidden w-20 h-14 rounded-xl object-cover bg-app-elevated shrink-0" alt="Video thumbnail" />
           <div class="min-w-0 flex-1">
             <h3 class="text-base font-extrabold text-app-text">Download video as</h3>
             <p id="format-stream-title" class="text-[11px] text-app-secondary truncate mt-0.5">Fetching video details...</p>
@@ -649,6 +650,7 @@
         lastAutoOpenedClipboardUrl: '',
         pendingUrl: '',
         fetchedTitle: '',
+        fetchedThumbnail: '',
         formats: [
           { id: 'aud-fast', group: 'music', name: 'Fast', desc: 'M4A (128K), best for mobile play', sizeText: 'Calculating…', ext: 'm4a', bitrate: '128K', maxHeight: 0, compact: true },
           { id: 'aud-70', group: 'music', name: 'Classic MP3 (70K)', badge: 'Low', desc: 'Supports Bluetooth speakers, phones, car stereos', sizeText: 'Calculating…', ext: 'mp3', bitrate: '70K', maxHeight: 0, compact: false },
@@ -923,6 +925,10 @@
           return;
         }
         state.fetchedTitle = info.title || state.pendingUrl;
+        state.fetchedThumbnail = info.thumbnail || '';
+        const thumbnail = $('format-stream-thumbnail');
+        thumbnail.src = state.fetchedThumbnail;
+        thumbnail.classList.toggle('hidden', !state.fetchedThumbnail);
         $('format-stream-title').textContent = `${state.fetchedTitle} (${info.duration || ''}) · ${info.extractor || ''}`;
         state.formats.forEach((stream) => {
           stream.sizeText = info.streams?.[stream.id]?.sizeText || 'Size N/A';
@@ -948,6 +954,7 @@
         if (idx >= 0) state.activeDownloads.splice(idx, 1);
 
         const title = data.title || (existing ? existing.title : 'JET Download');
+        const thumbnailUrl = (existing && existing.thumbnailUrl) || '';
         const fmtLabel = existing ? existing.format : 'Media';
         state.doneDownloads.unshift({
           id: data.id,
@@ -956,6 +963,7 @@
           size: data.size || 'Saved',
           filePath: data.filePath || '',
           fileUri: data.fileUri || '',
+          thumbnailUrl,
           date: 'Just now'
         });
 
@@ -1066,6 +1074,9 @@
         }
         state.pendingUrl = cleanUrl;
         state.fetchedTitle = cleanUrl;
+        state.fetchedThumbnail = '';
+        $('format-stream-thumbnail').removeAttribute('src');
+        $('format-stream-thumbnail').classList.add('hidden');
         state.formats.forEach((stream) => { stream.sizeText = 'Calculating…'; });
 
         $('format-stream-title').textContent = cleanUrl;
@@ -1129,7 +1140,8 @@
           format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
           size: fmt.sizeText || 'Size N/A',
           progress: 2,
-          speed: 'Connecting...'
+          speed: 'Connecting...',
+          thumbnailUrl: state.fetchedThumbnail
         });
 
         $('format-modal').classList.add('hidden');
@@ -1140,13 +1152,13 @@
 
         const requestArgs = [
           downloadId, targetUrl, displayTitle, fmt.group === 'music',
-          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, state.ccEnabled
+          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, state.ccEnabled, state.fetchedThumbnail
         ];
         state.retryDownloadArgs = requestArgs;
         state.retryDownloadRecord = {
           id: downloadId, title: displayTitle,
           format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
-          size: fmt.sizeText || 'Size N/A', progress: 2, speed: 'Retrying...'
+          size: fmt.sizeText || 'Size N/A', progress: 2, speed: 'Retrying...', thumbnailUrl: state.fetchedThumbnail
         };
         if (hasAndroid() && window.JetAndroid.startRealDownload) {
           window.JetAndroid.startRealDownload(...requestArgs);
@@ -1191,6 +1203,7 @@
           activeList.innerHTML = state.activeDownloads.map((item) => `
             <div class="surface-card rounded-2xl p-3.5 space-y-2.5">
               <div class="flex items-start justify-between gap-2">
+                <img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-20 h-14 rounded-xl object-cover bg-app-elevated shrink-0 ${item.thumbnailUrl ? "" : "hidden"}">
                 <div class="min-w-0">
                   <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
                   <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}</p>
@@ -1216,7 +1229,8 @@
         } else {
           doneList.innerHTML = state.doneDownloads.map((item) => `
             <div class="surface-card rounded-2xl p-3.5 flex items-center justify-between gap-3">
-              <div class="min-w-0">
+              <img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-20 h-14 rounded-xl object-cover bg-app-elevated shrink-0 ${item.thumbnailUrl ? "" : "hidden"}">
+              <div class="min-w-0 flex-1">
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
                 <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size} · ${item.date}</p>
               </div>
@@ -1285,6 +1299,7 @@
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
                 class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
                 <div class="relative h-24 bg-gradient-to-br ${item.color} flex items-center justify-center text-white">
+                  <img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover ${item.thumbnailUrl ? "" : "hidden"}">
                   <div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center">
                     <i data-lucide="${icon}" class="w-4 h-4"></i>
                   </div>
@@ -1300,8 +1315,8 @@
           return `
             <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
               class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
-              <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} text-white flex items-center justify-center shrink-0">
-                <i data-lucide="${icon}" class="w-5 h-5"></i>
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} text-white flex items-center justify-center shrink-0 overflow-hidden">
+                ${item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-full h-full object-cover">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
@@ -1518,6 +1533,18 @@
         return false;
       };
 
+      window.onNativeCompletedDownloads = function (items) {
+        if (!Array.isArray(items)) return;
+        state.doneDownloads = items.map((item) => ({ ...item, date: item.date || "Saved" }));
+        renderDownloads();
+      };
+      window.onNativeNotificationOpen = function (tab) {
+        switchScreen(tab === "library" ? "library" : "downloads");
+      };
+      if (hasAndroid() && window.JetAndroid.getNotificationOpenTab) {
+        const launchTab = window.JetAndroid.getNotificationOpenTab();
+        if (launchTab) switchScreen(launchTab === "library" ? "library" : "downloads");
+      }
       renderDownloads();
       renderLibrary();
       refreshIcons();

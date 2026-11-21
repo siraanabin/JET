@@ -338,6 +338,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val tab = intent.getStringExtra(DownloadNotificationService.EXTRA_OPEN_TAB).orEmpty()
+        if (tab.isNotBlank() && ::webView.isInitialized) {
+            webView.post { webView.evaluateJavascript("if (window.onNativeNotificationOpen) window.onNativeNotificationOpen(${JSONObject.quote(tab)});", null) }
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         if (::networkMonitor.isInitialized) networkMonitor.start()
@@ -612,6 +621,12 @@ class MainActivity : AppCompatActivity() {
                     ?.sortedByDescending { it.lastModified() }
                     ?: emptyList()
 
+                val savedDownloads = downloadDao.getAll()
+                val savedByPath = savedDownloads.associateBy { it.filePath }
+                val history = savedDownloads.filter { it.filePath.isNotBlank() && File(it.filePath).isFile }.map { item ->
+                    DownloadHistoryPayload(item.id, item.title, item.formatLabel, item.fileSize, item.filePath, Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved")
+                }
+                callJs("onNativeCompletedDownloads", json.encodeToString(history))
                 val items = files.map { f ->
                     val lower = f.name.lowercase(Locale.US)
                     val type = when {
@@ -627,7 +642,8 @@ class MainActivity : AppCompatActivity() {
                         meta = "${formatBytes(f.length())} · $ext",
                         duration = ext,
                         filePath = f.absolutePath,
-                        fileUri = Uri.fromFile(f).toString()
+                        fileUri = Uri.fromFile(f).toString(),
+                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty()
                     )
                 }
                 callJs("onNativeLibraryList", json.encodeToString(items))
@@ -663,6 +679,14 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Toast.makeText(this, "Cannot open file: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun requestNotificationPermissionForDownload() {
+        runOnUiThread {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         }
     }
 
@@ -1060,12 +1084,17 @@ class MainActivity : AppCompatActivity() {
             audioBitrate: String,
             audioExt: String,
             maxHeight: Int,
-            includeSubtitles: Boolean
+            includeSubtitles: Boolean,
+            thumbnailUrl: String
         ) {
+            requestNotificationPermissionForDownload()
+            runCatching { DownloadNotificationService.start(this@MainActivity, downloadId, title, thumbnailUrl) }
             lifecycleScope.launch(Dispatchers.IO) {
                 val outDir = getJetDownloadDir()
 
                 try {
+                    downloadDao.upsert(DownloadEntity(downloadId, title, url, if (isAudio) audioExt.uppercase(Locale.US) else "${maxHeight}p", "", "", if (isAudio) "audio" else "video", thumbnailUrl = thumbnailUrl))
+                    var resolvedThumbnailUrl = thumbnailUrl
                     // Fast direct stream download via NewPipe Extractor + OkHttp when muxing isn't needed
                     var downloadedViaNewPipe = false
                     if (!isNewPipeFailureCached(url) &&
@@ -1075,6 +1104,7 @@ class MainActivity : AppCompatActivity() {
                         try {
                             callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 8, ${JSONObject.quote("NewPipe Extractor...")}")
                             val info = getOrFetchStreamInfo(url)
+                            if (resolvedThumbnailUrl.isBlank()) resolvedThumbnailUrl = info.thumbnails.maxByOrNull { it.width }?.url.orEmpty()
                             val safeTitle = sanitizeFileName(info.name ?: title)
 
                             val targetStreamUrl: String?
@@ -1117,6 +1147,7 @@ class MainActivity : AppCompatActivity() {
                                                         val speedStr = "${formatBytes(speedBps.toLong())}/s"
                                                         val pct = if (totalBytes > 0) ((bytesReadTotal * 100) / totalBytes).toInt().coerceIn(5, 99) else 50
                                                         callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedStr)}")
+                                                        runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, pct, speedStr, resolvedThumbnailUrl) }
                                                         lastReportTime = now
                                                         lastBytes = bytesReadTotal
                                                     }
@@ -1124,7 +1155,7 @@ class MainActivity : AppCompatActivity() {
                                             }
                                         }
                                         if (outFile.exists() && outFile.length() > 0L) {
-                                            finishDownloadSuccess(downloadId, url, outFile, if (isAudio) "audio" else "video")
+                                            finishDownloadSuccess(downloadId, url, outFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl)
                                             downloadedViaNewPipe = true
                                         }
                                     }
@@ -1146,7 +1177,7 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("--no-mtime")
                     request.addOption("--no-playlist")
                     applyYtDlpNetworkOptions(request)
-                    // Do not pin Android/iOS clients: current YouTube may require PO tokens.
+                    // Thumbnail metadata is carried over from the media-info request.
 
                     if (isAudio) {
                         request.addOption("-x")
@@ -1179,6 +1210,7 @@ class MainActivity : AppCompatActivity() {
                             else -> "Downloading..."
                         }
                             callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}")
+                            runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, pct, speedLabel, resolvedThumbnailUrl) }
                         }
                     }
 
@@ -1191,14 +1223,18 @@ class MainActivity : AppCompatActivity() {
                         ?: afterFiles.maxByOrNull { it.lastModified() }
 
                     if (newFile != null && newFile.exists()) {
-                        finishDownloadSuccess(downloadId, url, newFile, if (isAudio) "audio" else "video")
+                        finishDownloadSuccess(downloadId, url, newFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl)
                     } else {
                         val fail = DownloadErrorPayload(downloadId, "Output file not found after download")
+                        downloadDao.deleteById(downloadId)
+                        runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                         callJs("onNativeDownloadError", json.encodeToString(fail))
                     }
                 } catch (e: Exception) {
                     notifyEngineUpdateRequired(e)
                     val fail = DownloadErrorPayload(downloadId, e.message ?: "Download failed")
+                    runCatching { downloadDao.deleteById(downloadId) }
+                    runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
                 }
             }
@@ -1208,7 +1244,8 @@ class MainActivity : AppCompatActivity() {
             downloadId: String,
             url: String,
             file: File,
-            mediaType: String
+            mediaType: String,
+            thumbnailUrl: String
         ) {
             MediaScannerConnection.scanFile(applicationContext, arrayOf(file.absolutePath), null, null)
             val sizeStr = formatBytes(file.length())
@@ -1222,7 +1259,8 @@ class MainActivity : AppCompatActivity() {
                     formatLabel = file.extension.uppercase(Locale.US),
                     filePath = file.absolutePath,
                     fileSize = sizeStr,
-                    mediaType = mediaType
+                    mediaType = mediaType,
+                    thumbnailUrl = thumbnailUrl
                 )
             )
 
@@ -1233,12 +1271,14 @@ class MainActivity : AppCompatActivity() {
                 filePath = file.absolutePath,
                 fileUri = Uri.fromFile(file).toString()
             )
+            runCatching { DownloadNotificationService.completed(this@MainActivity, downloadId, file.nameWithoutExtension, sizeStr, thumbnailUrl) }
             callJs("onNativeDownloadComplete", json.encodeToString(payload))
             pushScannedLibraryToWeb()
         }
 
         @JavascriptInterface
         fun cancelRealDownload(downloadId: String) {
+            runCatching { DownloadNotificationService.cancel(this@MainActivity, downloadId) }
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId")
@@ -1246,6 +1286,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        @JavascriptInterface
+        fun getNotificationOpenTab(): String = intent?.getStringExtra(DownloadNotificationService.EXTRA_OPEN_TAB).orEmpty()
 
         @JavascriptInterface
         fun refreshLibrary() {

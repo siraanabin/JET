@@ -1,6 +1,9 @@
 package com.jet.downloader
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import coil.Coil
 import coil.ImageLoader
 import com.jet.downloader.di.appModule
@@ -17,6 +20,14 @@ class JetApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                DownloadNotificationService.CHANNEL_ID,
+                "Download Manager",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply { description = "Shows active download progress and completion status." }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
 
         startKoin {
             androidContext(this@JetApplication)

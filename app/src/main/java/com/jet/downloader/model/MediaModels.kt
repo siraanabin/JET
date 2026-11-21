@@ -42,7 +42,20 @@ data class LibraryItemPayload(
     val meta: String,
     val duration: String,
     val filePath: String,
-    val fileUri: String
+    val fileUri: String,
+    val thumbnailUrl: String = ""
+)
+
+@Serializable
+data class DownloadHistoryPayload(
+    val id: String,
+    val title: String,
+    val format: String,
+    val size: String,
+    val filePath: String,
+    val fileUri: String,
+    val thumbnailUrl: String,
+    val date: String
 )
 
 @Serializable
