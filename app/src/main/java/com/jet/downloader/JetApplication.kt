@@ -5,11 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import android.util.Log
-import android.util.Log
 import coil.Coil
 import coil.ImageLoader
 import com.jet.downloader.di.appModule
-import com.yausername.ffmpeg.FFmpeg
 import com.jet.downloader.network.JetOkHttpDownloader
 import com.yausername.ffmpeg.FFmpeg
 import org.koin.android.ext.android.inject
@@ -42,11 +40,6 @@ class JetApplication : Application() {
             runCatching { JetFfmpegRuntime.initialize(applicationContext) }
                 .onFailure { Log.e("JET", "Bundled FFmpeg initialization failed", it) }
         }, "jet-ffmpeg-init").apply { isDaemon = true }.start()
-
-        // Register the bundled FFmpeg executable early so every video download can mux
-        // separate video/audio streams. Download initialization retries and validates it.
-        runCatching { FFmpeg.getInstance().init(applicationContext) }
-            .onFailure { Log.e("JET", "Bundled FFmpeg initialization failed", it) }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
