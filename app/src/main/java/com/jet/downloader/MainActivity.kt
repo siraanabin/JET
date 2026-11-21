@@ -481,35 +481,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializeFallbackEngine() {
+        // Initialization is asynchronous. Do not run a binary update here:
+        // the updater shares yt-dlp's process lock and could stall a newly queued download.
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 ensureYtDlpInitialized()
-                // Best-effort silent refresh; keep the installed engine if offline.
-                try {
-                    synchronized(ytDlpEngineLock) {
-                        YoutubeDL.getInstance().updateYoutubeDL(
-                            applicationContext,
-                            YoutubeDL.UpdateChannel.NIGHTLY
-                        )
-                    }
-                } catch (nightlyError: Exception) {
-                    // If the nightly channel is temporarily unavailable, try stable.
-                    try {
-                        synchronized(ytDlpEngineLock) {
-                            YoutubeDL.getInstance().updateYoutubeDL(applicationContext)
-                        }
-                    } catch (stableError: Exception) {
-                        Log.e(
-                            "JET",
-                            "Failed to update yt-dlp from nightly and stable channels; keeping the installed version",
-                            stableError
-                        )
-                    }
-                }
                 withContext(Dispatchers.Main) {
                     if (::webView.isInitialized) notifyEngineState()
                 }
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                Log.e("JET", "yt-dlp initialization failed; download fallback will retry on demand", error)
                 ytDlpReady = false
             }
         }
@@ -1210,6 +1191,11 @@ class MainActivity : AppCompatActivity() {
 
                     if (downloadedViaNewPipe) return@launch
 
+                    // Show extraction as a separate phase; yt-dlp can spend several seconds
+                    // resolving formats before it reports actual byte progress.
+                    callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Preparing / extracting streams…")}")
+                    runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, 0, "Preparing / extracting streams…", resolvedThumbnailUrl) }
+
                     // Adaptive 1080p/2K/4K FFmpeg muxing or MP3 conversion via yt-dlp + FFmpeg
                     ensureYtDlpInitialized()
 
@@ -1242,9 +1228,12 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val speedRegex = Regex("at\\s+([0-9.]+\\s*[KMG]i?B/s)")
+                    var lastReportedProgress = 0
                     synchronized(ytDlpEngineLock) {
                         YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, etaInSeconds, line ->
-                        val pct = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else 5
+                        val reported = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else lastReportedProgress
+                        lastReportedProgress = maxOf(lastReportedProgress, reported)
+                        val pct = lastReportedProgress
                         val speedMatch = speedRegex.find(line)?.groupValues?.getOrNull(1)
                         val speedLabel = when {
                             speedMatch != null -> "$speedMatch · ETA ${etaInSeconds}s"
@@ -1327,10 +1316,8 @@ class MainActivity : AppCompatActivity() {
         fun cancelRealDownload(downloadId: String) {
             runCatching { DownloadNotificationService.cancel(this@MainActivity, downloadId) }
             lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId")
-                } catch (_: Exception) {
-                }
+                runCatching { YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId") }
+                runCatching { downloadDao.deleteById(downloadId) }
             }
         }
 
@@ -1360,6 +1347,48 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun openFileExternal(filePath: String) {
             openFileInExternalApp(filePath)
+        }
+
+        @JavascriptInterface
+        fun renameLibraryFile(filePath: String, requestedName: String) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val source = File(filePath).canonicalFile
+                    val allowedDir = getJetDownloadDir().canonicalFile
+                    require(source.parentFile == allowedDir && source.isFile) { "File is outside the JET Library" }
+                    val cleanName = requestedName.trim()
+                        .replace(Regex("[\\\\/:*?\\"<>|]"), "_")
+                        .trim('.')
+                        .take(100)
+                    require(cleanName.isNotBlank()) { "Enter a valid file name" }
+                    val targetName = if (cleanName.contains('.')) cleanName else "$cleanName.${source.extension}"
+                    val target = File(allowedDir, targetName).canonicalFile
+                    require(target.parentFile == allowedDir) { "Invalid file name" }
+                    require(!target.exists()) { "A file with that name already exists" }
+                    check(source.renameTo(target)) { "Unable to rename file" }
+                    pushScannedLibraryToWeb()
+                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File renamed", Toast.LENGTH_SHORT).show() }
+                } catch (error: Exception) {
+                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, error.message ?: "Rename failed", Toast.LENGTH_LONG).show() }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun deleteLibraryFile(filePath: String) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val file = File(filePath).canonicalFile
+                    val allowedDir = getJetDownloadDir().canonicalFile
+                    require(file.parentFile == allowedDir && file.isFile) { "File is outside the JET Library" }
+                    check(file.delete()) { "Unable to delete file" }
+                    downloadDao.getAll().firstOrNull { it.filePath == file.absolutePath }?.let { downloadDao.deleteById(it.id) }
+                    pushScannedLibraryToWeb()
+                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File deleted", Toast.LENGTH_SHORT).show() }
+                } catch (error: Exception) {
+                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, error.message ?: "Delete failed", Toast.LENGTH_LONG).show() }
+                }
+            }
         }
 
         @JavascriptInterface
