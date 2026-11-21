@@ -267,9 +267,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
+        // Preserve the app's three-part layout; system bars remain outside WebView content.
+        val initialDarkMode = runBlocking { preferencesManager.darkModeFlow.first() }
+        applySystemBarTheme(initialDarkMode)
         requestRuntimePermissions()
         initializeFallbackEngine()
 
@@ -477,6 +477,15 @@ class MainActivity : AppCompatActivity() {
         exoPlayer?.release()
         exoPlayer = null
         super.onDestroy()
+    }
+
+    private fun applySystemBarTheme(isDarkMode: Boolean) {
+        val window = window
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        window.statusBarColor = Color.parseColor(if (isDarkMode) "#090C14" else "#F4F6FB")
+        window.navigationBarColor = Color.parseColor(if (isDarkMode) "#0D121F" else "#FFFFFF")
+        controller.isAppearanceLightStatusBars = !isDarkMode
+        controller.isAppearanceLightNavigationBars = !isDarkMode
     }
 
     private fun syncDataStorePreferencesToWeb() {
@@ -764,14 +773,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 preferencesManager.setDarkMode(isDark)
             }
-            runOnUiThread {
-                val window = this@MainActivity.window
-                val controller = WindowCompat.getInsetsController(window, window.decorView)
-                window.statusBarColor = Color.TRANSPARENT
-                window.navigationBarColor = Color.TRANSPARENT
-                controller.isAppearanceLightStatusBars = !isDark
-                controller.isAppearanceLightNavigationBars = !isDark
-            }
+            runOnUiThread { applySystemBarTheme(isDark) }
         }
 
         @JavascriptInterface
