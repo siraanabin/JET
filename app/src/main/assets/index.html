@@ -982,6 +982,10 @@
         const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
         if (idx >= 0) state.activeDownloads.splice(idx, 1);
         renderDownloads();
+        if (window.jetCancelledDownloadIds && window.jetCancelledDownloadIds.has(data.id)) {
+          window.jetCancelledDownloadIds.delete(data.id);
+          return;
+        }
         showToast(`Error: ${data.error || 'Download failed'}`);
         if (state.retryDownloadArgs) {
           const args = state.retryDownloadArgs;
@@ -1263,10 +1267,12 @@
         $('downloads-active-list').classList.add('hidden');
       });
 
+      window.jetCancelledDownloadIds = window.jetCancelledDownloadIds || new Set();
       document.addEventListener('click', (e) => {
         const cancelBtn = e.target.closest('[data-dl-cancel]');
         if (cancelBtn) {
           const id = cancelBtn.dataset.dlCancel;
+          window.jetCancelledDownloadIds.add(id);
           state.activeDownloads = state.activeDownloads.filter((d) => d.id !== id);
           if (hasAndroid() && window.JetAndroid.cancelRealDownload) {
             window.JetAndroid.cancelRealDownload(id);
@@ -1359,11 +1365,9 @@
         e.preventDefault();
         e.stopPropagation();
         const filePath = menuButton.dataset.libMenu;
-        const choice = window.prompt('File options: type Open, Rename, or Delete', 'Open');
-        const normalized = (choice || '').trim().toLowerCase();
-        if (normalized === 'open') handleLibraryAction('open', filePath);
-        else if (normalized === 'rename') handleLibraryAction('rename', filePath);
-        else if (normalized === 'delete') handleLibraryAction('delete', filePath);
+        if (window.JetAndroid && window.JetAndroid.showLibraryMenu) {
+          window.JetAndroid.showLibraryMenu(filePath);
+        }
       });
 
       $('refresh-library-btn').addEventListener('click', () => {
