@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.util.Log
 import android.util.LruCache
 import android.view.Gravity
 import android.view.View
@@ -97,27 +98,36 @@ class MainActivity : AppCompatActivity() {
     private fun ensureYtDlpInitialized() {
         synchronized(ytDlpEngineLock) {
             if (!ytDlpReady) {
-                // The youtubedl-android FFmpeg module registers its bundled executable
-                // and working paths during init(); yt-dlp then resolves the muxer through
-                // its configured binary path. Keep this before any format+audio request.
-                // Initialize the bundled FFmpeg executable/support files before yt-dlp.
-                JetFfmpegRuntime.initialize(applicationContext)
+                // Match the youtubedl-android 0.18.1 initialization contract:
+                // initialize yt-dlp first, then extract FFmpeg's bundled support files.
                 YoutubeDL.getInstance().init(applicationContext)
+                JetFfmpegRuntime.initialize(applicationContext)
 
-                // youtubedl-android 0.18.1 automatically injects
-                // --ffmpeg-location=<nativeLibraryDir>/libffmpeg.so into every execute().
-                // Verify both the executable referenced by YoutubeDL and FFmpeg's extracted
-                // support libraries before allowing separate video/audio format downloads.
+                // YoutubeDL 0.18.1 itself adds
+                // --ffmpeg-location=<nativeLibraryDir>/libffmpeg.so to every execute().
+                // Confirm that exact bundled executable is present and executable.
                 val ffmpegExecutable = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                 check(ffmpegExecutable.isFile) {
                     "Bundled FFmpeg executable is missing: ${ffmpegExecutable.absolutePath}"
                 }
-                val ffmpegSupportDir = File(
-                    noBackupFilesDir,
-                    "youtubedl-android/packages/ffmpeg"
+                if (!ffmpegExecutable.canExecute()) {
+                    val permissionSet = ffmpegExecutable.setExecutable(true, false)
+                    check(permissionSet && ffmpegExecutable.canExecute()) {
+                        "Bundled FFmpeg executable is not executable and permissions could not be fixed: ${ffmpegExecutable.absolutePath}"
+                    }
+                }
+                Log.i(
+                    "JET-FFmpeg",
+                    "FFmpeg executable verified: ${ffmpegExecutable.absolutePath}; executable=${ffmpegExecutable.canExecute()}; bytes=${ffmpegExecutable.length()}"
                 )
+
+                val ffmpegArchive = File(applicationInfo.nativeLibraryDir, "libffmpeg.zip.so")
+                check(ffmpegArchive.isFile && ffmpegArchive.length() > 0L) {
+                    "Bundled FFmpeg support archive is missing or empty: ${ffmpegArchive.absolutePath}"
+                }
+                val ffmpegSupportDir = File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg")
                 check(ffmpegSupportDir.isDirectory && !ffmpegSupportDir.listFiles().isNullOrEmpty()) {
-                    "Bundled FFmpeg support files were not extracted"
+                    "Bundled FFmpeg support files were not extracted: ${ffmpegSupportDir.absolutePath}"
                 }
                 ytDlpReady = true
             }
@@ -1209,7 +1219,7 @@ class MainActivity : AppCompatActivity() {
                         // Resolve the best separate video/audio streams at or below the
                         // selected resolution. youtubedl-android injects its bundled
                         // --ffmpeg-location automatically; do not override that path.
-                        val formatSelector = "bestvideo[height<=${maxHeight}]+bestaudio/best"
+                        val formatSelector = "bestvideo[height<=${maxHeight}]+bestaudio"
                         request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
                         request.addOption("--remux-video", "mp4")
@@ -1251,6 +1261,11 @@ class MainActivity : AppCompatActivity() {
                         callJs("onNativeDownloadError", json.encodeToString(fail))
                     }
                 } catch (e: Exception) {
+                    Log.e(
+                        "JET-Download",
+                        "Download failed for id=$downloadId; selectedFormat=${if (isAudio) "audio" else "${maxHeight}p"}; FFmpeg/yt-dlp stderr follows",
+                        e
+                    )
                     notifyEngineUpdateRequired(e)
                     val fail = DownloadErrorPayload(downloadId, e.message ?: "Download failed")
                     runCatching { downloadDao.deleteById(downloadId) }
