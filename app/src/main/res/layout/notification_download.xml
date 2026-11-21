@@ -31,9 +31,11 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#202124"
+            android:textColor="?android:attr/textColorPrimary"
             android:textSize="14sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:visibility="visible" />
 
         <TextView
             android:id="@+id/notification_subtitle"
@@ -42,8 +44,9 @@
             android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#5F6368"
-            android:textSize="12sp" />
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp"
+            android:includeFontPadding="false" />
 
         <ProgressBar
             android:id="@+id/notification_progress"

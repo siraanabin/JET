@@ -16,6 +16,7 @@ data class MediaInfoPayload(
     val uploader: String = "",
     val extractor: String = "NewPipe Extractor",
     val streams: Map<String, StreamSizePayload> = emptyMap(),
+    val formatIds: Map<String, String> = emptyMap(),
     val error: String? = null
 )
 

@@ -666,6 +666,7 @@
           { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false },
           { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false }
         ],
+        formatIds: {},
         activeDownloads: [],
         doneDownloads: [],
         library: []
@@ -926,12 +927,14 @@
         }
         state.fetchedTitle = info.title || state.pendingUrl;
         state.fetchedThumbnail = info.thumbnail || '';
+        state.formatIds = info.formatIds || {};
         const thumbnail = $('format-stream-thumbnail');
         thumbnail.src = state.fetchedThumbnail;
         thumbnail.classList.toggle('hidden', !state.fetchedThumbnail);
         $('format-stream-title').textContent = `${state.fetchedTitle} (${info.duration || ''}) · ${info.extractor || ''}`;
         state.formats.forEach((stream) => {
           stream.sizeText = info.streams?.[stream.id]?.sizeText || 'Size N/A';
+          stream.formatId = state.formatIds[stream.id] || '';
         });
         renderFormatLists();
       };
@@ -1075,6 +1078,8 @@
         state.pendingUrl = cleanUrl;
         state.fetchedTitle = cleanUrl;
         state.fetchedThumbnail = '';
+        state.formatIds = {};
+        state.formats.forEach((stream) => { stream.formatId = ''; });
         $('format-stream-thumbnail').removeAttribute('src');
         $('format-stream-thumbnail').classList.add('hidden');
         state.formats.forEach((stream) => { stream.sizeText = 'Calculating…'; });
@@ -1128,6 +1133,10 @@
         const fmt = state.formats.find((f) => f.id === state.selectedFormatId) || state.formats[10];
         const targetUrl = state.pendingUrl || urlInput.value.trim();
         if (!targetUrl) return;
+        if (fmt.group === 'video' && !fmt.formatId) {
+          showToast('Exact video format is unavailable. Reopen the link and wait for format details to load.');
+          return;
+        }
 
         const downloadId = String(Date.now());
         const displayTitle = state.fetchedTitle && state.fetchedTitle !== targetUrl
@@ -1152,7 +1161,8 @@
 
         const requestArgs = [
           downloadId, targetUrl, displayTitle, fmt.group === 'music',
-          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, state.ccEnabled, state.fetchedThumbnail
+          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, state.ccEnabled, state.fetchedThumbnail,
+          fmt.formatId || ''
         ];
         state.retryDownloadArgs = requestArgs;
         state.retryDownloadRecord = {
