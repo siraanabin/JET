@@ -1,6 +1,6 @@
 {
-  "versionCode": 354,
-  "versionName": "3.5.4",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.4/JET-debug.apk",
+  "versionCode": 355,
+  "versionName": "3.5.5",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.5/JET-debug.apk",
   "changelog": "• Allow WebM and other available streams while selecting up to the chosen resolution\n• Merge separate streams to MP4 and remux single-file downloads to MP4 with FFmpeg\n• Keep the bundled youtubedl-android FFmpeg path unchanged"
 }
