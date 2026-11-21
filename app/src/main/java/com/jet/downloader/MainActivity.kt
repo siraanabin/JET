@@ -98,6 +98,9 @@ class MainActivity : AppCompatActivity() {
     private fun ensureYtDlpInitialized() {
         synchronized(ytDlpEngineLock) {
             if (!ytDlpReady) {
+                // The youtubedl-android FFmpeg module registers its bundled executable
+                // and working paths during init(); yt-dlp then resolves the muxer through
+                // its configured binary path. Keep this before any format+audio request.
                 YoutubeDL.getInstance().init(applicationContext)
                 FFmpeg.getInstance().init(applicationContext)
                 ytDlpReady = true
@@ -1188,10 +1191,15 @@ class MainActivity : AppCompatActivity() {
                         // Let yt-dlp select the highest available video stream at or below
                         // the requested resolution, including DASH and other supported protocols.
                         // yt-dlp/FFmpeg handles the native video+audio merge.
+                        // Prefer separate video+audio streams and rank resolution toward the requested
+                        // ceiling. Do not fall back to yt-dlp's unconstrained generic /best,
+                        // which can silently choose a small progressive stream.
                         val selector =
                             "bestvideo[height<=${maxHeight}]+bestaudio/" +
-                            "best[height<=${maxHeight}]/best"
+                            "best[height<=${maxHeight}]"
                         request.addOption("-f", selector)
+                        request.addOption("-S", "res:${maxHeight}")
+                        request.addOption("--format-sort-force")
                         request.addOption("--merge-output-format", "mp4")
                         if (includeSubtitles) {
                             request.addOption("--write-auto-subs")

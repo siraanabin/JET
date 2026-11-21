@@ -1,6 +1,6 @@
 {
-  "versionCode": 349,
-  "versionName": "3.4.9",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.4.9/JET-debug.apk",
-  "changelog": "• Separate JET Debug in-app update channel\n• Consistently signed Debug APK for future in-app updates\n• Prefer size-bearing HTTPS video streams over HLS manifests\n• Add IPv4 and retry options for yt-dlp downloads\n• Show live APK download percentage in the in-app updater\n• Add bitrate-based video preset size fallbacks\n• Remove blocking size probes and reduce yt-dlp startup retries\n• Prefer Android/iOS YouTube clients for extraction\n• Use the yt-dlp nightly update channel for current YouTube fixes\n• Keep the installed engine usable when an engine update fails\n• Show video thumbnails in the format sheet, Downloads and Library\n• Persist thumbnail URLs with download records\n• Add foreground download progress and completion notifications"
+  "versionCode": 350,
+  "versionName": "3.5.0",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.0/JET-debug.apk",
+  "changelog": "• Fix Android 12+ custom download notification rendering\n• Show thumbnail, title and progress in custom notification views\n• Remove unconstrained low-quality yt-dlp format fallback\n• Prioritize requested resolution during video/audio stream selection\n• Keep bundled FFmpeg initialization before stream merging\n• Separate JET Debug in-app update channel\n• Consistently signed Debug APK for future in-app updates\n• Prefer size-bearing HTTPS video streams over HLS manifests\n• Add IPv4 and retry options for yt-dlp downloads\n• Show live APK download percentage in the in-app updater\n• Add bitrate-based video preset size fallbacks\n• Remove blocking size probes and reduce yt-dlp startup retries\n• Prefer Android/iOS YouTube clients for extraction\n• Use the yt-dlp nightly update channel for current YouTube fixes\n• Keep the installed engine usable when an engine update fails\n• Show video thumbnails in the format sheet, Downloads and Library\n• Persist thumbnail URLs with download records\n• Add foreground download progress and completion notifications"
 }
