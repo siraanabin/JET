@@ -1376,11 +1376,11 @@
               return;
             }
             const rect = menuButton.getBoundingClientRect();
-            const scale = window.devicePixelRatio || 1;
+            // Pass CSS pixels; the native bridge converts them to screen pixels.
             window.JetAndroid.showLibraryMenu(
               filePath,
-              Math.round(rect.right * scale),
-              Math.round(rect.bottom * scale)
+              Math.round(rect.right),
+              Math.round(rect.bottom)
             );
           });
         });
