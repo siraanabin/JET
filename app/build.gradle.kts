@@ -19,8 +19,8 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 356
-        versionName = "3.5.6"
+        versionCode = 357
+        versionName = "3.5.7"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
