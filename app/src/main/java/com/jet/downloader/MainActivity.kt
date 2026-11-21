@@ -1357,7 +1357,7 @@ class MainActivity : AppCompatActivity() {
                     val allowedDir = getJetDownloadDir().canonicalFile
                     require(source.parentFile == allowedDir && source.isFile) { "File is outside the JET Library" }
                     val cleanName = requestedName.trim()
-                        .replace(Regex("[\\\\/:*?\\"<>|]"), "_")
+                        .replace(Regex("""[\\/:*?"<>|]"""), "_")
                         .trim('.')
                         .take(100)
                     require(cleanName.isNotBlank()) { "Enter a valid file name" }
