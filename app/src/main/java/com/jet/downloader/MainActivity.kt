@@ -483,8 +483,12 @@ class MainActivity : AppCompatActivity() {
     private fun applySystemBarTheme(isDarkMode: Boolean) {
         val window = window
         val controller = WindowCompat.getInsetsController(window, window.decorView)
+
+        // Match the system status bar to --bg-canvas and navigation bar to --bg-nav.
+        // Keep system bars separate from app content to preserve the three-part layout.
         window.statusBarColor = Color.parseColor(if (isDarkMode) "#090C14" else "#F4F6FB")
         window.navigationBarColor = Color.parseColor(if (isDarkMode) "#0D121F" else "#FFFFFF")
+
         controller.isAppearanceLightStatusBars = !isDarkMode
         controller.isAppearanceLightNavigationBars = !isDarkMode
     }

@@ -1,6 +1,6 @@
 {
-  "versionCode": 361,
-  "versionName": "3.6.1",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.1/JET-debug.apk",
+  "versionCode": 362,
+  "versionName": "3.6.2",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.2/JET-debug.apk",
   "changelog": "• Instant swipe gestures on the video surface without waking player controls\\n• Premium centered cyan/white seek-time pill with immediate release-to-seek\\n• Keep volume and brightness gestures available while controls are hidden"
 }
