@@ -339,15 +339,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        val tab = intent.getStringExtra(DownloadNotificationService.EXTRA_OPEN_TAB).orEmpty()
-        if (tab.isNotBlank() && ::webView.isInitialized) {
-            webView.post { webView.evaluateJavascript("if (window.onNativeNotificationOpen) window.onNativeNotificationOpen(${JSONObject.quote(tab)});", null) }
-        }
-    }
-
     override fun onStart() {
         super.onStart()
         if (::networkMonitor.isInitialized) networkMonitor.start()
@@ -491,6 +482,15 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        val tab = intent.getStringExtra(DownloadNotificationService.EXTRA_OPEN_TAB).orEmpty()
+        if (tab.isNotBlank() && ::webView.isInitialized) {
+            webView.post {
+                webView.evaluateJavascript(
+                    "if (window.onNativeNotificationOpen) window.onNativeNotificationOpen(${JSONObject.quote(tab)});",
+                    null
+                )
+            }
+        }
         handleIncomingIntent(intent)
     }
 
