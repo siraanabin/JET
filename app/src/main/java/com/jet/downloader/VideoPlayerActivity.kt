@@ -3,6 +3,7 @@ package com.jet.downloader
 import android.app.PictureInPictureParams
 import android.content.*
 import android.content.pm.ActivityInfo
+import android.provider.Settings
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.os.*
@@ -65,6 +66,16 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var locked = false
     private var muted = false
     private var aspect = 0
+    private var playbackSpeed = 1f
+    private var repeatEnabled = false
+    private var zoomScale = 1f
+    private var zoomPanX = 0f
+    private var zoomPanY = 0f
+    private var lastPanX = 0f
+    private var lastPanY = 0f
+    private var multiTouchGesture = false
+    private lateinit var scaleDetector: ScaleGestureDetector
+    private val playerPrefs by lazy { getSharedPreferences("player_settings", MODE_PRIVATE) }
     private var controlsVisible = true
     private var scrubbing = false
     private var gestureMode = 0 // 1 brightness, 2 volume, 3 seek
@@ -100,7 +111,6 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_video_player)
         applyImmersivePlayerMode()
@@ -131,10 +141,19 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
         currentPath = path
         titleView.text = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
+        titleView.isSelected = true
+        aspect = playerPrefs.getInt("aspect", 0).coerceIn(0, 2)
+        playbackSpeed = playerPrefs.getFloat("speed", 1f).coerceIn(0.25f, 3f)
+        repeatEnabled = playerPrefs.getBoolean("repeat", false)
+        findViewById<TextView>(R.id.player_speed_label).text = String.format(Locale.US, "%.2gx", playbackSpeed)
+        applySystemOrientationPolicy()
         val exo = ExoPlayer.Builder(this).build()
         player = exo
         playerView.player = exo
         playerView.useController = false
+        playerView.resizeMode = resizeModeForAspect(aspect)
+        exo.setPlaybackSpeed(playbackSpeed)
+        exo.repeatMode = if (repeatEnabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
         exo.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(File(path))))
         exo.prepare(); exo.play()
         exo.addListener(object : Player.Listener {
@@ -170,6 +189,7 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!locked) applySystemOrientationPolicy()
         window.decorView.post { applyImmersivePlayerMode() }
     }
 
@@ -187,11 +207,11 @@ class VideoPlayerActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.player_forward).setOnClickListener { seekBy(10_000L) }
         val unlock = findViewById<Button>(R.id.player_unlock)
         findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
-            locked = true; showControls(false); unlock.visibility = View.VISIBLE
+            locked = true; requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED; showControls(false); unlock.visibility = View.VISIBLE
             Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
         }
         unlock.setOnClickListener {
-            locked = false; unlock.visibility = View.GONE; showControls(true)
+            locked = false; unlock.visibility = View.GONE; applySystemOrientationPolicy(); showControls(true)
             Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
         }
         findViewById<ImageButton>(R.id.player_mute).setOnClickListener {
@@ -206,9 +226,16 @@ class VideoPlayerActivity : AppCompatActivity() {
             requestedOrientation = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
+        findViewById<ImageButton>(R.id.player_repeat).setOnClickListener {
+            repeatEnabled = !repeatEnabled
+            player?.repeatMode = if (repeatEnabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+            playerPrefs.edit().putBoolean("repeat", repeatEnabled).apply()
+            it.isSelected = repeatEnabled
+        }
+        findViewById<ImageButton>(R.id.player_repeat).isSelected = repeatEnabled
         listOf(R.id.player_close, R.id.player_rewind, R.id.player_play, R.id.player_forward,
             R.id.player_lock, R.id.player_mute, R.id.player_pip,
-            R.id.player_aspect, R.id.player_speed, R.id.player_background, R.id.player_rotate)
+            R.id.player_aspect, R.id.player_speed, R.id.player_background, R.id.player_rotate, R.id.player_repeat)
             .forEach { id -> findViewById<View>(id).setOnTouchListener { v, e ->
                 if (e.action == MotionEvent.ACTION_DOWN) v.animate().scaleX(.88f).scaleY(.88f).setDuration(75).start()
                 if (e.action == MotionEvent.ACTION_UP || e.action == MotionEvent.ACTION_CANCEL)
@@ -227,6 +254,16 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupGestures() {
+        scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                zoomScale = (zoomScale * detector.scaleFactor).coerceIn(1f, 4f)
+                if (zoomScale <= 1.01f) { zoomScale = 1f; zoomPanX = 0f; zoomPanY = 0f }
+                applyVideoTransform()
+                zoomHud.text = String.format(Locale.US, "%.1fx", zoomScale)
+                showHud(zoomHud)
+                return true
+            }
+        })
         val detector = GestureDetectorCompat(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
 
@@ -243,24 +280,23 @@ class VideoPlayerActivity : AppCompatActivity() {
                 if (gestureMode == 0 && (abs(dx) > 0f || abs(dy) > 0f)) {
                     gestureMode = if (abs(dx) > abs(dy)) 3
                     else if (start.x < playerView.width * .5f) 1 else 2
-                    showGestureControls()
+                    if (gestureMode == 3) showGestureControls()
                     if (gestureMode == 3) {
                         pendingSeekPosition = gestureStartPosition
                     }
                 }
                 when (gestureMode) {
                     1 -> {
-                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height)
-                            .coerceIn(.02f, 1f)
-                        window.attributes = window.attributes.apply { screenBrightness = value }
-                        showVerticalHud(brightnessHud, value, "☼")
+                        val percent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * 100f).coerceIn(0f, 100f)
+                        window.attributes = window.attributes.apply { screenBrightness = percent / 100f }
+                        showVerticalHud(brightnessHud, percent / 100f, "☼")
                     }
                     2 -> {
                         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * max)
-                            .roundToInt().coerceIn(0, max)
+                        val percent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * 100f).coerceIn(0f, 100f)
+                        val value = (percent / 100f * max).roundToInt().coerceIn(0, max)
                         audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
-                        showVerticalHud(volumeHud, value.toFloat() / max, "◖")
+                        showVerticalHud(volumeHud, percent / 100f, "◖")
                     }
                     3 -> {
                         val duration = player?.duration?.takeIf { it > 0 && it != C.TIME_UNSET } ?: 0L
@@ -306,23 +342,43 @@ class VideoPlayerActivity : AppCompatActivity() {
         // This transparent layer sits above PlayerView but below the clickable player controls.
         // It receives the very first DOWN event, even while ExoPlayer controls are fully hidden.
         gestureOverlay.setOnTouchListener { _, event ->
+            scaleDetector.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     gestureStartX = event.x
                     gestureStartY = event.y
+                    lastPanX = event.x; lastPanY = event.y
+                    multiTouchGesture = false
                     gestureMode = 0
                     lastSeekDelta = 0L
                     gestureStartPosition = player?.currentPosition ?: 0L
                     pendingSeekPosition = gestureStartPosition
                     gestureStartValue = if (event.x < playerView.width * .5f) {
-                        (window.attributes.screenBrightness.takeIf { it >= 0f } ?: .5f)
+                        val currentBrightness = window.attributes.screenBrightness
+                        if (currentBrightness >= 0f) currentBrightness * 100f else Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128) / 255f * 100f
                     } else {
-                        audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                        audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max * 100f
                     }
                     handler.removeCallbacks(hideHud)
                 }
             }
 
+            if (event.pointerCount > 1) {
+                multiTouchGesture = true; gestureMode = 0
+                return@setOnTouchListener true
+            }
+            if (multiTouchGesture) {
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) multiTouchGesture = false
+                return@setOnTouchListener true
+            }
+            if (zoomScale > 1.01f && gestureMode == 0) {
+                if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                    zoomPanX += event.x - lastPanX; zoomPanY += event.y - lastPanY
+                    lastPanX = event.x; lastPanY = event.y; applyVideoTransform()
+                }
+                return@setOnTouchListener true
+            }
             detector.onTouchEvent(event)
 
             when (event.actionMasked) {
@@ -335,7 +391,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                     } else if (gestureMode != 0) {
                         handler.postDelayed(hideHud, 400L)
                     }
-                    if (gestureMode != 0) handler.postDelayed(hideControls, 3500L)
+                    if (gestureMode == 3) handler.postDelayed(hideControls, 3500L)
                     gestureMode = 0
                 }
                 MotionEvent.ACTION_CANCEL -> {
@@ -348,6 +404,24 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
             true
         }
+    }
+
+    private fun applySystemOrientationPolicy() {
+        if (locked) { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED; return }
+        val autoRotate = runCatching { Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0) == 1 }.getOrDefault(false)
+        requestedOrientation = if (autoRotate) ActivityInfo.SCREEN_ORIENTATION_SENSOR else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    }
+    private fun resizeModeForAspect(value: Int): Int = when (value) {
+        1 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        2 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+    }
+    private fun applyVideoTransform() {
+        val maxX = (playerView.width * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
+        val maxY = (playerView.height * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
+        zoomPanX = zoomPanX.coerceIn(-maxX, maxX); zoomPanY = zoomPanY.coerceIn(-maxY, maxY)
+        playerView.scaleX = zoomScale; playerView.scaleY = zoomScale
+        playerView.translationX = zoomPanX; playerView.translationY = zoomPanY
     }
 
     private fun showGestureControls() {
@@ -425,6 +499,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         val modes = intArrayOf(AspectRatioFrameLayout.RESIZE_MODE_FIT, AspectRatioFrameLayout.RESIZE_MODE_ZOOM, AspectRatioFrameLayout.RESIZE_MODE_FILL)
         val labels = arrayOf("FIT", "CROP", "100%")
         playerView.resizeMode = modes[aspect]
+        playerPrefs.edit().putInt("aspect", aspect).apply()
         zoomHud.text = labels[aspect]
         zoomHud.visibility = View.VISIBLE; zoomHud.alpha = 1f
         handler.removeCallbacks(hideHud); handler.postDelayed({ fadeHud(zoomHud) }, 800L)
@@ -433,9 +508,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showMore() {
         AlertDialog.Builder(this).setItems(arrayOf("Fit", "Crop", "Fill", "Playback speed")) { _, which ->
             when (which) {
-                0 -> { aspect = 0; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT }
-                1 -> { aspect = 1; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM }
-                2 -> { aspect = 2; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL }
+                0 -> { aspect = 0; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; playerPrefs.edit().putInt("aspect", aspect).apply() }
+                1 -> { aspect = 1; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; playerPrefs.edit().putInt("aspect", aspect).apply() }
+                2 -> { aspect = 2; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL; playerPrefs.edit().putInt("aspect", aspect).apply() }
                 3 -> showSpeed()
             }
         }.show()
@@ -443,9 +518,13 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showSpeed() {
         val values = floatArrayOf(.5f, 1f, 1.25f, 1.5f, 2f)
         val labels = arrayOf("0.5x", "1.0x", "1.25x", "1.5x", "2.0x")
-        AlertDialog.Builder(this).setTitle("Playback speed").setItems(labels) { _, which ->
-            player?.setPlaybackSpeed(values[which])
+        val selected = values.indexOfFirst { abs(it - playbackSpeed) < 0.01f }.coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle("Playback speed").setSingleChoiceItems(labels, selected) { dialog, which ->
+            playbackSpeed = values[which]
+            player?.setPlaybackSpeed(playbackSpeed)
+            playerPrefs.edit().putFloat("speed", playbackSpeed).apply()
             findViewById<TextView>(R.id.player_speed_label).text = labels[which]
+            dialog.dismiss()
         }.show()
     }
     private fun populatePlaylist(folder: File?) {
@@ -455,7 +534,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
             val card = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(48), dp(32)).apply { marginEnd = dp(4) }
+                layoutParams = LinearLayout.LayoutParams(dp(36), dp(28)).apply { marginEnd = dp(2) }
                 tag = file.absolutePath
                 background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
                 clipToOutline = true
@@ -464,6 +543,8 @@ class VideoPlayerActivity : AppCompatActivity() {
                     titleView.text = file.nameWithoutExtension
                     player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
                     player?.prepare()
+                    player?.setPlaybackSpeed(playbackSpeed)
+                    player?.repeatMode = if (repeatEnabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
                     player?.play()
                     refreshSelection()
                 }
@@ -476,15 +557,19 @@ class VideoPlayerActivity : AppCompatActivity() {
                 tag = file.absolutePath
             }
             card.addView(image)
+            val isAudio = file.extension.lowercase(Locale.US) in setOf("mp3", "m4a", "opus")
+            if (isAudio) image.setImageResource(android.R.drawable.ic_media_play)
             val cached = thumbCache.get(file.absolutePath)
-            if (cached != null) image.setImageBitmap(cached) else {
+            if (cached != null) image.setImageBitmap(cached) else if (!isAudio) {
                 // Extract frames on a worker thread; never decode thumbnails on the UI thread.
                 thumbExecutor.execute {
                     var bitmap: android.graphics.Bitmap? = null
                     val retriever = MediaMetadataRetriever()
                     try {
                         retriever.setDataSource(file.absolutePath)
-                        bitmap = retriever.getFrameAtTime(1_000_000L)
+                        bitmap = retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                            ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        if (bitmap == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) bitmap = android.media.ThumbnailUtils.createVideoThumbnail(file, android.util.Size(dp(144), dp(96)), null)
                     } catch (_: Exception) {
                     } finally {
                         try { retriever.release() } catch (_: Exception) {}

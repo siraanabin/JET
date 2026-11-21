@@ -29,7 +29,7 @@
         android:theme="@style/Theme.JET"
         android:usesCleartextTraffic="true">
 
-        <activity android:name=".VideoPlayerActivity" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" android:exported="false" android:screenOrientation="landscape" android:supportsPictureInPicture="true" />
+        <activity android:name=".VideoPlayerActivity" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" android:exported="false" android:supportsPictureInPicture="true" />
 
         <service android:name=".PlayerPlaybackService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <service

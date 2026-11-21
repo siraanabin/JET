@@ -115,10 +115,7 @@
               class="w-10 h-10 rounded-full surface-card flex items-center justify-center text-app-secondary active:scale-95 transition">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon w-5 h-5 pointer-events-none" id="topbar-theme-icon" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
             </button>
-            <button type="button" data-nav-target="settings" aria-label="Settings"
-              class="w-10 h-10 rounded-full surface-card flex items-center justify-center text-app-secondary active:scale-95 transition">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
+
           </div>
         </header>
 
@@ -219,7 +216,8 @@
 
           <div id="latest-download-card" class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
             <div class="relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden">
-              <div class="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white">
+              <img id="latest-thumbnail" alt="" class="absolute inset-0 w-full h-full object-cover hidden" />
+              <div class="relative z-10 w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play w-3.5 h-3.5 fill-white ml-0.5" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
               </div>
             </div>
@@ -869,6 +867,13 @@
         $('clipboard-chip').classList.add('hidden');
       });
 
+      function updateLatestThumbnail(url) {
+        const image = $('latest-thumbnail');
+        if (!image) return;
+        image.src = url || '';
+        image.classList.toggle('hidden', !url);
+      }
+
       // Native Android Bridge Callbacks
       window.onNativePreferencesLoaded = function (isDark, clipEnabled) {
         applyTheme(Boolean(isDark), false);
@@ -976,6 +981,7 @@
         $('latest-meta').textContent = `${data.size || 'Saved'} · ${fmtLabel}`;
         $('latest-download-card').dataset.filePath = data.filePath || '';
         $('latest-download-card').dataset.fileUri = data.fileUri || '';
+        updateLatestThumbnail(thumbnailUrl);
 
         renderDownloads();
         showToast(`Saved: ${title}`);
@@ -1018,6 +1024,7 @@
           $('latest-meta').textContent = first.meta;
           $('latest-download-card').dataset.filePath = first.filePath || '';
           $('latest-download-card').dataset.fileUri = first.fileUri || '';
+          updateLatestThumbnail(first.thumbnailUrl || '');
         }
         renderLibrary();
       };

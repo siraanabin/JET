@@ -4,7 +4,7 @@
     android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000">
     <androidx.media3.ui.PlayerView
         android:id="@+id/player_view" android:layout_width="match_parent"
-        android:layout_height="match_parent" android:keepScreenOn="true" />
+        android:layout_height="match_parent" android:keepScreenOn="true" app:surface_type="texture_view" />
     <View android:id="@+id/player_gesture_overlay" android:layout_width="match_parent"
         android:layout_height="match_parent" android:background="@android:color/transparent"
         android:clickable="true" android:focusable="false" />
@@ -15,14 +15,14 @@
     <FrameLayout android:id="@+id/player_controls"
         android:layout_width="match_parent" android:layout_height="match_parent">
         <LinearLayout android:id="@+id/player_top_bar" android:background="@drawable/bg_player_top_scrim" android:layout_width="match_parent"
-            android:layout_height="56dp" android:layout_gravity="top" android:gravity="center_vertical"
-            android:orientation="horizontal" android:paddingStart="12dp" android:paddingEnd="12dp">
+            android:layout_height="68dp" android:layout_gravity="top" android:layout_marginTop="6dp" android:gravity="center_vertical"
+            android:orientation="horizontal" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp">
             <ImageButton android:id="@+id/player_close" android:layout_width="40dp" android:layout_height="40dp"
                 android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Back"
                 android:src="@drawable/ic_player_back" android:tint="#FFFFFF" />
             <TextView android:id="@+id/player_title" android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" android:ellipsize="marquee" android:singleLine="true"
-                android:marqueeRepeatLimit="marquee_forever" android:focusable="true" android:focusableInTouchMode="true"
+                android:marqueeRepeatLimit="marquee_forever" android:focusable="true" android:focusableInTouchMode="true" android:selected="true"
                 android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
             <TextView android:id="@+id/player_cc" android:layout_width="40dp" android:layout_height="40dp"
                 android:visibility="gone" android:gravity="center" android:text="CC" android:textColor="#FFFFFF" android:textStyle="bold"
@@ -63,8 +63,10 @@
                     android:layout_height="wrap_content" android:gravity="end" android:text="0:00"
                     android:textColor="#FFFFFF" android:textSize="12sp" />
             </LinearLayout>
-            <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
-                android:gravity="center" android:orientation="horizontal">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical" android:orientation="horizontal">
+                <HorizontalScrollView android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:scrollbars="none">
+                    <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal">
+
                 <ImageButton android:id="@+id/player_lock" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Lock" android:src="@drawable/ic_player_lock" />
                 <ImageButton android:id="@+id/player_mute" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Mute" android:src="@drawable/ic_player_mute" />
                 <ImageButton android:id="@+id/player_pip" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Picture in picture" android:src="@drawable/ic_player_pip" />
@@ -78,15 +80,14 @@
                 </FrameLayout>
                 <ImageButton android:id="@+id/player_background" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
                 <ImageButton android:id="@+id/player_rotate" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
-                <HorizontalScrollView android:layout_width="216dp" android:layout_height="44dp"
-                    android:fillViewport="false" android:scrollbars="none">
-                    <LinearLayout android:id="@+id/player_playlist" android:layout_width="wrap_content"
-                        android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal" />
+<ImageButton android:id="@+id/player_repeat" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Repeat current video" android:src="@android:drawable/ic_menu_rotate" />
+                    </LinearLayout>
+                </HorizontalScrollView>
+                <HorizontalScrollView android:layout_width="160dp" android:layout_height="44dp" android:scrollbars="none">
+                    <LinearLayout android:id="@+id/player_playlist" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal" />
                 </HorizontalScrollView>
             </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/player_brightness_hud" android:layout_width="46dp" android:layout_height="168dp"
+d:id="@+id/player_brightness_hud" android:layout_width="46dp" android:layout_height="168dp"
             android:layout_gravity="center_vertical|end" android:layout_marginEnd="24dp" android:gravity="center"
             android:orientation="vertical" android:padding="8dp" android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
             <TextView android:id="@+id/player_brightness_icon" android:layout_width="wrap_content" android:layout_height="28dp"

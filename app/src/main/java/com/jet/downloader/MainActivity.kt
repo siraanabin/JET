@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.util.Log
+import android.util.Base64
 import android.util.LruCache
 import android.view.Gravity
 import android.view.View
@@ -655,6 +656,22 @@ class MainActivity : AppCompatActivity() {
         return name.replace(Regex("[^a-zA-Z0-9._ -]"), "_").trim().take(80).ifEmpty { "JET_Media" }
     }
 
+    private fun createLocalVideoThumbnailDataUrl(file: File): String {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val frame = retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return ""
+            val width = 256
+            val height = (frame.height * (width.toFloat() / frame.width)).toInt().coerceAtLeast(1)
+            val scaled = android.graphics.Bitmap.createScaledBitmap(frame, width, height, true)
+            val bytes = java.io.ByteArrayOutputStream().use { out -> scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 72, out); out.toByteArray() }
+            if (scaled !== frame) scaled.recycle()
+            frame.recycle()
+            "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (_: Exception) { "" } finally { runCatching { retriever.release() } }
+    }
+
     private fun pushScannedLibraryToWeb() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -670,6 +687,7 @@ class MainActivity : AppCompatActivity() {
                     DownloadHistoryPayload(item.id, item.title, item.formatLabel, item.fileSize, item.filePath, Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved")
                 }
                 callJs("onNativeCompletedDownloads", json.encodeToString(history))
+                val latestPath = files.firstOrNull()?.absolutePath
                 val items = files.map { f ->
                     val lower = f.name.lowercase(Locale.US)
                     val type = when {
@@ -697,7 +715,9 @@ class MainActivity : AppCompatActivity() {
                         duration = duration,
                         filePath = f.absolutePath,
                         fileUri = Uri.fromFile(f).toString(),
-                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty(),
+                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty().ifBlank {
+                            if (f.absolutePath == latestPath && type == "video") createLocalVideoThumbnailDataUrl(f) else ""
+                        },
                         size = formatBytes(f.length()),
                         format = ext
                     )
