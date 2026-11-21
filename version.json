@@ -1,6 +1,6 @@
 {
-  "versionCode": 358,
-  "versionName": "3.5.8",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.8/JET-debug.apk",
-  "changelog": "• Premium Library metadata rows with media type, duration and file size\n• Extend native video player edge-to-edge into display cutouts\n• Restore immersive system bars after returning to the player\n• Remove the player overflow menu\n• Show volume and brightness HUD immediately during swipe gestures\n• Keep download preparation status visible during stream extraction"
+  "versionCode": 359,
+  "versionName": "3.5.9",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.9/JET-debug.apk",
+  "changelog": "• Instant swipe gestures on the video surface without waking player controls\\n• Premium centered cyan/white seek-time pill with immediate release-to-seek\\n• Keep volume and brightness gestures available while controls are hidden"
 }

@@ -5,6 +5,9 @@
     <androidx.media3.ui.PlayerView
         android:id="@+id/player_view" android:layout_width="match_parent"
         android:layout_height="match_parent" android:keepScreenOn="true" />
+    <View android:id="@+id/player_gesture_overlay" android:layout_width="match_parent"
+        android:layout_height="match_parent" android:background="@android:color/transparent"
+        android:clickable="true" android:focusable="false" />
     <View android:layout_width="match_parent" android:layout_height="76dp"
         android:layout_gravity="top" android:background="@drawable/bg_player_top_scrim" />
     <View android:layout_width="match_parent" android:layout_height="190dp"
@@ -104,6 +107,13 @@
             <TextView android:id="@+id/player_volume_percent" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_marginTop="8dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
         </LinearLayout>
+
+        <TextView android:id="@+id/player_seek_pill" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:layout_gravity="center"
+            android:translationY="-54dp" android:paddingHorizontal="20dp" android:paddingVertical="10dp"
+            android:background="@drawable/shape_pill" android:text="00:00/00:00"
+            android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold"
+            android:visibility="gone" />
 
         <LinearLayout android:id="@+id/player_seek_hud" android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_gravity="center" android:orientation="vertical" android:gravity="center"

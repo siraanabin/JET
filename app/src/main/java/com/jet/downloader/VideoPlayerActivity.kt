@@ -12,6 +12,7 @@ import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -49,12 +50,13 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var volumeHud: View
     private lateinit var brightnessHud: View
     private lateinit var seekHud: View
+    private lateinit var gestureOverlay: View
+    private lateinit var seekPill: TextView
     private lateinit var leftTapHud: View
     private lateinit var rightTapHud: View
     private lateinit var zoomHud: TextView
     private lateinit var hudPercent: TextView
-    private lateinit var seekTarget: TextView
-    private lateinit var seekDelta: TextView
+    private var pendingSeekPosition = 0L
     private var player: ExoPlayer? = null
     private var bgAudioEnabled = false
     private val thumbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
@@ -92,7 +94,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         override fun run() { updateProgress(); handler.postDelayed(this, 300L) }
     }
     private val hideHud = Runnable {
-        fadeHud(volumeHud); fadeHud(brightnessHud); fadeHud(seekHud)
+        fadeHud(volumeHud); fadeHud(brightnessHud); fadeHud(seekHud); fadeHud(seekPill)
         fadeHud(leftTapHud); fadeHud(rightTapHud); fadeHud(zoomHud)
     }
     private val hideControls = Runnable { if (!locked && player?.isPlaying == true) showControls(false) }
@@ -120,8 +122,8 @@ class VideoPlayerActivity : AppCompatActivity() {
         rightTapHud = findViewById(R.id.player_right_tap_hud)
         zoomHud = findViewById(R.id.player_zoom_hud)
         hudPercent = findViewById(R.id.player_hud_percent)
-        seekTarget = findViewById(R.id.player_seek_target)
-        seekDelta = findViewById(R.id.player_seek_delta)
+        gestureOverlay = findViewById(R.id.player_gesture_overlay)
+        seekPill = findViewById(R.id.player_seek_pill)
 
         val path = intent.getStringExtra(EXTRA_FILE_PATH).orEmpty()
         if (path.isBlank() || !File(path).isFile) {
@@ -232,7 +234,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupGestures() {
-        val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+        val detector = GestureDetectorCompat(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
             override fun onScroll(
                 e1: MotionEvent?,
                 e2: MotionEvent,
@@ -240,91 +244,124 @@ class VideoPlayerActivity : AppCompatActivity() {
                 distanceY: Float
             ): Boolean {
                 if (locked) return false
-                if (gestureMode == 0 && (abs(distanceX) > 0f || abs(distanceY) > 0f)) {
-                    gestureMode = if (abs(distanceX) > abs(distanceY)) 3
-                    else if ((e1?.x ?: gestureStartX) < playerView.width * .5f) 1 else 2
+                val start = e1 ?: return false
+                val dx = e2.x - gestureStartX
+                val dy = e2.y - gestureStartY
+                if (gestureMode == 0 && (abs(dx) > 0f || abs(dy) > 0f)) {
+                    gestureMode = if (abs(dx) > abs(dy)) 3
+                    else if (start.x < playerView.width * .5f) 1 else 2
+                    if (gestureMode == 3) {
+                        pendingSeekPosition = gestureStartPosition
+                    }
                 }
                 when (gestureMode) {
                     1 -> {
-                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height).coerceIn(.02f, 1f)
+                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height)
+                            .coerceIn(.02f, 1f)
+                        window.attributes = window.attributes.apply { screenBrightness = value }
                         showVerticalHud(brightnessHud, value, "☼")
                     }
                     2 -> {
                         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
                         val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * max)
                             .roundToInt().coerceIn(0, max)
+                        audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
                         showVerticalHud(volumeHud, value.toFloat() / max, "◖")
+                    }
+                    3 -> {
+                        val duration = player?.duration?.takeIf { it > 0 && it != C.TIME_UNSET } ?: 0L
+                        if (duration > 0L) {
+                            val delta = (dx / playerView.width.coerceAtLeast(1) *
+                                duration.coerceAtMost(3_600_000L) * 1.4f).toLong()
+                            pendingSeekPosition = (gestureStartPosition + delta).coerceIn(0L, duration)
+                            showSeekPill(pendingSeekPosition, duration)
+                        }
                     }
                 }
                 return gestureMode != 0
             }
+
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                if (!locked) {
+                if (!locked && gestureMode == 0) {
                     val forward = e.x >= playerView.width / 2f
                     seekBy(if (forward) 10_000L else -10_000L)
                     val hud = if (forward) rightTapHud else leftTapHud
-                    val label = hud.findViewById<TextView>(if (forward) R.id.player_right_tap_text else R.id.player_left_tap_text)
+                    val label = hud.findViewById<TextView>(
+                        if (forward) R.id.player_right_tap_text else R.id.player_left_tap_text
+                    )
                     label.text = if (forward) "10s »" else "« 10s"
-                    hud.visibility = View.VISIBLE; hud.alpha = 1f
-                    hud.scaleX = .75f; hud.scaleY = .75f
+                    hud.visibility = View.VISIBLE
+                    hud.alpha = 1f
+                    hud.scaleX = .75f
+                    hud.scaleY = .75f
                     hud.animate().alpha(0f).scaleX(1.12f).scaleY(1.12f).setDuration(420L)
                         .withEndAction { hud.visibility = View.GONE }.start()
                 }
                 return true
             }
+
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 if (!locked) showControls(!controlsVisible)
                 return true
             }
         })
-        playerView.setOnTouchListener { _, event ->
-            detector.onTouchEvent(event)
+
+        // This transparent layer sits above PlayerView but below the clickable player controls.
+        // It receives the very first DOWN event, even while ExoPlayer controls are fully hidden.
+        gestureOverlay.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    gestureStartX = event.x; gestureStartY = event.y
-                    gestureMode = 0; lastSeekDelta = 0L
+                    gestureStartX = event.x
+                    gestureStartY = event.y
+                    gestureMode = 0
+                    lastSeekDelta = 0L
                     gestureStartPosition = player?.currentPosition ?: 0L
-                    gestureStartValue = if (event.x < playerView.width * .5f)
+                    pendingSeekPosition = gestureStartPosition
+                    gestureStartValue = if (event.x < playerView.width * .5f) {
                         (window.attributes.screenBrightness.takeIf { it >= 0f } ?: .5f)
-                    else audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
-                }
-                MotionEvent.ACTION_MOVE -> if (!locked) {
-                    val dx = event.x - gestureStartX
-                    val dy = event.y - gestureStartY
-                    if (gestureMode == 0 && (abs(dx) > 24f || abs(dy) > 24f)) {
-                        gestureMode = if (abs(dx) > abs(dy)) 3 else if (gestureStartX < playerView.width * .5f) 1 else 2
+                    } else {
+                        audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
                     }
-                    when (gestureMode) {
-                        1 -> {
-                            val value = (gestureStartValue + (gestureStartY - event.y) / playerView.height).coerceIn(.02f, 1f)
-                            window.attributes = window.attributes.apply { screenBrightness = value }
-                            showVerticalHud(brightnessHud, value, "☼")
-                        }
-                        2 -> {
-                            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-                            val value = (gestureStartValue + (gestureStartY - event.y) / playerView.height * max).roundToInt().coerceIn(0, max)
-                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
-                            showVerticalHud(volumeHud, value.toFloat() / max, "◖")
-                        }
-                        3 -> {
-                            val duration = player?.duration?.takeIf { it > 0 } ?: 0L
-                            val delta = (dx / playerView.width * duration.coerceAtMost(3_600_000L) * 1.4f).toLong()
-                            lastSeekDelta = delta
-                            val target = (gestureStartPosition + delta).coerceIn(0L, duration)
-                            seekTarget.text = time(target)
-                            seekDelta.text = (if (delta >= 0) "+" else "−") + time(abs(delta))
-                            showHud(seekHud)
-                        }
-                    }
+                    handler.removeCallbacks(hideHud)
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (gestureMode == 3 && !locked) seekBy(lastSeekDelta)
+            }
+
+            detector.onTouchEvent(event)
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_UP -> {
+                    if (gestureMode == 3 && !locked) {
+                        player?.seekTo(pendingSeekPosition)
+                        seekPill.animate().cancel()
+                        seekPill.visibility = View.GONE
+                        seekPill.alpha = 1f
+                    } else if (gestureMode != 0) {
+                        handler.postDelayed(hideHud, 400L)
+                    }
+                    gestureMode = 0
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    seekPill.animate().cancel()
+                    seekPill.visibility = View.GONE
+                    seekPill.alpha = 1f
                     if (gestureMode != 0) handler.postDelayed(hideHud, 400L)
                     gestureMode = 0
                 }
             }
             true
         }
+    }
+
+    private fun showSeekPill(position: Long, duration: Long) {
+        val current = time(position)
+        val total = time(duration)
+        seekPill.text = androidx.core.text.HtmlCompat.fromHtml(
+            "<font color='#00FFFF'>$current</font><font color='#FFFFFF'>/$total</font>",
+            androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY
+        )
+        seekPill.animate().cancel()
+        seekPill.visibility = View.VISIBLE
+        seekPill.alpha = 1f
     }
 
     private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
