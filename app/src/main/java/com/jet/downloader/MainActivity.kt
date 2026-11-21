@@ -1185,13 +1185,12 @@ class MainActivity : AppCompatActivity() {
                         request.addOption("--audio-format", audioExt.lowercase(Locale.US))
                         request.addOption("--audio-quality", audioBitrate)
                     } else {
-                        // Prefer direct HTTPS progressive/DASH MP4, then WebM. The
-                        // protocol filter avoids selecting HLS .m3u8 manifests as files.
+                        // Let yt-dlp select the highest available video stream at or below
+                        // the requested resolution, including DASH and other supported protocols.
+                        // yt-dlp/FFmpeg handles the native video+audio merge.
                         val selector =
-                            "bestvideo[height<=${maxHeight}][ext=mp4][protocol^=http]+bestaudio[ext=m4a]/" +
-                            "bestvideo[height<=${maxHeight}][ext=webm][protocol^=http]+bestaudio/" +
-                            "bestvideo[height<=${maxHeight}][protocol^=http]+bestaudio/" +
-                            "best[height<=${maxHeight}][protocol^=http]/best"
+                            "bestvideo[height<=${maxHeight}]+bestaudio/" +
+                            "best[height<=${maxHeight}]/best"
                         request.addOption("-f", selector)
                         request.addOption("--merge-output-format", "mp4")
                         if (includeSubtitles) {
