@@ -939,8 +939,10 @@
       window.onNativeDownloadProgress = function (id, progress, speedLabel) {
         const item = state.activeDownloads.find((d) => d.id === id);
         if (item) {
-          item.progress = progress;
-          item.speed = speedLabel || 'Downloading...';
+          const nextProgress = Number.isFinite(Number(progress)) ? Number(progress) : item.progress || 0;
+          item.progress = Math.max(item.progress || 0, nextProgress);
+          item.speed = speedLabel || (item.progress === 0 ? 'Preparing…' : 'Downloading…');
+          item.status = item.progress === 0 ? 'preparing' : 'downloading';
           renderDownloads();
         }
       };
@@ -1138,8 +1140,9 @@
           title: displayTitle,
           format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
           size: fmt.sizeText || 'Size N/A',
-          progress: 2,
-          speed: 'Connecting...',
+          progress: 0,
+          speed: 'Preparing / extracting streams…',
+          status: 'preparing',
           thumbnailUrl: state.fetchedThumbnail
         });
 
@@ -1157,7 +1160,7 @@
         state.retryDownloadRecord = {
           id: downloadId, title: displayTitle,
           format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
-          size: fmt.sizeText || 'Size N/A', progress: 2, speed: 'Retrying...', thumbnailUrl: state.fetchedThumbnail
+          size: fmt.sizeText || 'Size N/A', progress: 0, speed: 'Preparing retry…', status: 'preparing', thumbnailUrl: state.fetchedThumbnail
         };
         if (hasAndroid() && window.JetAndroid.startRealDownload) {
           window.JetAndroid.startRealDownload(...requestArgs);
@@ -1207,7 +1210,7 @@
                   <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
                   <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}</p>
                 </div>
-                <button type="button" data-dl-cancel="${item.id}" class="w-8 h-8 rounded-xl bg-app-elevated flex items-center justify-center text-app-danger shrink-0">
+                <button type="button" data-dl-cancel="${item.id}" aria-label="Cancel download" class="w-8 h-8 rounded-xl bg-app-elevated flex items-center justify-center text-app-danger shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x w-3.5 h-3.5" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
               </div>
@@ -1274,6 +1277,25 @@
       });
 
       // Library Screen
+      function handleLibraryAction(action, filePath) {
+        if (!filePath || !hasAndroid()) return;
+        if (action === 'open') {
+          if (window.JetAndroid.openFileExternal) window.JetAndroid.openFileExternal(filePath);
+          return;
+        }
+        if (action === 'rename') {
+          const item = state.library.find((entry) => entry.filePath === filePath);
+          const nextName = window.prompt('Rename file', item ? item.title : '');
+          if (nextName && nextName.trim() && window.JetAndroid.renameLibraryFile) {
+            window.JetAndroid.renameLibraryFile(filePath, nextName.trim());
+          }
+          return;
+        }
+        if (action === 'delete' && window.confirm('Delete this file permanently?')) {
+          if (window.JetAndroid.deleteLibraryFile) window.JetAndroid.deleteLibraryFile(filePath);
+        }
+      }
+
       function renderLibrary() {
         const filtered = state.library.filter((item) => {
           const matchCat = state.libFilter === 'all' || item.type === state.libFilter;
@@ -1296,7 +1318,8 @@
           if (state.libView === 'grid') {
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
-                class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
+                class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition relative">
+                <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center"><i data-lucide="more-vertical" class="w-4 h-4"></i></button>
                 <div class="relative h-24 bg-gradient-to-br ${item.color} flex items-center justify-center text-white">
                   <img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover ${item.thumbnailUrl ? "" : "hidden"}">
                   <div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center">
@@ -1322,12 +1345,26 @@
                 <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.meta}</p>
               </div>
               <span class="text-[10px] font-bold text-app-muted tabular-nums">${item.duration}</span>
+              <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-4 h-4"></i></button>
             </div>
           `;
         }).join('');
 
         refreshIcons();
       }
+
+      document.addEventListener('click', (e) => {
+        const menuButton = e.target.closest('[data-lib-menu]');
+        if (!menuButton) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const filePath = menuButton.dataset.libMenu;
+        const choice = window.prompt('File options: type Open, Rename, or Delete', 'Open');
+        const normalized = (choice || '').trim().toLowerCase();
+        if (normalized === 'open') handleLibraryAction('open', filePath);
+        else if (normalized === 'rename') handleLibraryAction('rename', filePath);
+        else if (normalized === 'delete') handleLibraryAction('delete', filePath);
+      });
 
       $('refresh-library-btn').addEventListener('click', () => {
         if (hasAndroid() && window.JetAndroid.refreshLibrary) {
