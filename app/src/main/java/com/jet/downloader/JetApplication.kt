@@ -21,8 +21,17 @@ object JetFfmpegRuntime {
     @Synchronized
     fun initialize(context: android.content.Context) {
         if (initialized) return
-        FFmpeg.getInstance().init(context.applicationContext)
-        initialized = true
+        try {
+            FFmpeg.getInstance().init(context.applicationContext)
+            initialized = true
+            Log.i("JET-FFmpeg", "Bundled FFmpeg support files initialized successfully")
+        } catch (error: Exception) {
+            Log.e("JET-FFmpeg", "Bundled FFmpeg initialization failed", error)
+            throw IllegalStateException(
+                "Bundled FFmpeg initialization failed: ${error.message ?: error.javaClass.simpleName}",
+                error
+            )
+        }
     }
 }
 
@@ -33,13 +42,6 @@ class JetApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-
-        // Initialize bundled FFmpeg at application startup without blocking the first screen.
-        // The download path joins this synchronized initialization before invoking yt-dlp.
-        Thread({
-            runCatching { JetFfmpegRuntime.initialize(applicationContext) }
-                .onFailure { Log.e("JET", "Bundled FFmpeg initialization failed", it) }
-        }, "jet-ffmpeg-init").apply { isDaemon = true }.start()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
