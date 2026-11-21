@@ -101,8 +101,9 @@ class MainActivity : AppCompatActivity() {
                 // The youtubedl-android FFmpeg module registers its bundled executable
                 // and working paths during init(); yt-dlp then resolves the muxer through
                 // its configured binary path. Keep this before any format+audio request.
-                YoutubeDL.getInstance().init(applicationContext)
+                // Initialize the bundled FFmpeg executable/support files before yt-dlp.
                 FFmpeg.getInstance().init(applicationContext)
+                YoutubeDL.getInstance().init(applicationContext)
 
                 // youtubedl-android 0.18.1 automatically injects
                 // --ffmpeg-location=<nativeLibraryDir>/libffmpeg.so into every execute().
@@ -140,60 +141,6 @@ class MainActivity : AppCompatActivity() {
             "--extractor-args",
             "youtube:player_client=android,ios;player_skip=webpage,configs"
         )
-    }
-
-    private fun selectExactYtDlpFormatId(
-        formats: List<com.yausername.youtubedl_android.mapper.VideoFormat>,
-        targetShortSide: Int
-    ): String? {
-        fun shortSide(width: Int, height: Int): Int =
-            if (width > 0) minOf(width, height) else height
-
-        fun isUsable(format: com.yausername.youtubedl_android.mapper.VideoFormat): Boolean {
-            val streamUrl = format.url.orEmpty().substringBefore('?')
-            return !format.formatId.isNullOrBlank() &&
-                streamUrl.isNotBlank() &&
-                !streamUrl.endsWith(".m3u8", ignoreCase = true) &&
-                !streamUrl.endsWith(".mpd", ignoreCase = true)
-        }
-
-        val videoCandidates = formats.filter { format ->
-            isUsable(format) &&
-                !format.vcodec.isNullOrBlank() && format.vcodec != "none" &&
-                shortSide(format.width, format.height) in 1..targetShortSide
-        }
-        if (videoCandidates.isEmpty()) return null
-
-        val bestAudio = formats
-            .filter { format ->
-                isUsable(format) &&
-                    !format.acodec.isNullOrBlank() && format.acodec != "none" &&
-                    (format.vcodec.isNullOrBlank() || format.vcodec == "none")
-            }
-            .maxByOrNull { maxOf(it.abr, it.tbr) }
-
-        val bestVideoOnly = videoCandidates
-            .filter { it.acodec.isNullOrBlank() || it.acodec == "none" }
-            .maxWithOrNull(
-                compareBy<com.yausername.youtubedl_android.mapper.VideoFormat>(
-                    { shortSide(it.width, it.height) },
-                    { it.tbr }
-                )
-            )
-        if (bestVideoOnly != null && bestAudio != null) {
-            return "${bestVideoOnly.formatId}+${bestAudio.formatId}"
-        }
-
-        // Some extractors expose only progressive (audio+video) formats.
-        return videoCandidates
-            .filter { !it.acodec.isNullOrBlank() && it.acodec != "none" }
-            .maxWithOrNull(
-                compareBy<com.yausername.youtubedl_android.mapper.VideoFormat>(
-                    { shortSide(it.width, it.height) },
-                    { it.tbr }
-                )
-            )
-            ?.formatId
     }
 
     private fun estimateBytesFromBitrateKbps(bitrateKbps: Double, durationSeconds: Long): Long {
@@ -921,34 +868,7 @@ class MainActivity : AppCompatActivity() {
                     val info = getOrFetchStreamInfo(url)
                     val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
                     val durationSec = info.duration.toLong()
-                    // The NewPipe extractor supplies title/thumbnail quickly, but its
-                    // stream objects do not expose yt-dlp format_id values. Fetch yt-dlp's
-                    // format table as well so the selected preset can be pinned to exact IDs.
-                    val ytdlpFormats = runCatching {
-                        ensureYtDlpInitialized()
-                        val request = YoutubeDLRequest(url).apply {
-                            addOption("--no-playlist")
-                            addOption("--no-warnings")
-                            addOption("--ignore-config")
-                            applyYtDlpNetworkOptions(this)
-                        }
-                        synchronized(ytDlpEngineLock) {
-                            YoutubeDL.getInstance().getInfo(request).formats.orEmpty()
-                        }
-                    }.getOrDefault(emptyList())
-                    val formatIds = listOf(
-                        "vid-144" to 144,
-                        "vid-240" to 240,
-                        "vid-360" to 360,
-                        "vid-480" to 480,
-                        "vid-720" to 720,
-                        "vid-1080" to 1080,
-                        "vid-2k" to 1440,
-                        "vid-4k" to 2160
-                    ).mapNotNull { (id, target) ->
-                        selectExactYtDlpFormatId(ytdlpFormats, target)?.let { id to it }
-                    }.toMap()
-
+                    // Estimate sizes from cached NewPipe stream metadata and local bitrates only.
                     val bestAudio = info.audioStreams
                         .filter { it.isUrl }
                         .maxByOrNull { it.averageBitrate }
@@ -1016,8 +936,7 @@ class MainActivity : AppCompatActivity() {
                         thumbnail = bestThumb,
                         uploader = info.uploaderName ?: "",
                         extractor = "NewPipe Extractor",
-                        streams = streamSizes,
-                        formatIds = formatIds
+                        streams = streamSizes
                     )
                     callJs("onNativeMediaInfo", json.encodeToString(payload))
                 } catch (npError: Exception) {
@@ -1036,18 +955,6 @@ class MainActivity : AppCompatActivity() {
                         }
                         val durationSec = info.duration.toLong()
                         val formats = info.formats.orEmpty()
-                        val formatIds = listOf(
-                            "vid-144" to 144,
-                            "vid-240" to 240,
-                            "vid-360" to 360,
-                            "vid-480" to 480,
-                            "vid-720" to 720,
-                            "vid-1080" to 1080,
-                            "vid-2k" to 1440,
-                            "vid-4k" to 2160
-                        ).mapNotNull { (id, target) ->
-                            selectExactYtDlpFormatId(formats, target)?.let { id to it }
-                        }.toMap()
 
                         fun formatBytes(
                             exactBytes: Long,
@@ -1174,8 +1081,7 @@ class MainActivity : AppCompatActivity() {
                             thumbnail = info.thumbnail ?: "",
                             uploader = info.uploader ?: "",
                             extractor = "yt-dlp Fallback",
-                            streams = streamSizes,
-                            formatIds = formatIds
+                            streams = streamSizes
                         )
                         callJs("onNativeMediaInfo", json.encodeToString(payload))
                     } catch (e: Exception) {
@@ -1201,8 +1107,7 @@ class MainActivity : AppCompatActivity() {
             audioExt: String,
             maxHeight: Int,
             includeSubtitles: Boolean,
-            thumbnailUrl: String,
-            formatId: String
+            thumbnailUrl: String
         ) {
             requestNotificationPermissionForDownload()
             runCatching { DownloadNotificationService.start(this@MainActivity, downloadId, title, thumbnailUrl) }
@@ -1302,13 +1207,12 @@ class MainActivity : AppCompatActivity() {
                         request.addOption("--audio-format", audioExt.lowercase(Locale.US))
                         request.addOption("--audio-quality", audioBitrate)
                     } else {
-                        // The format sheet supplies an exact yt-dlp format_id (video+audio
-                        // pair such as 137+140, or a progressive format such as 22).
-                        // Never silently fall back to a lower-quality generic /best selector.
-                        check(formatId.isNotBlank()) {
-                            "Exact format ID unavailable for the selected ${maxHeight}p preset. Reopen the format sheet and try again."
-                        }
-                        request.addOption("-f", formatId.trim())
+                        // Resolve the best separate video/audio streams at or below the
+                        // selected resolution. youtubedl-android injects its bundled
+                        // --ffmpeg-location automatically; do not override that path.
+                        val formatSelector =
+                            "bestvideo[height<=${maxHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${maxHeight}]/best"
+                        request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
                         if (includeSubtitles) {
                             request.addOption("--write-auto-subs")
