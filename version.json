@@ -1,6 +1,6 @@
 {
-  "versionCode": 356,
-  "versionName": "3.5.6",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.6/JET-debug.apk",
-  "changelog": "• Fix YouTube SABR format fallback for available streams\n• Use default, TV, and web YouTube player clients\n• Fall back to stable yt-dlp if the nightly update fails\n• Preserve the selected resolution and FFmpeg muxing behavior"
+  "versionCode": 357,
+  "versionName": "3.5.7",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.7/JET-debug.apk",
+  "changelog": "• Show a preparing/extracting state before download progress\n• Keep UI progress monotonic during DASH video/audio transfers\n• Add cancel controls to active downloads and notifications\n• Add Library Open With, Rename, and Delete actions\n• Keep automatic yt-dlp updates off the active download queue"
 }
