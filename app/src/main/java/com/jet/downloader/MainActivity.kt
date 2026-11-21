@@ -26,6 +26,8 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.PopupMenu
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -1347,6 +1349,44 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun openFileExternal(filePath: String) {
             openFileInExternalApp(filePath)
+        }
+
+        @JavascriptInterface
+        fun showLibraryMenu(filePath: String) {
+            runOnUiThread {
+                val menu = PopupMenu(this@MainActivity, webView)
+                menu.menu.add("Open With").setOnMenuItemClickListener {
+                    openFileInExternalApp(filePath)
+                    true
+                }
+                menu.menu.add("Rename").setOnMenuItemClickListener {
+                    val file = File(filePath)
+                    val input = EditText(this@MainActivity).apply {
+                        setText(file.nameWithoutExtension)
+                        setSelection(text.length)
+                        singleLine = true
+                    }
+                    androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Rename file")
+                        .setView(input)
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Rename") { _, _ ->
+                            renameLibraryFile(filePath, input.text.toString())
+                        }
+                        .show()
+                    true
+                }
+                menu.menu.add("Delete").setOnMenuItemClickListener {
+                    androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Delete file?")
+                        .setMessage("This permanently deletes the file from Downloads/JET.")
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Delete") { _, _ -> deleteLibraryFile(filePath) }
+                        .show()
+                    true
+                }
+                menu.show()
+            }
         }
 
         @JavascriptInterface
