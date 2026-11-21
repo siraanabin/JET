@@ -52,6 +52,7 @@ class DownloadNotificationService : Service() {
             }
             ACTION_COMPLETE, ACTION_FAILED -> {
                 active.remove(id)
+                currentDownloadIds.remove(id)
                 val next = active.entries.firstOrNull()
                 if (foregroundId == id || foregroundId == null) {
                     if (next != null) promote(next.key, next.value)
@@ -166,14 +167,14 @@ class DownloadNotificationService : Service() {
         thumbnailUrl: String
     ) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_launcher_foreground)
-        .setCustomContentView(notificationViews(title, speed.ifBlank { "Downloading… · $progress%" }, progress, thumbnailUrl))
+        .setCustomContentView(notificationViews(title, speed.ifBlank { if (progress == 0) "Preparing / extracting streams…" else "Downloading… · $progress%" }, progress, thumbnailUrl))
         .setCustomBigContentView(notificationViews(title, speed.ifBlank { "Downloading… · $progress%" }, progress, thumbnailUrl))
         .setCustomHeadsUpContentView(notificationViews(title, speed.ifBlank { "Downloading… · $progress%" }, progress, thumbnailUrl))
         // Android 12+ expects DecoratedCustomViewStyle for app-provided RemoteViews.
         // The system owns its header; our thumbnail/title/progress remain in the custom body.
         .setStyle(NotificationCompat.DecoratedCustomViewStyle())
         .setContentTitle(title)
-        .setContentText(speed.ifBlank { "Downloading…" })
+        .setContentText(speed.ifBlank { if (progress == 0) "Preparing / extracting streams…" else "Downloading…" })
         .setProgress(100, progress, false)
         .setOngoing(true)
         .setOnlyAlertOnce(true)
