@@ -1352,15 +1352,39 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun showLibraryMenu(filePath: String) {
+        fun showLibraryMenu(filePath: String, anchorX: Int, anchorY: Int) {
             runOnUiThread {
-                val menu = PopupMenu(this@MainActivity, webView)
+                if (filePath.isBlank()) {
+                    Toast.makeText(this@MainActivity, "File path unavailable", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                val file = File(filePath)
+                if (!file.isFile) {
+                    Toast.makeText(this@MainActivity, "File not found", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+
+                // Anchor the native popup to the actual WebView button position,
+                // rather than the WebView's top-left corner.
+                val anchor = View(this@MainActivity)
+                val density = resources.displayMetrics.density
+                val anchorLeft = webView.left + (anchorX.coerceAtLeast(0) * density).toInt()
+                val anchorTop = webView.top + (anchorY.coerceAtLeast(0) * density).toInt()
+                rootContainer.addView(
+                    anchor,
+                    FrameLayout.LayoutParams(1, 1).apply {
+                        leftMargin = anchorLeft.coerceAtMost((rootContainer.width - 1).coerceAtLeast(0))
+                        topMargin = anchorTop.coerceAtMost((rootContainer.height - 1).coerceAtLeast(0))
+                    }
+                )
+
+                val menu = PopupMenu(this@MainActivity, anchor, Gravity.END)
+                menu.setOnDismissListener { rootContainer.removeView(anchor) }
                 menu.menu.add("Open With").setOnMenuItemClickListener {
                     openFileInExternalApp(filePath)
                     true
                 }
                 menu.menu.add("Rename").setOnMenuItemClickListener {
-                    val file = File(filePath)
                     val input = EditText(this@MainActivity).apply {
                         setText(file.nameWithoutExtension)
                         setSelection(text.length)
@@ -1385,7 +1409,7 @@ class MainActivity : AppCompatActivity() {
                         .show()
                     true
                 }
-                menu.show()
+                anchor.post { menu.show() }
             }
         }
 

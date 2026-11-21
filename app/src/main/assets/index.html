@@ -941,8 +941,11 @@
         if (item) {
           const nextProgress = Number.isFinite(Number(progress)) ? Number(progress) : item.progress || 0;
           item.progress = Math.max(item.progress || 0, nextProgress);
-          item.speed = speedLabel || (item.progress === 0 ? 'Preparing…' : 'Downloading…');
-          item.status = item.progress === 0 ? 'preparing' : 'downloading';
+          item.status = item.progress <= 0 ? 'preparing' : 'downloading';
+          const preparingLabel = 'Preparing / extracting streams…';
+          item.speed = item.status === 'preparing'
+            ? (speedLabel && !/^downloading…?$/i.test(speedLabel.trim()) ? speedLabel : preparingLabel)
+            : (speedLabel || 'Downloading…');
           renderDownloads();
         }
       };
@@ -1222,7 +1225,7 @@
                 <div class="h-full rounded-full bg-app-primary transition-all duration-300" style="width:${item.progress}%"></div>
               </div>
               <div class="flex justify-between text-[11px] font-semibold tabular-nums">
-                <span class="text-app-primary truncate">${item.speed}</span>
+                <span class="text-app-primary truncate">${item.status === 'preparing' ? (item.speed || 'Preparing / extracting streams…') : item.speed}</span>
                 <span class="text-app-secondary shrink-0">${item.progress}%</span>
               </div>
             </div>
@@ -1324,8 +1327,7 @@
           if (state.libView === 'grid') {
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
-                class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition relative">
-                <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center"><i data-lucide="more-vertical" class="w-4 h-4"></i></button>
+                class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
                 <div class="relative h-24 bg-gradient-to-br ${item.color} flex items-center justify-center text-white">
                   <img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover ${item.thumbnailUrl ? "" : "hidden"}">
                   <div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center">
@@ -1333,9 +1335,12 @@
                   </div>
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
                 </div>
-                <div class="p-2.5">
-                  <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                  <p class="text-[10px] text-app-secondary mt-0.5 truncate tabular-nums">${item.meta}</p>
+                <div class="p-2.5 flex items-center gap-2">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
+                    <p class="text-[10px] text-app-secondary mt-0.5 truncate tabular-nums">${item.meta}</p>
+                  </div>
+                  <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i></button>
                 </div>
               </div>
             `;
@@ -1357,18 +1362,29 @@
         }).join('');
 
         refreshIcons();
+        bindLibraryMenuButtons();
       }
 
-      document.addEventListener('click', (e) => {
-        const menuButton = e.target.closest('[data-lib-menu]');
-        if (!menuButton) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const filePath = menuButton.dataset.libMenu;
-        if (window.JetAndroid && window.JetAndroid.showLibraryMenu) {
-          window.JetAndroid.showLibraryMenu(filePath);
-        }
-      });
+      function bindLibraryMenuButtons() {
+        $('library-items-container').querySelectorAll('[data-lib-menu]').forEach((menuButton) => {
+          menuButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const filePath = menuButton.dataset.libMenu;
+            if (!filePath || !window.JetAndroid || !window.JetAndroid.showLibraryMenu) {
+              showToast('Library menu is unavailable for this file');
+              return;
+            }
+            const rect = menuButton.getBoundingClientRect();
+            const scale = window.devicePixelRatio || 1;
+            window.JetAndroid.showLibraryMenu(
+              filePath,
+              Math.round(rect.right * scale),
+              Math.round(rect.bottom * scale)
+            );
+          });
+        });
+      }
 
       $('refresh-library-btn').addEventListener('click', () => {
         if (hasAndroid() && window.JetAndroid.refreshLibrary) {
