@@ -25,7 +25,7 @@
                 android:marqueeRepeatLimit="marquee_forever" android:focusable="true" android:focusableInTouchMode="true"
                 android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
             <TextView android:id="@+id/player_cc" android:layout_width="40dp" android:layout_height="40dp"
-                android:gravity="center" android:text="CC" android:textColor="#FFFFFF" android:textStyle="bold"
+                android:visibility="gone" android:gravity="center" android:text="CC" android:textColor="#FFFFFF" android:textStyle="bold"
                 android:background="@drawable/bg_player_toolbar_btn" />
             <TextView android:id="@+id/player_battery" android:layout_width="52dp" android:layout_height="wrap_content"
                 android:gravity="center" android:text="▰ --%" android:textColor="#FFFFFF" android:textSize="11sp" />
@@ -78,12 +78,12 @@
                 </FrameLayout>
                 <ImageButton android:id="@+id/player_background" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
                 <ImageButton android:id="@+id/player_rotate" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
+                <HorizontalScrollView android:layout_width="216dp" android:layout_height="44dp"
+                    android:fillViewport="false" android:scrollbars="none">
+                    <LinearLayout android:id="@+id/player_playlist" android:layout_width="wrap_content"
+                        android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal" />
+                </HorizontalScrollView>
             </LinearLayout>
-            <HorizontalScrollView android:layout_width="match_parent" android:layout_height="52dp"
-                android:fillViewport="false" android:scrollbars="none">
-                <LinearLayout android:id="@+id/player_playlist" android:layout_width="wrap_content"
-                    android:layout_height="match_parent" android:orientation="horizontal" />
-            </HorizontalScrollView>
         </LinearLayout>
 
         <LinearLayout android:id="@+id/player_brightness_hud" android:layout_width="46dp" android:layout_height="168dp"

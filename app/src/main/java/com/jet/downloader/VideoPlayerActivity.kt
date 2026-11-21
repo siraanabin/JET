@@ -64,7 +64,6 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var currentPath = ""
     private var locked = false
     private var muted = false
-    private var ccEnabled = true
     private var aspect = 0
     private var controlsVisible = true
     private var scrubbing = false
@@ -186,12 +185,6 @@ class VideoPlayerActivity : AppCompatActivity() {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
         }
         findViewById<ImageButton>(R.id.player_forward).setOnClickListener { seekBy(10_000L) }
-        findViewById<TextView>(R.id.player_cc).setOnClickListener {
-            ccEnabled = !ccEnabled
-            player?.trackSelectionParameters = player!!.trackSelectionParameters.buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !ccEnabled).build()
-            it.alpha = if (ccEnabled) 1f else .45f
-        }
         val unlock = findViewById<Button>(R.id.player_unlock)
         findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
             locked = true; showControls(false); unlock.visibility = View.VISIBLE
@@ -250,6 +243,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                 if (gestureMode == 0 && (abs(dx) > 0f || abs(dy) > 0f)) {
                     gestureMode = if (abs(dx) > abs(dy)) 3
                     else if (start.x < playerView.width * .5f) 1 else 2
+                    showGestureControls()
                     if (gestureMode == 3) {
                         pendingSeekPosition = gestureStartPosition
                     }
@@ -274,6 +268,9 @@ class VideoPlayerActivity : AppCompatActivity() {
                             val delta = (dx / playerView.width.coerceAtLeast(1) *
                                 duration.coerceAtMost(3_600_000L) * 1.4f).toLong()
                             pendingSeekPosition = (gestureStartPosition + delta).coerceIn(0L, duration)
+                            seek.setDuration(duration)
+                            seek.setPosition(pendingSeekPosition)
+                            currentTime.text = time(pendingSeekPosition)
                             showSeekPill(pendingSeekPosition, duration)
                         }
                     }
@@ -338,6 +335,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                     } else if (gestureMode != 0) {
                         handler.postDelayed(hideHud, 400L)
                     }
+                    if (gestureMode != 0) handler.postDelayed(hideControls, 3500L)
                     gestureMode = 0
                 }
                 MotionEvent.ACTION_CANCEL -> {
@@ -350,6 +348,16 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
             true
         }
+    }
+
+    private fun showGestureControls() {
+        controls.visibility = View.VISIBLE
+        topBar.visibility = View.GONE
+        centerControls.visibility = View.GONE
+        bottomPanel.visibility = View.VISIBLE
+        bottomPanel.alpha = 1f
+        bottomPanel.translationY = 0f
+        controlsVisible = false
     }
 
     private fun showSeekPill(position: Long, duration: Long) {
@@ -388,6 +396,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
             controls.visibility = View.VISIBLE
+            topBar.visibility = View.VISIBLE
+            bottomPanel.visibility = View.VISIBLE
+            centerControls.visibility = View.VISIBLE
             topBar.animate().cancel()
             bottomPanel.animate().cancel()
             centerControls.animate().cancel()
@@ -444,7 +455,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
             val card = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(68), dp(42)).apply { marginEnd = dp(6) }
+                layoutParams = LinearLayout.LayoutParams(dp(48), dp(32)).apply { marginEnd = dp(4) }
                 tag = file.absolutePath
                 background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
                 clipToOutline = true

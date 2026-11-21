@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -27,7 +28,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.PopupMenu
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -266,6 +267,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
         requestRuntimePermissions()
         initializeFallbackEngine()
 
@@ -642,7 +646,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val dir = getJetDownloadDir()
                 val files = dir.listFiles()
-                    ?.filter { it.isFile && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
+                    ?.filter { it.isFile && !it.name.startsWith(".") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
                     ?.sortedByDescending { it.lastModified() }
                     ?: emptyList()
 
@@ -763,17 +767,10 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 val window = this@MainActivity.window
                 val controller = WindowCompat.getInsetsController(window, window.decorView)
-                if (isDark) {
-                    window.statusBarColor = Color.parseColor("#090C14")
-                    window.navigationBarColor = Color.parseColor("#0D121F")
-                    controller.isAppearanceLightStatusBars = false
-                    controller.isAppearanceLightNavigationBars = false
-                } else {
-                    window.statusBarColor = Color.parseColor("#F4F6FB")
-                    window.navigationBarColor = Color.parseColor("#FFFFFF")
-                    controller.isAppearanceLightStatusBars = true
-                    controller.isAppearanceLightNavigationBars = true
-                }
+                window.statusBarColor = Color.TRANSPARENT
+                window.navigationBarColor = Color.TRANSPARENT
+                controller.isAppearanceLightStatusBars = !isDark
+                controller.isAppearanceLightNavigationBars = !isDark
             }
         }
 
@@ -1378,27 +1375,40 @@ class MainActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
 
-                // Anchor the native popup to the actual WebView button position,
-                // rather than the WebView's top-left corner.
-                val anchor = View(this@MainActivity)
                 val density = resources.displayMetrics.density
-                val anchorLeft = webView.left + (anchorX.coerceAtLeast(0) * density).toInt()
-                val anchorTop = webView.top + (anchorY.coerceAtLeast(0) * density).toInt()
-                rootContainer.addView(
-                    anchor,
-                    FrameLayout.LayoutParams(1, 1).apply {
-                        leftMargin = anchorLeft.coerceAtMost((rootContainer.width - 1).coerceAtLeast(0))
-                        topMargin = anchorTop.coerceAtMost((rootContainer.height - 1).coerceAtLeast(0))
+                val dialog = BottomSheetDialog(this@MainActivity)
+                val sheet = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding((22 * density).toInt(), (18 * density).toInt(), (22 * density).toInt(), (24 * density).toInt())
+                    background = GradientDrawable().apply {
+                        setColor(Color.rgb(25, 29, 39))
+                        cornerRadii = floatArrayOf(24 * density, 24 * density, 24 * density, 24 * density, 0f, 0f, 0f, 0f)
                     }
-                )
-
-                val menu = PopupMenu(this@MainActivity, anchor, Gravity.END)
-                menu.setOnDismissListener { rootContainer.removeView(anchor) }
-                menu.menu.add("Open With").setOnMenuItemClickListener {
-                    openFileInExternalApp(filePath)
-                    true
                 }
-                menu.menu.add("Rename").setOnMenuItemClickListener {
+                TextView(this@MainActivity).apply {
+                    text = file.name
+                    textSize = 16f
+                    setTextColor(Color.WHITE)
+                    maxLines = 1
+                    setPadding(0, 0, 0, (12 * density).toInt())
+                    sheet.addView(this)
+                }
+                fun addAction(label: String, glyph: String, action: () -> Unit) {
+                    TextView(this@MainActivity).apply {
+                        text = "$glyph    $label"
+                        textSize = 15f
+                        setTextColor(Color.WHITE)
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding((8 * density).toInt(), 0, 8, 0)
+                        minHeight = (52 * density).toInt()
+                        isClickable = true
+                        isFocusable = true
+                        setOnClickListener { dialog.dismiss(); action() }
+                        sheet.addView(this, LinearLayout.LayoutParams(-1, -2))
+                    }
+                }
+                addAction("Open With", "↗") { openFileInExternalApp(filePath) }
+                addAction("Rename", "✎") {
                     val input = EditText(this@MainActivity).apply {
                         setText(file.nameWithoutExtension)
                         setSelection(text.length)
@@ -1408,22 +1418,19 @@ class MainActivity : AppCompatActivity() {
                         .setTitle("Rename file")
                         .setView(input)
                         .setNegativeButton("Cancel", null)
-                        .setPositiveButton("Rename") { _, _ ->
-                            renameLibraryFile(filePath, input.text.toString())
-                        }
+                        .setPositiveButton("Rename") { _, _ -> renameLibraryFile(filePath, input.text.toString()) }
                         .show()
-                    true
                 }
-                menu.menu.add("Delete").setOnMenuItemClickListener {
+                addAction("Delete", "⌫") {
                     androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
                         .setTitle("Delete file?")
                         .setMessage("This permanently deletes the file from Downloads/JET.")
                         .setNegativeButton("Cancel", null)
                         .setPositiveButton("Delete") { _, _ -> deleteLibraryFile(filePath) }
                         .show()
-                    true
                 }
-                anchor.post { menu.show() }
+                dialog.setContentView(sheet)
+                dialog.show()
             }
         }
 
@@ -1444,6 +1451,10 @@ class MainActivity : AppCompatActivity() {
                     require(target.parentFile == allowedDir) { "Invalid file name" }
                     require(!target.exists()) { "A file with that name already exists" }
                     check(source.renameTo(target)) { "Unable to rename file" }
+                    downloadDao.getAll().firstOrNull { it.filePath == source.absolutePath }?.let { saved ->
+                        downloadDao.upsert(saved.copy(filePath = target.absolutePath))
+                    }
+                    MediaScannerConnection.scanFile(applicationContext, arrayOf(target.absolutePath), null, null)
                     pushScannedLibraryToWeb()
                     withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File renamed", Toast.LENGTH_SHORT).show() }
                 } catch (error: Exception) {
