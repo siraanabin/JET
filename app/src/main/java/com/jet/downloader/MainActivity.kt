@@ -1209,10 +1209,10 @@ class MainActivity : AppCompatActivity() {
                         // Resolve the best separate video/audio streams at or below the
                         // selected resolution. youtubedl-android injects its bundled
                         // --ffmpeg-location automatically; do not override that path.
-                        val formatSelector =
-                            "bestvideo[ext=mp4][height<=${maxHeight}]+bestaudio[ext=m4a]"
+                        val formatSelector = "bestvideo[height<=${maxHeight}]+bestaudio/best"
                         request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
+                        request.addOption("--remux-video", "mp4")
                         if (includeSubtitles) {
                             request.addOption("--write-auto-subs")
                             request.addOption("--sub-lang", "en.*")
