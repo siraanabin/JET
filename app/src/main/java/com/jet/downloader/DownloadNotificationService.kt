@@ -121,7 +121,7 @@ class DownloadNotificationService : Service() {
         if (bitmap != null) {
             views.setImageViewBitmap(R.id.notification_thumbnail, bitmap)
         } else {
-            views.setImageViewResource(R.id.notification_thumbnail, R.mipmap.ic_launcher)
+            views.setImageViewResource(R.id.notification_thumbnail, R.drawable.ic_launcher_foreground)
         }
         return views
     }
@@ -133,7 +133,7 @@ class DownloadNotificationService : Service() {
         speed: String,
         thumbnailUrl: String
     ) = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(R.mipmap.ic_launcher)
+        .setSmallIcon(R.drawable.ic_launcher_foreground)
         .setCustomContentView(notificationViews(title, speed.ifBlank { "Downloading… · $progress%" }, progress, thumbnailUrl))
         .setCustomBigContentView(notificationViews(title, speed.ifBlank { "Downloading… · $progress%" }, progress, thumbnailUrl))
         .setContentTitle(title)
@@ -146,7 +146,7 @@ class DownloadNotificationService : Service() {
 
     private fun finalNotification(id: Int, title: String, text: String, thumbnailUrl: String) =
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setCustomContentView(notificationViews(title, text, null, thumbnailUrl))
             .setCustomBigContentView(notificationViews(title, text, null, thumbnailUrl))
             .setContentTitle(title)
