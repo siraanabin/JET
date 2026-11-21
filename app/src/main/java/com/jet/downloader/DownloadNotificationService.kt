@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.yausername.youtubedl_android.YoutubeDL
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.LinkedHashMap
@@ -21,6 +22,7 @@ import java.util.concurrent.Executors
 
 class DownloadNotificationService : Service() {
     private val active = LinkedHashMap<Int, Notification>()
+    private val currentDownloadIds = ConcurrentHashMap<Int, String>()
     private val latestNotifications = ConcurrentHashMap<Int, Notification>()
     private var foregroundId: Int? = null
     private val thumbnailCache = ConcurrentHashMap<String, android.graphics.Bitmap>()
@@ -40,6 +42,7 @@ class DownloadNotificationService : Service() {
             ACTION_START, ACTION_UPDATE -> {
                 val progress = intent.getIntExtra(EXTRA_PROGRESS, 0).coerceIn(0, 99)
                 val speed = intent.getStringExtra(EXTRA_SPEED).orEmpty()
+                currentDownloadIds[id] = intent.getStringExtra(EXTRA_DOWNLOAD_ID).orEmpty()
                 val notification = activeNotification(id, title, progress, speed, thumbnailUrl)
                 active[id] = notification
                 latestNotifications[id] = notification
@@ -69,8 +72,13 @@ class DownloadNotificationService : Service() {
                 loadThumbnailAndRefresh(id, notification, thumbnailUrl)
             }
             ACTION_CANCEL -> {
+                val downloadId = intent.getStringExtra(EXTRA_DOWNLOAD_ID).orEmpty()
+                if (downloadId.isNotBlank()) {
+                    runCatching { YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId") }
+                }
                 active.remove(id)
                 latestNotifications.remove(id)
+                currentDownloadIds.remove(id)
                 getSystemService(NotificationManager::class.java).cancel(id)
                 val next = active.entries.firstOrNull()
                 if (foregroundId == id) {
@@ -92,6 +100,26 @@ class DownloadNotificationService : Service() {
             startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             startForeground(id, notification)
+        }
+    }
+
+    private fun cancelIntent(id: Int): PendingIntent {
+        val cancel = Intent(this, DownloadNotificationService::class.java).apply {
+            action = ACTION_CANCEL
+            putExtra(EXTRA_ID, id)
+            putExtra(EXTRA_DOWNLOAD_ID, currentDownloadIds[id].orEmpty())
+            putExtra(EXTRA_TITLE, "JET Download")
+        }
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PendingIntent.getForegroundService(
+                this, id + 100_000, cancel,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        } else {
+            PendingIntent.getService(
+                this, id + 100_000, cancel,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
         }
     }
 
@@ -150,6 +178,7 @@ class DownloadNotificationService : Service() {
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setContentIntent(contentIntent(id))
+        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Cancel", cancelIntent(id))
         .build()
 
     private fun finalNotification(id: Int, title: String, text: String, thumbnailUrl: String) =
@@ -195,6 +224,7 @@ class DownloadNotificationService : Service() {
         const val CHANNEL_ID = "jet_download_manager"
         const val EXTRA_OPEN_TAB = "open_tab"
         private const val EXTRA_ID = "notification_id"
+        private const val EXTRA_DOWNLOAD_ID = "download_id"
         private const val EXTRA_TITLE = "notification_title"
         private const val EXTRA_PROGRESS = "notification_progress"
         private const val EXTRA_SPEED = "notification_speed"
@@ -219,6 +249,7 @@ class DownloadNotificationService : Service() {
             val request = Intent(context, DownloadNotificationService::class.java).apply {
                 this.action = action
                 putExtra(EXTRA_ID, notificationId)
+                putExtra(EXTRA_DOWNLOAD_ID, id)
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_THUMBNAIL, thumbnailUrl)
                 extra()
