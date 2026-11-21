@@ -148,7 +148,7 @@ class MainActivity : AppCompatActivity() {
         request.addOption("--hls-prefer-native")
         request.addOption(
             "--extractor-args",
-            "youtube:player_client=android,ios;player_skip=webpage,configs"
+            "youtube:player_client=default,tv,web"
         )
     }
 
@@ -492,8 +492,19 @@ class MainActivity : AppCompatActivity() {
                             YoutubeDL.UpdateChannel.NIGHTLY
                         )
                     }
-                } catch (_: Exception) {
-                    // Network/update failures must not prevent app startup.
+                } catch (nightlyError: Exception) {
+                    // If the nightly channel is temporarily unavailable, try stable.
+                    try {
+                        synchronized(ytDlpEngineLock) {
+                            YoutubeDL.getInstance().updateYoutubeDL(applicationContext)
+                        }
+                    } catch (stableError: Exception) {
+                        Log.e(
+                            "JET",
+                            "Failed to update yt-dlp from nightly and stable channels; keeping the installed version",
+                            stableError
+                        )
+                    }
                 }
                 withContext(Dispatchers.Main) {
                     if (::webView.isInitialized) notifyEngineState()
@@ -1219,7 +1230,8 @@ class MainActivity : AppCompatActivity() {
                         // Resolve the best separate video/audio streams at or below the
                         // selected resolution. youtubedl-android injects its bundled
                         // --ffmpeg-location automatically; do not override that path.
-                        val formatSelector = "bestvideo[height<=${maxHeight}]+bestaudio"
+                        val formatSelector =
+                            "bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]/best"
                         request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
                         request.addOption("--remux-video", "mp4")
