@@ -48,7 +48,6 @@ import com.jet.downloader.model.LibraryItemPayload
 import com.jet.downloader.model.MediaInfoPayload
 import com.jet.downloader.model.StreamSizePayload
 import com.jet.downloader.model.OpenSourceLicenseItem
-import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CompletableDeferred
@@ -102,7 +101,7 @@ class MainActivity : AppCompatActivity() {
                 // and working paths during init(); yt-dlp then resolves the muxer through
                 // its configured binary path. Keep this before any format+audio request.
                 // Initialize the bundled FFmpeg executable/support files before yt-dlp.
-                FFmpeg.getInstance().init(applicationContext)
+                JetFfmpegRuntime.initialize(applicationContext)
                 YoutubeDL.getInstance().init(applicationContext)
 
                 // youtubedl-android 0.18.1 automatically injects
