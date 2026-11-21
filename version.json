@@ -1,6 +1,6 @@
 {
-  "versionCode": 357,
-  "versionName": "3.5.7",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.7/JET-debug.apk",
-  "changelog": "• Show a preparing/extracting state before download progress\n• Keep UI progress monotonic during DASH video/audio transfers\n• Add cancel controls to active downloads and notifications\n• Add Library Open With, Rename, and Delete actions\n• Keep automatic yt-dlp updates off the active download queue"
+  "versionCode": 358,
+  "versionName": "3.5.8",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.5.8/JET-debug.apk",
+  "changelog": "• Premium Library metadata rows with media type, duration and file size\n• Extend native video player edge-to-edge into display cutouts\n• Restore immersive system bars after returning to the player\n• Remove the player overflow menu\n• Show volume and brightness HUD immediately during swipe gestures\n• Keep download preparation status visible during stream extraction"
 }

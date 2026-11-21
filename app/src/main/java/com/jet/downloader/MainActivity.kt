@@ -660,15 +660,28 @@ class MainActivity : AppCompatActivity() {
                         else -> "video"
                     }
                     val ext = f.extension.uppercase(Locale.US).ifEmpty { "FILE" }
+                    val duration = if (type == "document") "" else runCatching {
+                        val retriever = MediaMetadataRetriever()
+                        try {
+                            retriever.setDataSource(f.absolutePath)
+                            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                ?.toLongOrNull() ?: 0L
+                            formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                        } finally {
+                            retriever.release()
+                        }
+                    }.getOrDefault("")
                     LibraryItemPayload(
                         id = f.name.hashCode(),
                         title = f.nameWithoutExtension,
                         type = type,
                         meta = "${formatBytes(f.length())} · $ext",
-                        duration = ext,
+                        duration = duration,
                         filePath = f.absolutePath,
                         fileUri = Uri.fromFile(f).toString(),
-                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty()
+                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty(),
+                        size = formatBytes(f.length()),
+                        format = ext
                     )
                 }
                 callJs("onNativeLibraryList", json.encodeToString(items))

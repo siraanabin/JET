@@ -43,7 +43,9 @@ data class LibraryItemPayload(
     val duration: String,
     val filePath: String,
     val fileUri: String,
-    val thumbnailUrl: String = ""
+    val thumbnailUrl: String = "",
+    val size: String = "",
+    val format: String = ""
 )
 
 @Serializable

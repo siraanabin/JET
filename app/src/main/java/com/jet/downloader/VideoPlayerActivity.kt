@@ -101,11 +101,8 @@ class VideoPlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).hide(
-            WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars()
-        )
         setContentView(R.layout.activity_video_player)
+        applyImmersivePlayerMode()
         playerView = findViewById(R.id.player_view)
         titleView = findViewById(R.id.player_title)
         seek = findViewById(R.id.player_seek)
@@ -155,6 +152,31 @@ class VideoPlayerActivity : AppCompatActivity() {
         handler.postDelayed(hideControls, 3500L)
     }
 
+    private fun applyImmersivePlayerMode() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        window.decorView.post { applyImmersivePlayerMode() }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) window.decorView.post { applyImmersivePlayerMode() }
+    }
+
     private fun setupControls() {
         findViewById<ImageButton>(R.id.player_close).setOnClickListener { finish() }
         findViewById<ImageButton>(R.id.player_rewind).setOnClickListener { seekBy(-10_000L) }
@@ -168,7 +190,6 @@ class VideoPlayerActivity : AppCompatActivity() {
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !ccEnabled).build()
             it.alpha = if (ccEnabled) 1f else .45f
         }
-        findViewById<ImageButton>(R.id.player_more).setOnClickListener { showMore() }
         val unlock = findViewById<Button>(R.id.player_unlock)
         findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
             locked = true; showControls(false); unlock.visibility = View.VISIBLE
@@ -191,7 +212,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
         listOf(R.id.player_close, R.id.player_rewind, R.id.player_play, R.id.player_forward,
-            R.id.player_more, R.id.player_lock, R.id.player_mute, R.id.player_pip,
+            R.id.player_lock, R.id.player_mute, R.id.player_pip,
             R.id.player_aspect, R.id.player_speed, R.id.player_background, R.id.player_rotate)
             .forEach { id -> findViewById<View>(id).setOnTouchListener { v, e ->
                 if (e.action == MotionEvent.ACTION_DOWN) v.animate().scaleX(.88f).scaleY(.88f).setDuration(75).start()
@@ -212,6 +233,31 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun setupGestures() {
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float
+            ): Boolean {
+                if (locked) return false
+                if (gestureMode == 0 && (abs(distanceX) > 0f || abs(distanceY) > 0f)) {
+                    gestureMode = if (abs(distanceX) > abs(distanceY)) 3
+                    else if ((e1?.x ?: gestureStartX) < playerView.width * .5f) 1 else 2
+                }
+                when (gestureMode) {
+                    1 -> {
+                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height).coerceIn(.02f, 1f)
+                        showVerticalHud(brightnessHud, value, "☼")
+                    }
+                    2 -> {
+                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * max)
+                            .roundToInt().coerceIn(0, max)
+                        showVerticalHud(volumeHud, value.toFloat() / max, "◖")
+                    }
+                }
+                return gestureMode != 0
+            }
             override fun onDoubleTap(e: MotionEvent): Boolean {
                 if (!locked) {
                     val forward = e.x >= playerView.width / 2f

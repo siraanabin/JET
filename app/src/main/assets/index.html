@@ -1338,7 +1338,10 @@
                 <div class="p-2.5 flex items-center gap-2">
                   <div class="min-w-0 flex-1">
                     <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                    <p class="text-[10px] text-app-secondary mt-0.5 truncate tabular-nums">${item.meta}</p>
+                    <p class="mt-1 flex items-center gap-1.5 text-[10px] text-app-secondary truncate tabular-nums">
+                      <span class="shrink-0">${item.type === 'audio' ? '🎵' : item.type === 'document' ? '📄' : '🎬'}</span>
+                      <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}</span>
+                    </p>
                   </div>
                   <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i></button>
                 </div>
@@ -1353,9 +1356,11 @@
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.meta}</p>
+                <p class="mt-1 flex items-center gap-1.5 text-[11px] text-app-secondary truncate tabular-nums">
+                  <span class="shrink-0">${item.type === 'audio' ? '🎵' : item.type === 'document' ? '📄' : '🎬'}</span>
+                  <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}</span>
+                </p>
               </div>
-              <span class="text-[10px] font-bold text-app-muted tabular-nums">${item.duration}</span>
               <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-4 h-4"></i></button>
             </div>
           `;
