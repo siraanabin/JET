@@ -1211,7 +1211,7 @@ class MainActivity : AppCompatActivity() {
                         // selected resolution. youtubedl-android injects its bundled
                         // --ffmpeg-location automatically; do not override that path.
                         val formatSelector =
-                            "bestvideo[height<=${maxHeight}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${maxHeight}]/best"
+                            "bestvideo[ext=mp4][height<=${maxHeight}]+bestaudio[ext=m4a]"
                         request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
                         if (includeSubtitles) {
