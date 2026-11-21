@@ -43,6 +43,7 @@ import com.jet.downloader.data.DownloadEntity
 import com.jet.downloader.data.PreferencesManager
 import com.jet.downloader.model.DownloadCompletePayload
 import com.jet.downloader.model.DownloadErrorPayload
+import com.jet.downloader.model.DownloadHistoryPayload
 import com.jet.downloader.model.LibraryItemPayload
 import com.jet.downloader.model.MediaInfoPayload
 import com.jet.downloader.model.StreamSizePayload
