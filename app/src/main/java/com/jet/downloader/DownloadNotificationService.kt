@@ -21,6 +21,7 @@ import java.util.concurrent.Executors
 
 class DownloadNotificationService : Service() {
     private val active = LinkedHashMap<Int, Notification>()
+    private val latestNotifications = ConcurrentHashMap<Int, Notification>()
     private var foregroundId: Int? = null
     private val thumbnailCache = ConcurrentHashMap<String, android.graphics.Bitmap>()
     private val thumbnailExecutor = Executors.newSingleThreadExecutor { runnable ->
@@ -41,6 +42,7 @@ class DownloadNotificationService : Service() {
                 val speed = intent.getStringExtra(EXTRA_SPEED).orEmpty()
                 val notification = activeNotification(id, title, progress, speed, thumbnailUrl)
                 active[id] = notification
+                latestNotifications[id] = notification
                 if (foregroundId == null || foregroundId == id || action == ACTION_START) promote(id, notification)
                 else getSystemService(NotificationManager::class.java).notify(id, notification)
                 loadThumbnailAndRefresh(id, notification, thumbnailUrl)
@@ -62,11 +64,13 @@ class DownloadNotificationService : Service() {
                     "Download Failed · " + intent.getStringExtra(EXTRA_ERROR).orEmpty()
                 }
                 val notification = finalNotification(id, title, text, thumbnailUrl)
+                latestNotifications[id] = notification
                 getSystemService(NotificationManager::class.java).notify(id, notification)
                 loadThumbnailAndRefresh(id, notification, thumbnailUrl)
             }
             ACTION_CANCEL -> {
                 active.remove(id)
+                latestNotifications.remove(id)
                 getSystemService(NotificationManager::class.java).cancel(id)
                 val next = active.entries.firstOrNull()
                 if (foregroundId == id) {
@@ -170,9 +174,10 @@ class DownloadNotificationService : Service() {
                 connection.disconnect()
                 if (bitmap != null) {
                     thumbnailCache[thumbnailUrl] = bitmap
-                    notification.contentView?.setImageViewBitmap(R.id.notification_thumbnail, bitmap)
-                    notification.bigContentView?.setImageViewBitmap(R.id.notification_thumbnail, bitmap)
-                    getSystemService(NotificationManager::class.java).notify(id, notification)
+                    val latest = latestNotifications[id] ?: notification
+                    latest.contentView?.setImageViewBitmap(R.id.notification_thumbnail, bitmap)
+                    latest.bigContentView?.setImageViewBitmap(R.id.notification_thumbnail, bitmap)
+                    getSystemService(NotificationManager::class.java).notify(id, latest)
                 }
             } catch (_: Exception) {
                 // Keep the app icon placeholder if the thumbnail cannot be fetched.
