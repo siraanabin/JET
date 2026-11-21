@@ -1364,7 +1364,7 @@ class MainActivity : AppCompatActivity() {
                     val input = EditText(this@MainActivity).apply {
                         setText(file.nameWithoutExtension)
                         setSelection(text.length)
-                        singleLine = true
+                        setSingleLine(true)
                     }
                     androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
                         .setTitle("Rename file")
