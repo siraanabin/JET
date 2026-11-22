@@ -85,7 +85,11 @@ class VideoPlayerActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
-            if (level >= 0) findViewById<TextView>(R.id.player_battery).text = "▰ ${level * 100 / scale}%"
+            if (level >= 0) {
+                val percentage = level * 100 / scale
+                findViewById<TextView>(R.id.player_battery).text =
+                    if (BuildConfig.DEBUG) "$percentage%" else "▰ $percentage%"
+            }
         }
     }
     private val progress = object : Runnable {
@@ -331,6 +335,31 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showControls(show: Boolean) {
         controlsVisible = show
         handler.removeCallbacks(hideControls)
+        if (BuildConfig.DEBUG) {
+            if (show) {
+                controls.visibility = View.VISIBLE
+                topBar.animate().cancel()
+                bottomPanel.animate().cancel()
+                centerControls.animate().cancel()
+                topBar.alpha = 0f
+                bottomPanel.alpha = 0f
+                centerControls.alpha = 0f
+                centerControls.scaleX = 0.9f
+                centerControls.scaleY = 0.9f
+                topBar.animate().alpha(1f).setDuration(220L).start()
+                bottomPanel.animate().alpha(1f).setDuration(220L).start()
+                centerControls.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220L).start()
+                handler.postDelayed(hideControls, 3500L)
+            } else {
+                topBar.animate().alpha(0f).setDuration(200L).start()
+                bottomPanel.animate().alpha(0f).setDuration(200L).start()
+                centerControls.animate().alpha(0f).scaleX(0.9f).scaleY(0.9f)
+                    .setDuration(200L)
+                    .withEndAction { if (!controlsVisible) controls.visibility = View.GONE }
+                    .start()
+            }
+            return
+        }
         val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
             controls.visibility = View.VISIBLE
@@ -347,7 +376,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             topBar.animate().alpha(1f).translationY(0f).setDuration(240L).setInterpolator(interp).start()
             bottomPanel.animate().alpha(1f).translationY(0f).setDuration(240L).setInterpolator(interp).start()
             centerControls.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(240L).setInterpolator(interp).start()
-            if (BuildConfig.DEBUG || player?.isPlaying == true) handler.postDelayed(hideControls, 3500L)
+            if (player?.isPlaying == true) handler.postDelayed(hideControls, 3500L)
         } else {
             topBar.animate().alpha(0f).translationY(-dp(76).toFloat()).setDuration(220L).setInterpolator(interp).start()
             bottomPanel.animate().alpha(0f).translationY(dp(110).toFloat()).setDuration(220L).setInterpolator(interp).start()
