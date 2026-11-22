@@ -600,22 +600,26 @@ class VideoPlayerActivity : AppCompatActivity() {
                     var bitmap: android.graphics.Bitmap? = null
                     val retriever = MediaMetadataRetriever()
                     try {
-                        retriever.setDataSource(file.absolutePath)
-                        bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                            retriever.getScaledFrameAtTime(
-                                1_000_000L,
-                                MediaMetadataRetriever.OPTION_CLOSEST,
-                                dp(144),
-                                dp(96)
-                            )
-                        } else null
-                        bitmap = bitmap
-                            ?: retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST)
-                            ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                        if (bitmap == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            bitmap = android.media.ThumbnailUtils.createVideoThumbnail(
-                                file, android.util.Size(dp(144), dp(96)), null
-                            )
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            bitmap = runCatching {
+                                android.media.ThumbnailUtils.createVideoThumbnail(
+                                    file, android.util.Size(dp(144), dp(96)), null
+                                )
+                            }.getOrNull()
+                        }
+                        if (bitmap == null) {
+                            retriever.setDataSource(file.absolutePath)
+                            bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                                retriever.getScaledFrameAtTime(
+                                    1_000_000L,
+                                    MediaMetadataRetriever.OPTION_CLOSEST,
+                                    dp(144),
+                                    dp(96)
+                                )
+                            } else null
+                            bitmap = bitmap
+                                ?: retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST)
+                                ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                         }
                     } catch (_: Exception) {
                     } finally {
