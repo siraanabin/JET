@@ -700,6 +700,15 @@ class VideoPlayerActivity : AppCompatActivity() {
             child.scaleX = 1f
             child.scaleY = 1f
         }
+        findViewById<HorizontalScrollView>(R.id.player_playlist_scroll).post {
+            val selectedChild = (0 until playlist.childCount)
+                .map { playlist.getChildAt(it) }
+                .firstOrNull { it.tag == currentPath }
+            selectedChild?.let {
+                findViewById<HorizontalScrollView>(R.id.player_playlist_scroll)
+                    .smoothScrollTo(it.left, 0)
+            }
+        }
     }
     private fun backgroundAudio() {
         if (currentPath.isBlank() || !File(currentPath).isFile) return
