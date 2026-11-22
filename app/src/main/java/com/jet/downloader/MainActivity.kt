@@ -839,12 +839,54 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun queryMediaAggregateSize(collection: Uri): Long {
+        return try {
+            contentResolver.query(
+                collection,
+                arrayOf("SUM(${MediaStore.MediaColumns.SIZE}) AS total_size"),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getLong(0).coerceAtLeast(0L) else 0L
+            } ?: 0L
+        } catch (error: Exception) {
+            Log.w("JET-Library", "MediaStore aggregate size query failed for $collection", error)
+            0L
+        }
+    }
+
     private fun pushScannedLibraryToWeb() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val itemsByPath = linkedMapOf<String, LibraryItemPayload>()
-                var audioBytes = 0L
-                var videoBytes = 0L
+                callJs("onNativeLibraryScanStarted", "")
+                val videoPermission = hasVideoReadPermission()
+                val audioPermission = hasAudioReadPermission()
+
+                // Storage capacity is obtained from filesystem metadata; media totals
+                // are calculated by the MediaStore provider, not by summing every row.
+                val audioBytes = if (audioPermission) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
+                val videoBytes = if (videoPermission) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
+                pushStorageStats(audioBytes, videoBytes)
+
+                val chunk = ArrayList<LibraryItemPayload>(50)
+                var sentCount = 0
+                fun flushChunk(isFinal: Boolean = false) {
+                    if (chunk.isNotEmpty() || isFinal) {
+                        callJs(
+                            "onNativeLibraryChunk",
+                            "${json.encodeToString(chunk)}, $isFinal"
+                        )
+                        sentCount += chunk.size
+                        chunk.clear()
+                    }
+                }
+
+                fun addItem(item: LibraryItemPayload) {
+                    chunk.add(item)
+                    if (chunk.size >= 50) flushChunk()
+                }
+
                 fun queryCollection(collection: Uri, type: String) {
                     val projection = arrayOf(
                         MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME,
@@ -852,8 +894,10 @@ class MainActivity : AppCompatActivity() {
                         MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DURATION,
                         MediaStore.MediaColumns.MIME_TYPE
                     )
-                    contentResolver.query(collection, projection, null, null,
-                        MediaStore.MediaColumns.DATE_ADDED + " DESC")?.use { cursor ->
+                    contentResolver.query(
+                        collection, projection, null, null,
+                        MediaStore.MediaColumns.DATE_ADDED + " DESC"
+                    )?.use { cursor ->
                         val idIndex = cursor.getColumnIndex(MediaStore.MediaColumns._ID)
                         val nameIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
                         val titleIndex = cursor.getColumnIndex(MediaStore.MediaColumns.TITLE)
@@ -866,52 +910,55 @@ class MainActivity : AppCompatActivity() {
                             if (path.isBlank()) continue
                             val file = File(path)
                             if (!file.isFile || file.name.startsWith(".")) continue
-                            val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else file.length()
-                            if (type == "audio") audioBytes += size else videoBytes += size
+                            val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else 0L
                             val displayName = if (nameIndex >= 0) cursor.getString(nameIndex).orEmpty() else ""
                             val title = if (titleIndex >= 0) cursor.getString(titleIndex).orEmpty() else ""
                             val mime = if (mimeIndex >= 0) cursor.getString(mimeIndex).orEmpty() else ""
                             val durationMs = if (durationIndex >= 0) cursor.getLong(durationIndex).coerceAtLeast(0L) else 0L
-                            val ext = file.extension.uppercase(Locale.US).ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
-                            itemsByPath[file.absolutePath] = LibraryItemPayload(
-                                id = if (idIndex >= 0) cursor.getLong(idIndex).toInt() else file.absolutePath.hashCode(),
-                                title = title.ifBlank { file.nameWithoutExtension.ifBlank { displayName } },
-                                type = type,
-                                meta = formatBytes(size) + " · " + ext,
-                                duration = formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
-                                filePath = file.absolutePath,
-                                fileUri = Uri.fromFile(file).toString(),
-                                thumbnailUrl = createSmartMediaThumbnailDataUrl(file, isAudio = type == "audio"),
-                                size = formatBytes(size),
-                                format = ext,
-                                dominantColor = if (type == "audio") extractAudioDominantColor(file) else "#20242E"
+                            val ext = file.extension.uppercase(Locale.US)
+                                .ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
+                            addItem(
+                                LibraryItemPayload(
+                                    id = if (idIndex >= 0) cursor.getLong(idIndex).toInt() else file.absolutePath.hashCode(),
+                                    title = title.ifBlank { file.nameWithoutExtension.ifBlank { displayName } },
+                                    type = type,
+                                    meta = formatBytes(size) + " · " + ext,
+                                    duration = formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
+                                    filePath = file.absolutePath,
+                                    fileUri = Uri.fromFile(file).toString(),
+                                    // Avoid synchronous per-file metadata/thumbnail extraction during a full scan.
+                                    thumbnailUrl = "",
+                                    size = formatBytes(size),
+                                    format = ext,
+                                    dominantColor = "#20242E"
+                                )
                             )
                         }
                     }
                 }
 
-                val videoPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                    ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
-                else ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                    ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
-                else videoPermission
                 if (videoPermission) queryCollection(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video")
                 if (audioPermission) queryCollection(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, "audio")
 
                 val dir = getJetDownloadDir()
                 val files = dir.listFiles()
+                    ?.asSequence()
                     ?.filter { it.isFile && !it.name.startsWith(".") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
-                    ?.sortedByDescending { it.lastModified() } ?: emptyList()
+                    ?.sortedByDescending { it.lastModified() }
+                    ?: emptySequence()
                 val savedDownloads = downloadDao.getAll()
                 val savedByPath = savedDownloads.associateBy { it.filePath }
-                val history = savedDownloads.filter { it.filePath.isNotBlank() && File(it.filePath).isFile }.map { item ->
-                    DownloadHistoryPayload(item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
-                        Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved")
-                }
+                val history = savedDownloads
+                    .filter { it.filePath.isNotBlank() && File(it.filePath).isFile }
+                    .map { item ->
+                        DownloadHistoryPayload(
+                            item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
+                            Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved"
+                        )
+                    }
                 callJs("onNativeCompletedDownloads", json.encodeToString(history))
-                files.forEach { file ->
-                    if (itemsByPath.containsKey(file.absolutePath)) return@forEach
+
+                for (file in files) {
                     val lower = file.name.lowercase(Locale.US)
                     val type = when {
                         listOf(".mp3", ".m4a", ".opus", ".wav", ".aac", ".flac", ".ogg", ".oga", ".wma").any { lower.endsWith(it) } -> "audio"
@@ -919,30 +966,22 @@ class MainActivity : AppCompatActivity() {
                         else -> "document"
                     }
                     val ext = file.extension.uppercase(Locale.US).ifEmpty { "FILE" }
-                    val duration = if (type == "document") "" else runCatching {
-                        val retriever = MediaMetadataRetriever()
-                        try {
-                            retriever.setDataSource(file.absolutePath)
-                            val ms = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                            formatDuration((ms / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-                        } finally { retriever.release() }
-                    }.getOrDefault("")
-                    itemsByPath[file.absolutePath] = LibraryItemPayload(
-                        id = file.name.hashCode(), title = file.nameWithoutExtension, type = type,
-                        meta = formatBytes(file.length()) + " · " + ext, duration = duration,
-                        filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
-                        thumbnailUrl = if (type == "video" || type == "audio") createSmartMediaThumbnailDataUrl(
-                            file, isAudio = type == "audio", savedThumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl.orEmpty()
-                        ) else "",
-                        size = formatBytes(file.length()), format = ext,
-                        dominantColor = if (type == "audio") extractAudioDominantColor(file) else "#20242E"
+                    val size = file.length().coerceAtLeast(0L)
+                    addItem(
+                        LibraryItemPayload(
+                            id = file.name.hashCode(), title = file.nameWithoutExtension, type = type,
+                            meta = formatBytes(size) + " · " + ext, duration = "",
+                            filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
+                            thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl.orEmpty(),
+                            size = formatBytes(size), format = ext, dominantColor = "#20242E"
+                        )
                     )
                 }
-                val items = itemsByPath.values.sortedByDescending { File(it.filePath).lastModified() }
-                pushStorageStats(audioBytes, videoBytes)
-                callJs("onNativeLibraryList", json.encodeToString(items))
+                flushChunk(isFinal = true)
+                Log.i("JET-Library", "Media scan delivered $sentCount items in 50-item chunks")
             } catch (error: Exception) {
                 Log.e("JET-Library", "Device media scan failed", error)
+                callJs("onNativeLibraryScanFailed", JSONObject.quote(error.message ?: "Media scan failed"))
             }
         }
     }
