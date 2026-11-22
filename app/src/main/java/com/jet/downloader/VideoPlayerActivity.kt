@@ -77,7 +77,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private val clock = object : Runnable {
         override fun run() {
             findViewById<TextView>(R.id.player_clock).text =
-                SimpleDateFormat(if (BuildConfig.DEBUG) "hh:mm a" else "HH:mm", Locale.getDefault()).format(Date())
+                (if (BuildConfig.DEBUG) SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date()).lowercase(Locale.getDefault()) else SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()))
             handler.postDelayed(this, 30_000L)
         }
     }
@@ -485,8 +485,8 @@ class VideoPlayerActivity : AppCompatActivity() {
             if (BuildConfig.DEBUG) {
                 val metrics = resources.displayMetrics
                 val params = child.layoutParams as LinearLayout.LayoutParams
-                params.width = (metrics.widthPixels * if (selected) 0.1117f else 0.0975f).roundToInt()
-                params.height = (metrics.heightPixels * if (selected) 0.1519f else 0.1194f).roundToInt()
+                params.width = (metrics.widthPixels * (if (selected) 0.1117f else 0.0975f)).roundToInt()
+                params.height = (metrics.heightPixels * (if (selected) 0.1519f else 0.1194f)).roundToInt()
                 child.layoutParams = params
                 child.scaleX = 1f
                 child.scaleY = 1f
