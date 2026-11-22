@@ -428,15 +428,16 @@ class VideoPlayerActivity : AppCompatActivity() {
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         val displayFiles: List<File?> = if (BuildConfig.DEBUG) {
             val currentIndex = files.indexOfFirst { it.absolutePath == currentPath }
+            val currentFile = files.getOrNull(currentIndex) ?: File(currentPath).takeIf { it.isFile }
             val window = mutableListOf<File?>()
-            if (currentIndex <= 0) window.add(null) else window.add(files[currentIndex - 1])
-            if (currentIndex >= 0) {
-                window.add(files[currentIndex])
-                window.addAll(files.drop(currentIndex + 1).take(2))
+            if (currentIndex > 0) window.add(files[currentIndex - 1]) else window.add(null)
+            if (currentFile != null) window.add(currentFile)
+            val followingFiles = if (currentIndex >= 0) {
+                files.drop(currentIndex + 1)
             } else {
-                window.add(files.firstOrNull())
-                window.addAll(files.drop(1).take(2))
+                files.filterNot { it.absolutePath == currentPath }
             }
+            window.addAll(followingFiles.take(2))
             while (window.size < 4) window.add(null)
             window.take(4)
         } else {
@@ -450,7 +451,8 @@ class VideoPlayerActivity : AppCompatActivity() {
                         (metrics.widthPixels * 0.0975f).roundToInt(),
                         (metrics.heightPixels * 0.1194f).roundToInt()
                     ).apply { marginEnd = (metrics.widthPixels * 0.0067f).roundToInt() }
-                    setBackgroundColor(android.graphics.Color.BLACK)
+                    setBackgroundResource(R.drawable.bg_player_playlist_placeholder)
+                    clipToOutline = true
                     tag = null
                 }
                 playlist.addView(placeholder)
