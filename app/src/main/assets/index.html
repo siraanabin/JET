@@ -263,13 +263,26 @@
         <header class="pt-1 flex items-center justify-between gap-2">
           <div>
             <h1 class="text-2xl font-extrabold tracking-tight text-app-text">Library</h1>
-            <p class="text-xs font-medium text-app-secondary mt-0.5">Internal Storage / Download / JET</p>
+            <p id="library-location-label" class="text-xs font-medium text-app-secondary mt-0.5">Scanning device media…</p>
           </div>
           <button id="refresh-library-btn" type="button" class="px-3 py-1.5 rounded-full surface-card text-[11px] font-bold text-app-primary flex items-center gap-1 active:scale-95 transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw w-3 h-3" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
             <span id="library-item-count" class="tabular-nums">0 files</span>
           </button>
         </header>
+
+        <div class="surface-card rounded-2xl p-3.5 space-y-2.5">
+          <div class="flex items-center justify-between gap-2"><p class="text-[11px] font-bold uppercase tracking-wider text-app-secondary">Device storage</p><p id="storage-total-label" class="text-[10px] text-app-muted tabular-nums">Calculating…</p></div>
+          <div id="storage-progress-bar" class="flex h-3 w-full overflow-hidden rounded-full bg-[#292D35]" role="img" aria-label="Storage usage by media type">
+            <span id="storage-audio-segment" class="h-full bg-red-500" style="width:0%"></span><span id="storage-video-segment" class="h-full bg-orange-500" style="width:0%"></span><span id="storage-other-segment" class="h-full bg-green-500" style="width:0%"></span><span id="storage-free-segment" class="h-full bg-[#292D35]" style="width:100%"></span>
+          </div>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] text-app-secondary">
+            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-red-500"></i>Audio <b id="storage-audio-label" class="ml-auto tabular-nums">0%</b></span>
+            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-orange-500"></i>Video <b id="storage-video-label" class="ml-auto tabular-nums">0%</b></span>
+            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-green-500"></i>Others <b id="storage-other-label" class="ml-auto tabular-nums">0%</b></span>
+            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-[#292D35]"></i>Free <b id="storage-free-label" class="ml-auto tabular-nums">0%</b></span>
+          </div>
+        </div>
 
         <div class="surface-card flex items-center gap-2.5 focus-within:!border-app-primary rounded-2xl px-3.5 h-11 transition">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search w-4 h-4 text-app-muted shrink-0" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -329,6 +342,28 @@
             </button>
           </div>
         </div>
+
+        <div class="space-y-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">Download Settings</p>
+          <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+            <div class="p-4"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">STORAGE</p><div class="mt-2 flex items-center justify-between gap-3"><div class="min-w-0"><p class="text-xs font-bold text-app-text">Download path</p><p id="download-path-value" class="text-[11px] text-app-secondary mt-0.5 break-all">Loading…</p></div><i data-lucide="folder" class="w-4 h-4 text-app-muted shrink-0"></i></div></div>
+            <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">DOWNLOADS</p>
+              <label class="flex items-center justify-between gap-3"><span><span class="block text-xs font-bold text-app-text">Default quality</span><span class="block text-[11px] text-app-secondary mt-0.5">Preselected format</span></span><select id="default-quality-setting" class="max-w-[145px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="vid-360">360p</option><option value="vid-480">480p</option><option value="vid-720">720p</option><option value="vid-1080">1080p</option><option value="vid-2k">2K</option><option value="vid-4k">4K</option><option value="aud-fast">Audio Fast</option><option value="aud-128">MP3 128K</option><option value="aud-320">MP3 320K</option></select></label>
+              <div class="flex items-center justify-between gap-3"><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
+            </div>
+            <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">NETWORK</p>
+              <label class="flex items-center justify-between gap-3"><span class="text-xs font-bold text-app-text">Max download tasks</span><select id="max-download-tasks" class="rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="1">1 task</option><option value="2">2 tasks</option><option value="3">3 tasks</option><option value="4">4 tasks</option><option value="5">5 tasks</option></select></label>
+              <label class="flex items-center justify-between gap-3"><span class="text-xs font-bold text-app-text">Download speed limit</span><select id="download-speed-limit" class="max-w-[150px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="0">Unlimited</option><option value="256">256 KB/s</option><option value="512">512 KB/s</option><option value="1024">1 MB/s</option><option value="2048">2 MB/s</option><option value="5120">5 MB/s</option><option value="10240">10 MB/s</option></select></label>
+              <div class="flex items-center justify-between gap-3"><span><span class="block text-xs font-bold text-app-text">Download via mobile data</span><span class="block text-[11px] text-app-secondary mt-0.5">Allow cellular downloads</span></span><button id="mobile-data-toggle" type="button" aria-checked="true" class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span></button></div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-2"><p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">INFO</p><div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+          <button id="feedback-setting" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">Feedback</span><i data-lucide="message-circle" class="w-4 h-4 text-app-muted"></i></button>
+          <button id="share-app-setting" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">Share App</span><i data-lucide="share-2" class="w-4 h-4 text-app-muted"></i></button>
+          <button id="check-app-update-info" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">Check for updates</span><i data-lucide="refresh-cw" class="w-4 h-4 text-app-muted"></i></button>
+          <button id="about-setting" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">About</span><i data-lucide="info" class="w-4 h-4 text-app-muted"></i></button>
+        </div></div>
 
         <!-- Updates & Engine Section -->
         <div class="space-y-2">
@@ -694,7 +729,8 @@
         ],
         activeDownloads: [],
         doneDownloads: [],
-        library: []
+        library: [],
+        downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true }
       };
 
       const hasAndroid = () => typeof window.JetAndroid === 'object' && window.JetAndroid !== null;
@@ -782,6 +818,56 @@
         $('theme-modal').classList.add('hidden');
       }
 
+      function applyDownloadToggle(id, enabled, key) {
+        const btn = $(id);
+        if (!btn) return;
+        btn.setAttribute('aria-checked', String(enabled));
+        btn.classList.toggle('bg-app-primary', enabled);
+        btn.classList.toggle('border-app-primary', enabled);
+        btn.classList.toggle('bg-app-elevated', !enabled);
+        btn.classList.toggle('border-app-border', !enabled);
+        btn.querySelector('.toggle-thumb')?.classList.toggle('translate-x-5', enabled);
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference(key, String(enabled));
+      }
+
+      window.onNativeDownloadSettings = function (settings) {
+        if (!settings || typeof settings !== 'object') return;
+        state.downloadSettings = { ...state.downloadSettings, ...settings };
+        if ($('download-path-value')) $('download-path-value').textContent = settings.downloadPath || 'Downloads/JET';
+        if ($('default-quality-setting')) $('default-quality-setting').value = settings.defaultQuality || 'vid-1080';
+        if ($('max-download-tasks')) $('max-download-tasks').value = String(settings.maxDownloadTasks || 3);
+        if ($('download-speed-limit')) $('download-speed-limit').value = String(settings.speedLimitKbps || 0);
+        applyDownloadToggle('save-subtitles-toggle', Boolean(settings.saveSubtitles), 'saveSubtitles');
+        applyDownloadToggle('mobile-data-toggle', settings.allowMobileData !== false, 'allowMobileData');
+        state.selectedFormatId = settings.defaultQuality || 'vid-1080';
+      };
+
+      window.onNativeStorageStats = function (stats) {
+        if (!stats || !Number(stats.totalBytes)) return;
+        const total = Math.max(1, Number(stats.totalBytes));
+        const free = Math.max(0, Number(stats.freeBytes) || 0);
+        const used = Math.max(0, total - free);
+        let audio = Math.max(0, Number(stats.audioBytes) || 0);
+        let video = Math.max(0, Number(stats.videoBytes) || 0);
+        let other = Math.max(0, Number(stats.otherBytes) || 0);
+        const mediaUsed = audio + video + other;
+        if (mediaUsed > used && mediaUsed > 0) {
+          const scale = used / mediaUsed;
+          audio *= scale; video *= scale; other *= scale;
+        }
+        const values = [audio, video, other, free];
+        const ids = ['audio', 'video', 'other', 'free'];
+        values.forEach((bytes, index) => {
+          const pct = Math.max(0, Math.min(100, bytes / total * 100));
+          const segment = $('storage-' + ids[index] + '-segment');
+          const label = $('storage-' + ids[index] + '-label');
+          if (segment) segment.style.width = pct.toFixed(2) + '%';
+          if (label) label.textContent = pct.toFixed(1) + '%';
+        });
+        const fmt = (bytes) => bytes >= 1073741824 ? (bytes / 1073741824).toFixed(1) + ' GB' : bytes >= 1048576 ? (bytes / 1048576).toFixed(0) + ' MB' : (bytes / 1024).toFixed(0) + ' KB';
+        $('storage-total-label').textContent = fmt(total) + ' total';
+      };
+
       function applyClipboardToggle(enabled, persist = true) {
         state.clipboardAutoDetect = enabled;
         const btn = $('clipboard-pref-toggle');
@@ -819,6 +905,41 @@
         if (event.key === 'Escape') closeThemeSelector();
       });
       $('clipboard-pref-toggle').addEventListener('click', () => applyClipboardToggle(!state.clipboardAutoDetect, true));
+
+      $('default-quality-setting').addEventListener('change', (event) => {
+        const value = event.target.value;
+        state.downloadSettings.defaultQuality = value;
+        state.selectedFormatId = value;
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('defaultQuality', value);
+      });
+      $('max-download-tasks').addEventListener('change', (event) => {
+        state.downloadSettings.maxDownloadTasks = Number(event.target.value);
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('maxDownloadTasks', event.target.value);
+      });
+      $('download-speed-limit').addEventListener('change', (event) => {
+        state.downloadSettings.speedLimitKbps = Number(event.target.value);
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('speedLimitKbps', event.target.value);
+      });
+      $('save-subtitles-toggle').addEventListener('click', () => {
+        const enabled = $('save-subtitles-toggle').getAttribute('aria-checked') !== 'true';
+        state.downloadSettings.saveSubtitles = enabled;
+        applyDownloadToggle('save-subtitles-toggle', enabled, 'saveSubtitles');
+      });
+      $('mobile-data-toggle').addEventListener('click', () => {
+        const enabled = $('mobile-data-toggle').getAttribute('aria-checked') !== 'true';
+        state.downloadSettings.allowMobileData = enabled;
+        applyDownloadToggle('mobile-data-toggle', enabled, 'allowMobileData');
+      });
+      $('feedback-setting').addEventListener('click', () => {
+        if (hasAndroid() && window.JetAndroid.sendFeedback) window.JetAndroid.sendFeedback();
+        else showToast('Feedback is available in the Android app.');
+      });
+      $('share-app-setting').addEventListener('click', () => {
+        if (hasAndroid() && window.JetAndroid.shareApp) window.JetAndroid.shareApp();
+      });
+      $('about-setting').addEventListener('click', () => {
+        alert('JET Android\\nVideo and audio downloader with an integrated media library.');
+      });
 
       // Open-source software modal
       function renderOssList() {
@@ -1059,6 +1180,7 @@
 
       window.onNativeLibraryList = function (list) {
         if (!Array.isArray(list)) return;
+        $('library-location-label').textContent = 'All device audio and video · ' + list.length + ' files';
         state.library = list.map((item) => ({
           ...item,
           color: item.type === 'audio'
@@ -1409,12 +1531,12 @@
       function vinylDiscMarkup(artUrl, sizeClass = 'w-20 h-20') {
         const art = artUrl
           ? `<img src="${artUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full rounded-full object-cover">`
-          : `<i data-lucide="music-2" class="w-6 h-6 text-white"></i>`;
-        return `<div class="relative ${sizeClass} rounded-full bg-[#15171D] border-[5px] border-[#30343D] shadow-xl flex items-center justify-center overflow-hidden">
-          <div class="absolute inset-[12%] rounded-full border border-white/10 pointer-events-none"></div>
-          <div class="absolute inset-[25%] rounded-full border border-white/10 pointer-events-none"></div>
-          <div class="relative w-[43%] h-[43%] rounded-full bg-emerald-500 border-2 border-[#242735] overflow-hidden flex items-center justify-center">${art}</div>
-          <span class="absolute w-1.5 h-1.5 rounded-full bg-[#111318] border border-white/30 z-10"></span>
+          : `<div class="w-full h-full flex items-center justify-center bg-[#343945]"><i data-lucide="music-2" class="w-7 h-7 text-white"></i></div>`;
+        return `<div class="relative ${sizeClass} rounded-full bg-[#111318] border-[5px] border-[#292D35] shadow-xl flex items-center justify-center overflow-hidden">
+          ${art}<div class="absolute inset-[8%] rounded-full border border-white/20 pointer-events-none"></div>
+          <div class="absolute inset-[17%] rounded-full border border-black/30 pointer-events-none"></div>
+          <div class="absolute inset-[28%] rounded-full border border-white/10 pointer-events-none"></div>
+          <span class="absolute w-[18%] h-[18%] rounded-full bg-[#171A20] border-2 border-white/25 shadow-inner z-10"></span>
         </div>`;
       }
 
@@ -1431,18 +1553,20 @@
 
         if (filtered.length === 0) {
           container.className = 'block';
-          container.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">No files in Downloads/JET yet.</div>`;
+          container.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">No media found. Allow media access and refresh the Library.</div>`;
           return;
         }
 
         container.innerHTML = filtered.map((item) => {
           const icon = item.type === 'audio' ? 'music' : item.type === 'document' ? 'file-text' : 'play';
+          const accent = /^#[0-9A-Fa-f]{6}$/.test(item.dominantColor || '') ? item.dominantColor : '#20242E';
+          const audioBackground = 'background:linear-gradient(135deg,' + accent + ' 0%,#171A20 78%)';
           if (state.libView === 'grid') {
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
                 class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
-                <div class="relative h-24 bg-gradient-to-br ${item.color} flex items-center justify-center text-white overflow-hidden">
-                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
+                <div class="relative h-32 ${item.type === 'audio' ? '' : 'bg-gradient-to-br ' + item.color} flex items-center justify-center text-white overflow-hidden" ${item.type === 'audio' ? 'style="' + audioBackground + '"' : ''}>
+                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-28 h-28') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
                 </div>
                 <div class="p-2.5 flex items-center gap-2">
@@ -1461,8 +1585,8 @@
           return `
             <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
               class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
-              <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} text-white flex items-center justify-center shrink-0 overflow-hidden">
-                ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-10 h-10') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-full h-full object-cover">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
+              <div class="${item.type === 'audio' ? 'w-16 h-16 rounded-2xl' : 'w-12 h-12 rounded-xl'} bg-gradient-to-br ${item.color} text-white flex items-center justify-center shrink-0 overflow-hidden" ${item.type === 'audio' ? 'style="' + audioBackground + '"' : ''}>
+                ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-full h-full object-cover">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
@@ -1661,6 +1785,7 @@
           triggerAppUpdateCheck(true);
         }
       });
+      $('check-app-update-info').addEventListener('click', () => triggerAppUpdateCheck(true));
 
       $('app-update-close').addEventListener('click', closeAppUpdateModal);
       $('app-update-later').addEventListener('click', closeAppUpdateModal);
@@ -1718,6 +1843,9 @@
       }
       renderDownloads();
       renderLibrary();
+      if (hasAndroid() && window.JetAndroid.getDownloadSettingsJson) {
+        try { window.onNativeDownloadSettings(JSON.parse(window.JetAndroid.getDownloadSettingsJson())); } catch (_) {}
+      }
       refreshIcons();
     })();
   </script>

@@ -45,7 +45,8 @@ data class LibraryItemPayload(
     val fileUri: String,
     val thumbnailUrl: String = "",
     val size: String = "",
-    val format: String = ""
+    val format: String = "",
+    val dominantColor: String = "#20242E"
 )
 
 @Serializable

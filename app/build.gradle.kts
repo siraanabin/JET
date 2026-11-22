@@ -19,8 +19,8 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 366
-        versionName = "3.6.6"
+        versionCode = 367
+        versionName = "3.6.7"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -105,6 +105,7 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.9.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.webkit:webkit:1.11.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     // NewPipe Extractor (GPLv3)
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")

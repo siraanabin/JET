@@ -1,6 +1,6 @@
 {
-  "versionCode": 366,
-  "versionName": "3.6.6",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.6/JET-debug.apk",
-  "changelog": "• Resumable downloads with Pause, Resume and Retry\n• Player HUD icon, percentage, battery and touch-layout refinements"
+  "versionCode": 367,
+  "versionName": "3.6.7",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.7/JET-debug.apk",
+  "changelog": "• Device-wide MediaStore library and storage insights\n• Album-art colour gradients and expanded download settings"
 }

@@ -18,6 +18,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.provider.MediaStore
+import android.os.StatFs
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.palette.graphics.Palette
 import android.util.Log
 import android.util.LruCache
 import android.util.Base64
@@ -65,6 +70,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -97,6 +103,27 @@ class MainActivity : AppCompatActivity() {
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
     private val pauseRequestedDownloads = ConcurrentHashMap.newKeySet<String>()
+    private val downloadAdmissionMutex = kotlinx.coroutines.sync.Mutex()
+    private var activeDownloadCount = 0
+
+    private suspend fun acquireDownloadSlot(maxTasks: Int) {
+        while (true) {
+            val admitted = downloadAdmissionMutex.withLock {
+                if (activeDownloadCount < maxTasks.coerceIn(1, 5)) {
+                    activeDownloadCount++
+                    true
+                } else false
+            }
+            if (admitted) return
+            kotlinx.coroutines.delay(300L)
+        }
+    }
+
+    private suspend fun releaseDownloadSlot() {
+        downloadAdmissionMutex.withLock {
+            activeDownloadCount = (activeDownloadCount - 1).coerceAtLeast(0)
+        }
+    }
     private val pausedDownloads = ConcurrentHashMap.newKeySet<String>()
 
     private lateinit var rootContainer: FrameLayout
@@ -277,7 +304,12 @@ class MainActivity : AppCompatActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* Permissions handled */ }
+    ) { results ->
+        val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            results[Manifest.permission.READ_MEDIA_VIDEO] == true && results[Manifest.permission.READ_MEDIA_AUDIO] == true
+        } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        if (granted) pushScannedLibraryToWeb()
+    }
 
     @SuppressLint("SetJavaScriptEnabled", "AllowFileAccessFromFileURLs")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -752,61 +784,141 @@ class MainActivity : AppCompatActivity() {
         return samples > 0 && luminance / samples < 26.0
     }
 
+
+    private fun extractAudioDominantColor(file: File): String {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val bytes = retriever.embeddedPicture ?: return "#20242E"
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return "#20242E"
+            val color = try { Palette.from(bitmap).generate().getDominantColor(Color.rgb(32, 36, 46)) }
+                finally { bitmap.recycle() }
+            String.format(Locale.US, "#%06X", color and 0xFFFFFF)
+        } catch (_: Exception) { "#20242E" }
+        finally { runCatching { retriever.release() } }
+    }
+
+    private fun pushStorageStats(audioBytes: Long, videoBytes: Long) {
+        runCatching {
+            val stats = StatFs(Environment.getExternalStorageDirectory().absolutePath)
+            val total = stats.blockCountLong * stats.blockSizeLong
+            val free = stats.availableBlocksLong * stats.blockSizeLong
+            val used = (total - free).coerceAtLeast(0L)
+            val payload = JSONObject().apply {
+                put("totalBytes", total)
+                put("audioBytes", audioBytes.coerceAtLeast(0L))
+                put("videoBytes", videoBytes.coerceAtLeast(0L))
+                put("otherBytes", (used - audioBytes - videoBytes).coerceAtLeast(0L))
+                put("freeBytes", free)
+            }
+            callJs("onNativeStorageStats", payload.toString())
+        }
+    }
+
     private fun pushScannedLibraryToWeb() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                val itemsByPath = linkedMapOf<String, LibraryItemPayload>()
+                var audioBytes = 0L
+                var videoBytes = 0L
+                fun queryCollection(collection: Uri, type: String) {
+                    val projection = arrayOf(
+                        MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME,
+                        MediaStore.MediaColumns.TITLE, MediaStore.MediaColumns.DATA,
+                        MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DURATION,
+                        MediaStore.MediaColumns.MIME_TYPE
+                    )
+                    contentResolver.query(collection, projection, null, null,
+                        MediaStore.MediaColumns.DATE_ADDED + " DESC")?.use { cursor ->
+                        val idIndex = cursor.getColumnIndex(MediaStore.MediaColumns._ID)
+                        val nameIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+                        val titleIndex = cursor.getColumnIndex(MediaStore.MediaColumns.TITLE)
+                        val dataIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                        val sizeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+                        val durationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DURATION)
+                        val mimeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+                        while (cursor.moveToNext()) {
+                            val path = if (dataIndex >= 0) cursor.getString(dataIndex).orEmpty() else ""
+                            if (path.isBlank()) continue
+                            val file = File(path)
+                            if (!file.isFile || file.name.startsWith(".")) continue
+                            val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else file.length()
+                            if (type == "audio") audioBytes += size else videoBytes += size
+                            val displayName = if (nameIndex >= 0) cursor.getString(nameIndex).orEmpty() else ""
+                            val title = if (titleIndex >= 0) cursor.getString(titleIndex).orEmpty() else ""
+                            val mime = if (mimeIndex >= 0) cursor.getString(mimeIndex).orEmpty() else ""
+                            val durationMs = if (durationIndex >= 0) cursor.getLong(durationIndex).coerceAtLeast(0L) else 0L
+                            val ext = file.extension.uppercase(Locale.US).ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
+                            itemsByPath[file.absolutePath] = LibraryItemPayload(
+                                id = if (idIndex >= 0) cursor.getLong(idIndex).toInt() else file.absolutePath.hashCode(),
+                                title = title.ifBlank { file.nameWithoutExtension.ifBlank { displayName } },
+                                type = type,
+                                meta = formatBytes(size) + " · " + ext,
+                                duration = formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
+                                filePath = file.absolutePath,
+                                fileUri = Uri.fromFile(file).toString(),
+                                thumbnailUrl = createSmartMediaThumbnailDataUrl(file, isAudio = type == "audio"),
+                                size = formatBytes(size),
+                                format = ext,
+                                dominantColor = if (type == "audio") extractAudioDominantColor(file) else "#20242E"
+                            )
+                        }
+                    }
+                }
+
+                val videoPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+                else ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+                else videoPermission
+                if (videoPermission) queryCollection(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video")
+                if (audioPermission) queryCollection(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, "audio")
+
                 val dir = getJetDownloadDir()
                 val files = dir.listFiles()
                     ?.filter { it.isFile && !it.name.startsWith(".") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
-                    ?.sortedByDescending { it.lastModified() }
-                    ?: emptyList()
-
+                    ?.sortedByDescending { it.lastModified() } ?: emptyList()
                 val savedDownloads = downloadDao.getAll()
                 val savedByPath = savedDownloads.associateBy { it.filePath }
                 val history = savedDownloads.filter { it.filePath.isNotBlank() && File(it.filePath).isFile }.map { item ->
-                    DownloadHistoryPayload(item.id, item.title, item.formatLabel, item.fileSize, item.filePath, Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved")
+                    DownloadHistoryPayload(item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
+                        Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved")
                 }
                 callJs("onNativeCompletedDownloads", json.encodeToString(history))
-                val items = files.map { f ->
-                    val lower = f.name.lowercase(Locale.US)
+                files.forEach { file ->
+                    if (itemsByPath.containsKey(file.absolutePath)) return@forEach
+                    val lower = file.name.lowercase(Locale.US)
                     val type = when {
                         listOf(".mp3", ".m4a", ".opus", ".wav", ".aac", ".flac", ".ogg", ".oga", ".wma").any { lower.endsWith(it) } -> "audio"
-                        lower.endsWith(".pdf") || lower.endsWith(".txt") || lower.endsWith(".zip") -> "document"
-                        else -> "video"
+                        listOf(".mp4", ".mkv", ".webm", ".mov", ".avi", ".3gp", ".m4v").any { lower.endsWith(it) } -> "video"
+                        else -> "document"
                     }
-                    val ext = f.extension.uppercase(Locale.US).ifEmpty { "FILE" }
+                    val ext = file.extension.uppercase(Locale.US).ifEmpty { "FILE" }
                     val duration = if (type == "document") "" else runCatching {
                         val retriever = MediaMetadataRetriever()
                         try {
-                            retriever.setDataSource(f.absolutePath)
-                            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                                ?.toLongOrNull() ?: 0L
-                            formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-                        } finally {
-                            retriever.release()
-                        }
+                            retriever.setDataSource(file.absolutePath)
+                            val ms = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                            formatDuration((ms / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                        } finally { retriever.release() }
                     }.getOrDefault("")
-                    LibraryItemPayload(
-                        id = f.name.hashCode(),
-                        title = f.nameWithoutExtension,
-                        type = type,
-                        meta = "${formatBytes(f.length())} · $ext",
-                        duration = duration,
-                        filePath = f.absolutePath,
-                        fileUri = Uri.fromFile(f).toString(),
-                        thumbnailUrl = if (type == "video" || type == "audio") {
-                            createSmartMediaThumbnailDataUrl(
-                                f,
-                                isAudio = type == "audio",
-                                savedThumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty()
-                            )
-                        } else "",
-                        size = formatBytes(f.length()),
-                        format = ext
+                    itemsByPath[file.absolutePath] = LibraryItemPayload(
+                        id = file.name.hashCode(), title = file.nameWithoutExtension, type = type,
+                        meta = formatBytes(file.length()) + " · " + ext, duration = duration,
+                        filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
+                        thumbnailUrl = if (type == "video" || type == "audio") createSmartMediaThumbnailDataUrl(
+                            file, isAudio = type == "audio", savedThumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl.orEmpty()
+                        ) else "",
+                        size = formatBytes(file.length()), format = ext,
+                        dominantColor = if (type == "audio") extractAudioDominantColor(file) else "#20242E"
                     )
                 }
+                val items = itemsByPath.values.sortedByDescending { File(it.filePath).lastModified() }
+                pushStorageStats(audioBytes, videoBytes)
                 callJs("onNativeLibraryList", json.encodeToString(items))
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                Log.e("JET-Library", "Device media scan failed", error)
             }
         }
     }
@@ -847,6 +959,19 @@ class MainActivity : AppCompatActivity() {
                 ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
             ) permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
         }
+    }
+
+    private fun hasMediaReadPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+        } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun isMobileDataConnected(): Boolean {
+        val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        val network = manager.activeNetwork ?: return false
+        return manager.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
     }
 
     private fun requestRuntimePermissions() {
@@ -892,6 +1017,48 @@ class MainActivity : AppCompatActivity() {
                     AppCompatDelegate.setDefaultNightMode(appCompatNightMode(selectedMode))
                     applySystemBarTheme(isDarkTheme(selectedMode))
                 }
+            }
+        }
+
+        @JavascriptInterface
+        fun getDownloadSettingsJson(): String {
+            val prefs = runBlocking { preferencesManager.getDownloadPreferences() }
+            return JSONObject().apply {
+                put("defaultQuality", prefs.defaultQuality)
+                put("saveSubtitles", prefs.saveSubtitles)
+                put("maxDownloadTasks", prefs.maxDownloadTasks)
+                put("speedLimitKbps", prefs.speedLimitKbps)
+                put("allowMobileData", prefs.allowMobileData)
+                put("downloadPath", getJetDownloadDir().absolutePath)
+            }.toString()
+        }
+
+        @JavascriptInterface
+        fun setDownloadPreference(key: String, value: String) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                runCatching { preferencesManager.setDownloadPreference(key, value) }
+                    .onFailure { Log.w("JET-Settings", "Invalid preference: " + key, it) }
+            }
+        }
+
+        @JavascriptInterface
+        fun sendFeedback() {
+            runOnUiThread {
+                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
+                    .putExtra(Intent.EXTRA_SUBJECT, "JET Android Feedback")
+                runCatching { startActivity(Intent.createChooser(intent, "Send feedback")) }
+                    .onFailure { Toast.makeText(this@MainActivity, "No email app available", Toast.LENGTH_SHORT).show() }
+            }
+        }
+
+        @JavascriptInterface
+        fun shareApp() {
+            runOnUiThread {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, "Try JET — Android video and audio downloader.")
+                }
+                startActivity(Intent.createChooser(intent, "Share JET"))
             }
         }
 
@@ -1253,8 +1420,16 @@ class MainActivity : AppCompatActivity() {
             runCatching { DownloadNotificationService.start(this@MainActivity, downloadId, title, thumbnailUrl) }
             lifecycleScope.launch(Dispatchers.IO) {
                 val outDir = getJetDownloadDir()
+                val downloadPrefs = preferencesManager.getDownloadPreferences()
+                acquireDownloadSlot(downloadPrefs.maxDownloadTasks)
 
                 try {
+                    if (!downloadPrefs.allowMobileData && isMobileDataConnected()) {
+                        val blocked = DownloadErrorPayload(downloadId, "Mobile data downloads are disabled in Settings")
+                        callJs("onNativeDownloadError", json.encodeToString(blocked))
+                        runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, blocked.error) }
+                        return@launch
+                    }
                     downloadDao.upsert(DownloadEntity(downloadId, title, url, if (isAudio) audioExt.uppercase(Locale.US) else "${maxHeight}p", "", "", if (isAudio) "audio" else "video", thumbnailUrl = thumbnailUrl))
                     val resolvedThumbnailUrl = thumbnailUrl
 
@@ -1274,6 +1449,9 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("--ignore-config")
                     request.addOption("--continue")
                     applyYtDlpNetworkOptions(request)
+                    if (downloadPrefs.speedLimitKbps > 0) {
+                        request.addOption("--limit-rate", downloadPrefs.speedLimitKbps.toString() + "K")
+                    }
                     // Thumbnail metadata is carried over from the media-info request.
 
                     if (isAudio) {
@@ -1289,7 +1467,7 @@ class MainActivity : AppCompatActivity() {
                         request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
                         request.addOption("--remux-video", "mp4")
-                        if (includeSubtitles) {
+                        if (includeSubtitles || downloadPrefs.saveSubtitles) {
                             request.addOption("--write-auto-subs")
                             request.addOption("--sub-lang", "en.*")
                         }
@@ -1347,6 +1525,8 @@ class MainActivity : AppCompatActivity() {
                     val fail = DownloadErrorPayload(downloadId, e.message ?: "Download failed")
                     runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
+                } finally {
+                    releaseDownloadSlot()
                 }
             }
         }
@@ -1431,6 +1611,10 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun refreshLibrary() {
+            if (!hasMediaReadPermission()) {
+                requestRuntimePermissions()
+                return
+            }
             pushScannedLibraryToWeb()
         }
 
