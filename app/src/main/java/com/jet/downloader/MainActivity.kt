@@ -658,18 +658,45 @@ class MainActivity : AppCompatActivity() {
 
     private fun createLocalVideoThumbnailDataUrl(file: File): String {
         val retriever = MediaMetadataRetriever()
+        var frame: android.graphics.Bitmap? = null
         return try {
-            retriever.setDataSource(file.absolutePath)
-            val frame = retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return ""
+            // ThumbnailUtils uses the platform's video thumbnail pipeline and is more
+            // reliable for freshly saved MP4 files than relying on a single sync frame.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                frame = runCatching {
+                    android.media.ThumbnailUtils.createVideoThumbnail(
+                        file, android.util.Size(256, 144), null
+                    )
+                }.getOrNull()
+            }
+            if (frame == null) {
+                retriever.setDataSource(file.absolutePath)
+                frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    retriever.getScaledFrameAtTime(
+                        1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST, 256, 144
+                    )
+                } else null
+                frame = frame
+                    ?: retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST)
+                    ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            }
+            val bitmap = frame ?: return ""
             val width = 256
-            val height = (frame.height * (width.toFloat() / frame.width)).toInt().coerceAtLeast(1)
-            val scaled = android.graphics.Bitmap.createScaledBitmap(frame, width, height, true)
-            val bytes = java.io.ByteArrayOutputStream().use { out -> scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 72, out); out.toByteArray() }
-            if (scaled !== frame) scaled.recycle()
-            frame.recycle()
+            val height = (bitmap.height * (width.toFloat() / bitmap.width)).toInt().coerceAtLeast(1)
+            val scaled = if (bitmap.width == width) bitmap
+                else android.graphics.Bitmap.createScaledBitmap(bitmap, width, height, true)
+            val bytes = java.io.ByteArrayOutputStream().use { out ->
+                scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 78, out)
+                out.toByteArray()
+            }
+            if (scaled !== bitmap) scaled.recycle()
             "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-        } catch (_: Exception) { "" } finally { runCatching { retriever.release() } }
+        } catch (_: Exception) {
+            ""
+        } finally {
+            frame?.let { runCatching { it.recycle() } }
+            runCatching { retriever.release() }
+        }
     }
 
     private fun pushScannedLibraryToWeb() {
