@@ -742,8 +742,12 @@ class MainActivity : AppCompatActivity() {
                         duration = duration,
                         filePath = f.absolutePath,
                         fileUri = Uri.fromFile(f).toString(),
-                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty().ifBlank {
-                            if (f.absolutePath == latestPath && type == "video") createLocalVideoThumbnailDataUrl(f) else ""
+                        thumbnailUrl = run {
+                            val savedThumbnail = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty()
+                            val localLatestThumbnail = if (f.absolutePath == latestPath && type == "video") {
+                                createLocalVideoThumbnailDataUrl(f)
+                            } else ""
+                            localLatestThumbnail.ifBlank { savedThumbnail }
                         },
                         size = formatBytes(f.length()),
                         format = ext
