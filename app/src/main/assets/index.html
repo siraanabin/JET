@@ -111,7 +111,7 @@
           </div>
 
           <div class="flex items-center gap-2">
-            <button id="topbar-theme-btn" type="button" aria-label="Toggle Dark Mode"
+            <button id="topbar-theme-btn" type="button" aria-label="Choose app theme"
               class="w-10 h-10 rounded-full surface-card flex items-center justify-center text-app-secondary active:scale-95 transition">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon w-5 h-5 pointer-events-none" id="topbar-theme-icon" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
             </button>
@@ -309,16 +309,14 @@
 
         <!-- Preferences (Persisted via AndroidX DataStore) -->
         <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
-          <div class="p-4 flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-bold text-app-text">Dark Mode</p>
-              <p class="text-[11px] text-app-secondary">Saved with AndroidX DataStore</p>
-            </div>
-            <button id="settings-dark-toggle" type="button" role="switch" aria-checked="false"
-              class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center">
-              <span id="settings-dark-thumb" class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span>
-            </button>
-          </div>
+          <button id="settings-theme-row" type="button"
+            class="w-full p-4 flex items-center justify-between gap-3 text-left active:bg-app-elevated/60 transition">
+            <span class="min-w-0">
+              <span class="block text-xs font-bold text-app-text">Theme</span>
+              <span id="settings-theme-value" class="block text-[11px] text-app-secondary mt-0.5">System Default</span>
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-app-muted" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
 
           <div class="p-4 flex items-center justify-between gap-3">
             <div>
@@ -427,6 +425,36 @@
     </nav>
 
     <!-- ==================== OVERLAYS & MODALS ==================== -->
+
+    <!-- Theme Selection Sheet -->
+    <div id="theme-modal" class="hidden fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex flex-col justify-end">
+      <div class="sheet-up bg-app-surface border-t border-app-border rounded-t-3xl p-5 space-y-3">
+        <div class="w-10 h-1 rounded-full bg-app-border mx-auto -mt-1"></div>
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-extrabold text-app-text">Choose theme</h3>
+            <p class="text-[11px] text-app-secondary mt-0.5">Select how JET should look</p>
+          </div>
+          <button type="button" data-close-theme class="w-9 h-9 rounded-full bg-app-elevated text-app-secondary flex items-center justify-center" aria-label="Close theme selector">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="space-y-1">
+          <button type="button" data-theme-option="system" role="radio" aria-checked="true" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span><span class="block text-sm font-bold text-app-text">System Default</span><span class="block text-[11px] text-app-secondary mt-0.5">Follow your device appearance</span></span>
+            <span data-theme-check class="text-app-primary font-extrabold text-lg">✓</span>
+          </button>
+          <button type="button" data-theme-option="dark" role="radio" aria-checked="false" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span><span class="block text-sm font-bold text-app-text">Dark</span><span class="block text-[11px] text-app-secondary mt-0.5">Always use dark appearance</span></span>
+            <span data-theme-check class="hidden text-app-primary font-extrabold text-lg">✓</span>
+          </button>
+          <button type="button" data-theme-option="light" role="radio" aria-checked="false" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span><span class="block text-sm font-bold text-app-text">Light</span><span class="block text-[11px] text-app-secondary mt-0.5">Always use light appearance</span></span>
+            <span data-theme-check class="hidden text-app-primary font-extrabold text-lg">✓</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 1. Format Selection Sheet -->
     <div id="format-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end">
@@ -635,7 +663,8 @@
 
       const state = {
         screen: 'home',
-        darkMode: false,
+        themeMode: 'system',
+        systemDark: false,
         clipboardAutoDetect: true,
         dlTab: 'active',
         libFilter: 'all',
@@ -715,25 +744,42 @@
         if (navBtn) switchScreen(navBtn.dataset.navTarget);
       });
 
-      // Theme Sync (DataStore persisted)
-      function applyTheme(isDark, persist = true) {
-        state.darkMode = isDark;
+      // Three-way theme selection is persisted natively in AndroidX DataStore.
+      const themeLabels = { system: 'System Default', dark: 'Dark', light: 'Light' };
+
+      function updateThemeSelector() {
+        const subtitle = $('settings-theme-value');
+        if (subtitle) subtitle.textContent = themeLabels[state.themeMode] || themeLabels.system;
+        document.querySelectorAll('[data-theme-option]').forEach((option) => {
+          const selected = option.dataset.themeOption === state.themeMode;
+          option.setAttribute('aria-checked', String(selected));
+          option.querySelector('[data-theme-check]')?.classList.toggle('hidden', !selected);
+          option.classList.toggle('bg-app-primaryTint', selected);
+        });
+      }
+
+      function applyTheme(themeMode, systemDark = state.systemDark, persist = true) {
+        const mode = Object.prototype.hasOwnProperty.call(themeLabels, themeMode) ? themeMode : 'system';
+        state.themeMode = mode;
+        state.systemDark = Boolean(systemDark);
+        const isDark = mode === 'dark' || (mode === 'system' && state.systemDark);
         document.documentElement.classList.toggle('dark', isDark);
         const topIcon = $('topbar-theme-icon');
         if (topIcon) topIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-        const darkToggle = $('settings-dark-toggle');
-        const darkThumb = $('settings-dark-thumb');
-        if (darkToggle && darkThumb) {
-          darkToggle.setAttribute('aria-checked', String(isDark));
-          darkToggle.classList.toggle('bg-app-primary', isDark);
-          darkToggle.classList.toggle('border-app-primary', isDark);
-          darkToggle.classList.toggle('bg-app-elevated', !isDark);
-          darkThumb.classList.toggle('translate-x-5', isDark);
-        }
-        if (persist && hasAndroid() && window.JetAndroid.setStatusBarTheme) {
-          window.JetAndroid.setStatusBarTheme(isDark);
+        updateThemeSelector();
+        if (persist && hasAndroid() && window.JetAndroid.setThemeMode) {
+          window.JetAndroid.setThemeMode(mode);
         }
         refreshIcons();
+      }
+
+      function openThemeSelector() {
+        updateThemeSelector();
+        $('theme-modal').classList.remove('hidden');
+      }
+
+      function closeThemeSelector() {
+        $('theme-modal').classList.add('hidden');
       }
 
       function applyClipboardToggle(enabled, persist = true) {
@@ -752,8 +798,26 @@
         }
       }
 
-      $('topbar-theme-btn').addEventListener('click', () => applyTheme(!state.darkMode, true));
-      $('settings-dark-toggle').addEventListener('click', () => applyTheme(!state.darkMode, true));
+      $('topbar-theme-btn').addEventListener('click', openThemeSelector);
+      $('settings-theme-row').addEventListener('click', openThemeSelector);
+      $('theme-modal').addEventListener('click', (event) => {
+        const option = event.target.closest('[data-theme-option]');
+        if (option) {
+          const mode = option.dataset.themeOption;
+          applyTheme(mode, state.systemDark, false);
+          if (hasAndroid() && window.JetAndroid.setThemeMode) {
+            window.JetAndroid.setThemeMode(mode);
+          }
+          closeThemeSelector();
+          return;
+        }
+        if (event.target.id === 'theme-modal' || event.target.closest('[data-close-theme]')) {
+          closeThemeSelector();
+        }
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeThemeSelector();
+      });
       $('clipboard-pref-toggle').addEventListener('click', () => applyClipboardToggle(!state.clipboardAutoDetect, true));
 
       // Open-source software modal
@@ -867,8 +931,8 @@
       });
 
       // Native Android Bridge Callbacks
-      window.onNativePreferencesLoaded = function (isDark, clipEnabled) {
-        applyTheme(Boolean(isDark), false);
+      window.onNativePreferencesLoaded = function (themeMode, systemDark, clipEnabled) {
+        applyTheme(String(themeMode || 'system'), Boolean(systemDark), false);
         applyClipboardToggle(Boolean(clipEnabled), false);
       };
 

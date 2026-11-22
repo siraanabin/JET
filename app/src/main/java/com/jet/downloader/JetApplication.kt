@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import android.util.Log
+import androidx.appcompat.app.AppCompatDelegate
 import coil.Coil
 import coil.ImageLoader
+import com.jet.downloader.data.PreferencesManager
 import com.jet.downloader.di.appModule
 import com.jet.downloader.network.JetOkHttpDownloader
 import com.yausername.ffmpeg.FFmpeg
@@ -14,6 +16,7 @@ import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.schabi.newpipe.extractor.NewPipe
+import kotlinx.coroutines.runBlocking
 
 object JetFfmpegRuntime {
     @Volatile private var initialized = false
@@ -42,6 +45,17 @@ class JetApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        val savedThemeMode = runBlocking {
+            PreferencesManager(applicationContext).migrateLegacyThemePreference()
+        }
+        AppCompatDelegate.setDefaultNightMode(
+            when (savedThemeMode) {
+                PreferencesManager.THEME_DARK -> AppCompatDelegate.MODE_NIGHT_YES
+                PreferencesManager.THEME_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+                else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            }
+        )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

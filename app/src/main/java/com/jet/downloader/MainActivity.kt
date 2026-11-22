@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -38,6 +39,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
@@ -273,8 +275,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         // Preserve the app's three-part layout; system bars remain outside WebView content.
-        val initialDarkMode = runBlocking { preferencesManager.darkModeFlow.first() }
-        applySystemBarTheme(initialDarkMode)
+        val initialThemeMode = runBlocking { preferencesManager.migrateLegacyThemePreference() }
+        AppCompatDelegate.setDefaultNightMode(appCompatNightMode(initialThemeMode))
+        applySystemBarTheme(isDarkTheme(initialThemeMode))
         requestRuntimePermissions()
         initializeFallbackEngine()
 
@@ -484,6 +487,23 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private fun appCompatNightMode(themeMode: String): Int = when (themeMode) {
+        PreferencesManager.THEME_DARK -> AppCompatDelegate.MODE_NIGHT_YES
+        PreferencesManager.THEME_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+        else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+    }
+
+    private fun isSystemDarkMode(): Boolean {
+        return (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun isDarkTheme(themeMode: String): Boolean = when (themeMode) {
+        PreferencesManager.THEME_DARK -> true
+        PreferencesManager.THEME_LIGHT -> false
+        else -> isSystemDarkMode()
+    }
+
     private fun applySystemBarTheme(isDarkMode: Boolean) {
         val window = window
         val controller = WindowCompat.getInsetsController(window, window.decorView)
@@ -499,9 +519,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun syncDataStorePreferencesToWeb() {
         lifecycleScope.launch {
-            val isDark = preferencesManager.darkModeFlow.first()
+            val themeMode = preferencesManager.themeModeFlow.first()
             val clipEnabled = preferencesManager.clipboardDetectFlow.first()
-            callJs("onNativePreferencesLoaded", "$isDark, $clipEnabled")
+            callJs(
+                "onNativePreferencesLoaded",
+                "${JSONObject.quote(themeMode)}, ${isSystemDarkMode()}, $clipEnabled"
+            )
         }
     }
 
@@ -845,11 +868,22 @@ class MainActivity : AppCompatActivity() {
     inner class JetNativeBridge {
 
         @JavascriptInterface
-        fun setStatusBarTheme(isDark: Boolean) {
+        fun setThemeMode(mode: String) {
+            val selectedMode = mode.trim().lowercase(Locale.ROOT)
+            if (selectedMode !in setOf(
+                    PreferencesManager.THEME_SYSTEM,
+                    PreferencesManager.THEME_DARK,
+                    PreferencesManager.THEME_LIGHT
+                )
+            ) return
+
             lifecycleScope.launch {
-                preferencesManager.setDarkMode(isDark)
+                preferencesManager.setThemeMode(selectedMode)
+                withContext(Dispatchers.Main) {
+                    AppCompatDelegate.setDefaultNightMode(appCompatNightMode(selectedMode))
+                    applySystemBarTheme(isDarkTheme(selectedMode))
+                }
             }
-            runOnUiThread { applySystemBarTheme(isDark) }
         }
 
         @JavascriptInterface

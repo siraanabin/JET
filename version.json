@@ -1,6 +1,6 @@
 {
-  "versionCode": 364,
-  "versionName": "3.6.4",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.4/JET-debug.apk",
-  "changelog": "• Smart bright video thumbnails and circular vinyl album art in Home and Library\n• Persistent player fit, volume, brightness and playback speed\n• Smooth 1% volume gesture control and clear speaker HUD icon"
+  "versionCode": 365,
+  "versionName": "3.6.5",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.5/JET-debug.apk",
+  "changelog": "• Three-way theme selector: System Default, Dark and Light\n• Theme preference migration and persistence with AndroidX DataStore\n• Immediate native and WebView theme synchronization"
 }
