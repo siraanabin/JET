@@ -1,4 +1,7 @@
-@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+@file:OptIn(
+    androidx.compose.animation.ExperimentalSharedTransitionApi::class,
+    androidx.media3.common.util.UnstableApi::class,
+)
 
 package com.jet.downloader.navigation
 
