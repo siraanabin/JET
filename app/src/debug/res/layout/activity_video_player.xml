@@ -319,8 +319,8 @@
                         android:padding="9dp"
                         android:background="@drawable/bg_player_toolbar_btn"
                         android:tint="#FFFFFF"
-                        android:contentDescription="Lock"
-                        android:src="@drawable/ic_player_lock" />
+                        android:contentDescription="Unlock controls"
+                        android:src="@drawable/ic_player_unlock" />
 
                     <ImageButton
                         android:id="@+id/player_mute"
