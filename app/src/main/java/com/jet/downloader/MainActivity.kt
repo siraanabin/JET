@@ -56,8 +56,13 @@ import com.jet.downloader.model.StreamSizePayload
 import com.jet.downloader.model.OpenSourceLicenseItem
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
@@ -260,6 +265,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val streamInfoFailureAt = ConcurrentHashMap<String, Long>()
+    private val downloadJobs = ConcurrentHashMap<String, Job>()
+    private val activeDownloadCalls = ConcurrentHashMap<String, okhttp3.Call>()
+    private val activeDownloadFiles = ConcurrentHashMap<String, File>()
+
+    private fun cleanupCancelledDownload(downloadId: String, outDir: File) {
+        activeDownloadCalls.remove(downloadId)?.cancel()
+        activeDownloadFiles.remove(downloadId)?.let { file ->
+            runCatching { if (file.isFile) file.delete() }
+            runCatching { File(file.absolutePath + ".tmp").delete() }
+        }
+        outDir.listFiles()?.filter { file ->
+            file.isFile && file.name.contains("[$downloadId]") &&
+                (file.name.endsWith(".part", true) || file.name.endsWith(".ytdl", true) || file.name.endsWith(".tmp", true))
+        }?.forEach { runCatching { it.delete() } }
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -1183,7 +1203,7 @@ class MainActivity : AppCompatActivity() {
         ) {
             requestNotificationPermissionForDownload()
             runCatching { DownloadNotificationService.start(this@MainActivity, downloadId, title, thumbnailUrl) }
-            lifecycleScope.launch(Dispatchers.IO) {
+            val job = lifecycleScope.launch(Dispatchers.IO) {
                 val outDir = getJetDownloadDir()
 
                 try {
@@ -1207,12 +1227,14 @@ class MainActivity : AppCompatActivity() {
                                 val audioStream = info.audioStreams.maxByOrNull { it.averageBitrate }
                                 targetStreamUrl = audioStream?.content
                                 outFile = File(outDir, "$safeTitle.m4a")
+                                activeDownloadFiles[downloadId] = outFile
                             } else {
                                 val muxedStream = info.videoStreams
                                     .filter { it.height <= maxHeight && it.isUrl }
                                     .maxByOrNull { it.height }
                                 targetStreamUrl = muxedStream?.content
                                 outFile = File(outDir, "$safeTitle (${muxedStream?.height ?: maxHeight}p).mp4")
+                                activeDownloadFiles[downloadId] = outFile
                             }
 
                             if (!targetStreamUrl.isNullOrBlank()) {
@@ -1220,7 +1242,9 @@ class MainActivity : AppCompatActivity() {
                                     .url(targetStreamUrl)
                                     .header("User-Agent", "Mozilla/5.0")
                                     .build()
-                                okHttpClient.newCall(req).execute().use { resp ->
+                                val activeCall = okHttpClient.newCall(req)
+                                activeDownloadCalls[downloadId] = activeCall
+                                activeCall.execute().use { resp ->
                                     if (resp.isSuccessful && resp.body != null) {
                                         val body = resp.body!!
                                         val totalBytes = body.contentLength()
@@ -1233,6 +1257,7 @@ class MainActivity : AppCompatActivity() {
                                                 val buffer = ByteArray(16 * 1024)
                                                 var read: Int
                                                 while (input.read(buffer).also { read = it } != -1) {
+                                                    currentCoroutineContext().ensureActive()
                                                     output.write(buffer, 0, read)
                                                     bytesReadTotal += read
                                                     val now = System.currentTimeMillis()
@@ -1255,6 +1280,8 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
                             }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
                         } catch (_: Exception) {
                             downloadedViaNewPipe = false
                         }
@@ -1300,7 +1327,9 @@ class MainActivity : AppCompatActivity() {
 
                     val speedRegex = Regex("at\\s+([0-9.]+\\s*[KMG]i?B/s)")
                     var lastReportedProgress = 0
+                    currentCoroutineContext().ensureActive()
                     synchronized(ytDlpEngineLock) {
+                        currentCoroutineContext().ensureActive()
                         YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, etaInSeconds, line ->
                         val reported = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else lastReportedProgress
                         lastReportedProgress = maxOf(lastReportedProgress, reported)
@@ -1332,9 +1361,20 @@ class MainActivity : AppCompatActivity() {
                         runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                         callJs("onNativeDownloadError", json.encodeToString(fail))
                     }
+                } catch (cancelled: CancellationException) {
+                    cleanupCancelledDownload(downloadId, outDir)
+                    runCatching { downloadDao.deleteById(downloadId) }
+                    runCatching { DownloadNotificationService.cancel(this@MainActivity, downloadId) }
+                    if (!isFinishing && !isDestroyed) callJs("onNativeDownloadCancelled", JSONObject.quote(downloadId))
+                    throw cancelled
                 } catch (e: Exception) {
+                    if (e is java.io.IOException && !currentCoroutineContext().isActive) {
+                        cleanupCancelledDownload(downloadId, outDir)
+                        runCatching { downloadDao.deleteById(downloadId) }
+                        return@launch
+                    }
                     Log.e(
-                        "JET-Download",
+                        "JET-Download", 
                         "Download failed for id=$downloadId; selectedFormat=${if (isAudio) "audio" else "${maxHeight}p"}; FFmpeg/yt-dlp stderr follows",
                         e
                     )
@@ -1343,7 +1383,16 @@ class MainActivity : AppCompatActivity() {
                     runCatching { downloadDao.deleteById(downloadId) }
                     runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
+                } finally {
+                    activeDownloadCalls.remove(downloadId)
+                    downloadJobs.remove(downloadId)
+                    activeDownloadFiles.remove(downloadId)
                 }
+            }
+            downloadJobs[downloadId] = job
+            job.invokeOnCompletion { cause ->
+                if (cause is CancellationException) cleanupCancelledDownload(downloadId, getJetDownloadDir())
+                downloadJobs.remove(downloadId, job)
             }
         }
 
@@ -1386,9 +1435,15 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun cancelRealDownload(downloadId: String) {
             runCatching { DownloadNotificationService.cancel(this@MainActivity, downloadId) }
+            downloadJobs[downloadId]?.cancel(CancellationException("Download cancelled by user"))
+            activeDownloadCalls.remove(downloadId)?.cancel()
+            runCatching { YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId") }
             lifecycleScope.launch(Dispatchers.IO) {
-                runCatching { YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId") }
+                cleanupCancelledDownload(downloadId, getJetDownloadDir())
                 runCatching { downloadDao.deleteById(downloadId) }
+                withContext(Dispatchers.Main) {
+                    if (!isFinishing && !isDestroyed) callJs("onNativeDownloadCancelled", JSONObject.quote(downloadId))
+                }
             }
         }
 
