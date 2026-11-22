@@ -83,7 +83,7 @@ val validateReleaseSigning = tasks.register("validateReleaseSigning") {
         val missing = buildList {
             if (!releaseKeystoreFile.isFile) add("app/jet-release.jks")
             if (releaseStorePassword.isNullOrBlank()) add("ANDROID_KEYSTORE_PASSWORD")
-            if (releaseKeyAlias.isNullOrBlank()) add("ANDROID_KEY_PASSWORD")
+            if (releaseKeyAlias.isNullOrBlank()) add("ANDROID_KEY_ALIAS")
             if (releaseKeyPassword.isNullOrBlank()) add("ANDROID_KEY_PASSWORD")
         }
         if (missing.isNotEmpty()) {
