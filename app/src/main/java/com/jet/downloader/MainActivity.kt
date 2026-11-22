@@ -347,7 +347,6 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (navUi.handleBack()) return
                 if (media3Overlay.visibility == View.VISIBLE) {
                     closeMedia3Player()
                     return
@@ -355,7 +354,7 @@ class MainActivity : AppCompatActivity() {
                 webView.evaluateJavascript(
                     "(function(){ return window.handleAndroidBack ? window.handleAndroidBack() : false; })()"
                 ) { result ->
-                    if (result != "true") {
+                    if (result != "true" && !navUi.handleBack()) {
                         isEnabled = false
                         onBackPressedDispatcher.onBackPressed()
                         isEnabled = true
