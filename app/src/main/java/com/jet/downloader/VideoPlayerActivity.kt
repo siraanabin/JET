@@ -37,6 +37,15 @@ class VideoPlayerActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_TITLE = "video_title"
         const val EXTRA_FILE_PATH = "video_file_path"
+        private const val DEFAULT_SEEK_GESTURE_SENSITIVITY = 1.4f
+        private const val DEFAULT_BRIGHTNESS_GESTURE_SENSITIVITY = 1.0f
+        private const val DEFAULT_VOLUME_GESTURE_SENSITIVITY = 1.0f
+        private const val MIN_GESTURE_SENSITIVITY = 0.5f
+        private const val MAX_GESTURE_SENSITIVITY = 2.5f
+        private const val VERTICAL_GESTURE_RANGE_PERCENT = 100f
+        private const val SEEK_GESTURE_DURATION_CAP_MS = 3_600_000L
+        private const val POSITION_SAVE_INTERVAL_MS = 5_000L
+        private const val RESUME_END_TOLERANCE_MS = 1_500L
     }
     private lateinit var playerView: PlayerView
     private lateinit var titleView: TextView
@@ -83,6 +92,10 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var gestureStartX = 0f
     private var gestureStartY = 0f
     private var gestureStartValue = 0f
+    private var seekGestureSensitivity = DEFAULT_SEEK_GESTURE_SENSITIVITY
+    private var brightnessGestureSensitivity = DEFAULT_BRIGHTNESS_GESTURE_SENSITIVITY
+    private var volumeGestureSensitivity = DEFAULT_VOLUME_GESTURE_SENSITIVITY
+    private var lastPositionSaveElapsed = 0L
     private var gestureStartPosition = 0L
     private var lastSeekDelta = 0L
     private val handler = Handler(Looper.getMainLooper())
@@ -147,7 +160,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             Toast.makeText(this, "Video file not found", Toast.LENGTH_SHORT).show()
             finish(); return
         }
-        currentPath = path
+        currentPath = File(path).absolutePath
         titleView.text = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
         titleView.isSelected = true
         aspect = playerPrefs.getInt("aspect", 0).coerceIn(0, 2)
@@ -155,6 +168,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         playbackSpeed = playerPrefs.getFloat("speed", configuredSpeed).coerceIn(0.25f, 3f)
         repeatEnabled = playerPrefs.getBoolean("repeat", false)
         muted = playerPrefs.getBoolean("muted", false)
+        seekGestureSensitivity = readGestureSensitivity("player_seek_sensitivity", DEFAULT_SEEK_GESTURE_SENSITIVITY)
+        brightnessGestureSensitivity = readGestureSensitivity("player_brightness_sensitivity", DEFAULT_BRIGHTNESS_GESTURE_SENSITIVITY)
+        volumeGestureSensitivity = readGestureSensitivity("player_volume_sensitivity", DEFAULT_VOLUME_GESTURE_SENSITIVITY)
         findViewById<TextView>(R.id.player_speed_label).text = String.format(Locale.US, "%.2gx", playbackSpeed)
         applySystemOrientationPolicy()
         val exo = ExoPlayer.Builder(this).build()
@@ -166,13 +182,16 @@ class VideoPlayerActivity : AppCompatActivity() {
         exo.repeatMode = if (repeatEnabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
         exo.volume = if (muted) 0f else 1f
         exo.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(File(path))))
-        exo.prepare(); exo.play()
+        exo.prepare()
+        restorePlaybackPosition(currentPath)
+        exo.play()
         exo.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 findViewById<ImageButton>(R.id.player_play).setImageResource(
                     if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play
                 )
                 if (isPlaying) handler.postDelayed(hideControls, 3000L)
+                else savePlaybackPosition()
             }
         })
         setupControls()
@@ -301,13 +320,13 @@ class VideoPlayerActivity : AppCompatActivity() {
                 }
                 when (gestureMode) {
                     1 -> {
-                        val percent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * 100f).coerceIn(0f, 100f)
+                        val percent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height.coerceAtLeast(1) * VERTICAL_GESTURE_RANGE_PERCENT * brightnessGestureSensitivity).coerceIn(0f, 100f)
                         window.attributes = window.attributes.apply { screenBrightness = percent / 100f }
                         showVerticalHud(brightnessHud, percent / 100f, "☼")
                     }
                     2 -> {
                         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-                        val percent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * 100f).coerceIn(0f, 100f)
+                        val percent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height.coerceAtLeast(1) * VERTICAL_GESTURE_RANGE_PERCENT * volumeGestureSensitivity).coerceIn(0f, 100f)
                         val value = (percent / 100f * max).roundToInt().coerceIn(0, max)
                         audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
                         showVerticalHud(volumeHud, percent / 100f, "◖")
@@ -316,7 +335,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                         val duration = player?.duration?.takeIf { it > 0 && it != C.TIME_UNSET } ?: 0L
                         if (duration > 0L) {
                             val delta = (dx / playerView.width.coerceAtLeast(1) *
-                                duration.coerceAtMost(3_600_000L) * 1.4f).toLong()
+                                duration.coerceAtMost(SEEK_GESTURE_DURATION_CAP_MS) * seekGestureSensitivity).toLong()
                             pendingSeekPosition = (gestureStartPosition + delta).coerceIn(0L, duration)
                             seek.setDuration(duration)
                             seek.setPosition(pendingSeekPosition)
@@ -583,10 +602,12 @@ class VideoPlayerActivity : AppCompatActivity() {
                 background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
                 clipToOutline = true
                 setOnClickListener {
+                    savePlaybackPosition()
                     currentPath = file.absolutePath
                     titleView.text = file.nameWithoutExtension
                     player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
                     player?.prepare()
+                    restorePlaybackPosition(currentPath)
                     player?.setPlaybackSpeed(playbackSpeed)
                     player?.repeatMode = if (repeatEnabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
                     player?.play()
@@ -695,6 +716,7 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        savePlaybackPosition()
         val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
         if (!inPip && !bgAudioEnabled && !isChangingConfigurations) player?.pause()
     }
@@ -714,7 +736,42 @@ class VideoPlayerActivity : AppCompatActivity() {
             currentTime.text = time(p.currentPosition)
         }
         durationTime.text = if (duration == C.TIME_UNSET) "--:--" else time(duration)
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPositionSaveElapsed >= POSITION_SAVE_INTERVAL_MS) {
+            savePlaybackPosition()
+            lastPositionSaveElapsed = now
+        }
     }
+
+    private fun readGestureSensitivity(key: String, defaultValue: Float): Float {
+        return appSettingsForPlayer().getString(key, defaultValue.toString())
+            ?.toFloatOrNull()
+            ?.coerceIn(MIN_GESTURE_SENSITIVITY, MAX_GESTURE_SENSITIVITY)
+            ?: defaultValue
+    }
+
+    private fun resumePositionKey(path: String): String =
+        "resume_position:${File(path).absolutePath}"
+
+    private fun restorePlaybackPosition(path: String) {
+        val position = playerPrefs.getLong(resumePositionKey(path), 0L)
+        if (position > 0L) player?.seekTo(position)
+    }
+
+    private fun savePlaybackPosition() {
+        val activePlayer = player ?: return
+        if (currentPath.isBlank()) return
+        val position = activePlayer.currentPosition.coerceAtLeast(0L)
+        val duration = activePlayer.duration.takeIf { it > 0L && it != C.TIME_UNSET } ?: 0L
+        val editor = playerPrefs.edit()
+        if (position <= 1_000L || (duration > 0L && position >= duration - RESUME_END_TOLERANCE_MS)) {
+            editor.remove(resumePositionKey(currentPath))
+        } else {
+            editor.putLong(resumePositionKey(currentPath), position)
+        }
+        editor.apply()
+    }
+
     private fun time(ms: Long): String {
         val s = ms.coerceAtLeast(0L) / 1000L
         return if (s >= 3600) String.format(Locale.US, "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
@@ -722,6 +779,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
     override fun onDestroy() {
+        savePlaybackPosition()
         handler.removeCallbacksAndMessages(null)
         thumbExecutor.shutdownNow()
         try { unregisterReceiver(battery) } catch (_: Exception) {}

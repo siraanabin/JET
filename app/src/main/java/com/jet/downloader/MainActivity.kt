@@ -857,6 +857,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun setAppPreference(key: String, value: String) {
             val allowed = setOf("theme_mode", "player_default_speed", "player_keep_screen_on",
+                "player_seek_sensitivity", "player_brightness_sensitivity", "player_volume_sensitivity",
                 "download_default_height", "download_include_subtitles")
             if (key !in allowed) return
             appSettings.edit().putString(key, value.take(80)).apply()
@@ -868,6 +869,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun getAppPreference(key: String, defaultValue: String): String {
             val allowed = setOf("theme_mode", "player_default_speed", "player_keep_screen_on",
+                "player_seek_sensitivity", "player_brightness_sensitivity", "player_volume_sensitivity",
                 "download_default_height", "download_include_subtitles")
             if (key !in allowed) return defaultValue
             return appSettings.getString(key, defaultValue) ?: defaultValue

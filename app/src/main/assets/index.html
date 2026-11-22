@@ -415,6 +415,9 @@
           <label class="block text-xs font-bold text-app-text" for="player-default-speed">Default playback speed</label>
           <select id="player-default-speed" class="w-full rounded-xl border border-app-border bg-app-elevated p-3 text-sm text-app-text"><option value="0.5">0.5×</option><option value="1.0">1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2.0">2.0×</option></select>
           <label class="flex items-center justify-between text-xs font-bold text-app-text">Keep screen on during playback<input id="player-keep-screen-on" type="checkbox" class="h-5 w-5 accent-current" /></label>
+          <div class="space-y-2"><div class="flex items-center justify-between gap-2"><label class="text-xs font-bold text-app-text" for="player-seek-sensitivity">Horizontal seek sensitivity</label><output id="player-seek-sensitivity-value" class="text-xs font-bold text-app-primary">1.4×</output></div><input id="player-seek-sensitivity" type="range" min="0.5" max="2.5" step="0.1" value="1.4" class="w-full accent-current" /></div>
+          <div class="space-y-2"><div class="flex items-center justify-between gap-2"><label class="text-xs font-bold text-app-text" for="player-brightness-sensitivity">Left-side brightness sensitivity</label><output id="player-brightness-sensitivity-value" class="text-xs font-bold text-app-primary">1.0×</output></div><input id="player-brightness-sensitivity" type="range" min="0.5" max="2.5" step="0.1" value="1.0" class="w-full accent-current" /></div>
+          <div class="space-y-2"><div class="flex items-center justify-between gap-2"><label class="text-xs font-bold text-app-text" for="player-volume-sensitivity">Right-side volume sensitivity</label><output id="player-volume-sensitivity-value" class="text-xs font-bold text-app-primary">1.0×</output></div><input id="player-volume-sensitivity" type="range" min="0.5" max="2.5" step="0.1" value="1.0" class="w-full accent-current" /></div>
         </div>
       </section>
       <section id="screen-download-settings" class="hidden screen-fade space-y-4">
@@ -812,6 +815,20 @@
       document.querySelectorAll('[data-theme-mode]').forEach((button) => button.addEventListener('click', () => applyThemeMode(button.dataset.themeMode, true)));
       $('topbar-theme-btn').addEventListener('click', () => applyThemeMode(state.themeMode === 'dark' ? 'light' : 'dark', true));
       const playerSpeedSetting = $('player-default-speed'), keepScreenSetting = $('player-keep-screen-on');
+      [
+        { id: 'player-seek-sensitivity', key: 'player_seek_sensitivity', fallback: '1.4' },
+        { id: 'player-brightness-sensitivity', key: 'player_brightness_sensitivity', fallback: '1.0' },
+        { id: 'player-volume-sensitivity', key: 'player_volume_sensitivity', fallback: '1.0' }
+      ].forEach(({ id, key, fallback }) => {
+        const slider = $(id), output = $(id + '-value');
+        if (!slider || !output) return;
+        const stored = Number(readAppSetting(key, fallback));
+        slider.value = String(Number.isFinite(stored) ? Math.min(2.5, Math.max(0.5, stored)) : Number(fallback));
+        const updateLabel = () => { output.textContent = Number(slider.value).toFixed(1) + '×'; };
+        slider.addEventListener('input', updateLabel);
+        slider.addEventListener('change', () => saveAppSetting(key, Number(slider.value).toFixed(1)));
+        updateLabel();
+      });
       const downloadHeightSetting = $('download-default-height'), subtitlesSetting = $('download-include-subtitles');
       if (playerSpeedSetting) { playerSpeedSetting.value = readAppSetting('player_default_speed', '1.0'); playerSpeedSetting.addEventListener('change', () => saveAppSetting('player_default_speed', playerSpeedSetting.value)); }
       if (keepScreenSetting) { keepScreenSetting.checked = readAppSetting('player_keep_screen_on', 'true') !== 'false'; keepScreenSetting.addEventListener('change', () => saveAppSetting('player_keep_screen_on', keepScreenSetting.checked)); }
