@@ -247,11 +247,6 @@
                 android:tint="#FFFFFF" />
         </LinearLayout>
 
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/player_bottom_panel"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
             <androidx.media3.ui.DefaultTimeBar
                 android:id="@+id/player_seek"
                 android:layout_width="0dp"
@@ -434,7 +429,6 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal" />
             </HorizontalScrollView>
-        </androidx.constraintlayout.widget.ConstraintLayout>
 
         <LinearLayout
             android:id="@+id/player_brightness_hud"
