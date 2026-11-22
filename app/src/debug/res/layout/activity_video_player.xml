@@ -247,6 +247,70 @@
                 android:tint="#FFFFFF" />
         </LinearLayout>
 
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/player_bottom_panel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_x_left"
+                android:orientation="vertical"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.0692" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_x_seek_end"
+                android:orientation="vertical"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.875" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_x_time_left"
+                android:orientation="vertical"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.0596" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_x_playlist_end"
+                android:orientation="vertical"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.885" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_x_actions_start"
+                android:orientation="vertical"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.07" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_x_actions_end"
+                android:orientation="vertical"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.36" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_x_playlist_start"
+                android:orientation="vertical"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.45" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_y_seek"
+                android:orientation="horizontal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.7093" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_y_time"
+                android:orientation="horizontal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.7676" />
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/player_panel_y_bottom_actions"
+                android:orientation="horizontal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintGuide_percent="0.8889" />
             <androidx.media3.ui.DefaultTimeBar
                 android:id="@+id/player_seek"
                 android:layout_width="0dp"
@@ -259,10 +323,10 @@
                 app:scrubber_color="#FFFFFFFF"
                 app:buffered_color="#66FFFFFF"
                 app:unplayed_color="#55FFFFFF"
-                app:layout_constraintStart_toStartOf="@id/player_x_left"
-                app:layout_constraintEnd_toEndOf="@id/player_x_seek_end"
-                app:layout_constraintTop_toTopOf="@id/player_y_seek"
-                app:layout_constraintBottom_toBottomOf="@id/player_y_seek" />
+                app:layout_constraintStart_toStartOf="@id/player_panel_x_left"
+                app:layout_constraintEnd_toEndOf="@id/player_panel_x_seek_end"
+                app:layout_constraintTop_toTopOf="@id/player_panel_y_seek"
+                app:layout_constraintBottom_toBottomOf="@id/player_panel_y_seek" />
 
             <TextView
                 android:id="@+id/player_current_time"
@@ -271,9 +335,9 @@
                 android:text="0:00"
                 android:textColor="#CCFFFFFF"
                 android:textSize="12sp"
-                app:layout_constraintStart_toStartOf="@id/player_x_time_left"
-                app:layout_constraintTop_toTopOf="@id/player_y_time"
-                app:layout_constraintBottom_toBottomOf="@id/player_y_time" />
+                app:layout_constraintStart_toStartOf="@id/player_panel_x_time_left"
+                app:layout_constraintTop_toTopOf="@id/player_panel_y_time"
+                app:layout_constraintBottom_toBottomOf="@id/player_panel_y_time" />
 
             <TextView
                 android:id="@+id/player_duration"
@@ -283,9 +347,9 @@
                 android:text="0:00"
                 android:textColor="#CCFFFFFF"
                 android:textSize="12sp"
-                app:layout_constraintEnd_toEndOf="@id/player_x_playlist_end"
-                app:layout_constraintTop_toTopOf="@id/player_y_time"
-                app:layout_constraintBottom_toBottomOf="@id/player_y_time" />
+                app:layout_constraintEnd_toEndOf="@id/player_panel_x_playlist_end"
+                app:layout_constraintTop_toTopOf="@id/player_panel_y_time"
+                app:layout_constraintBottom_toBottomOf="@id/player_panel_y_time" />
 
             <HorizontalScrollView
                 android:id="@+id/player_bottom_actions_scroll"
@@ -293,10 +357,10 @@
                 android:layout_height="48dp"
                 android:fillViewport="true"
                 android:scrollbars="none"
-                app:layout_constraintStart_toStartOf="@id/player_x_actions_start"
-                app:layout_constraintEnd_toEndOf="@id/player_x_actions_end"
-                app:layout_constraintTop_toTopOf="@id/player_y_bottom_actions"
-                app:layout_constraintBottom_toBottomOf="@id/player_y_bottom_actions">
+                app:layout_constraintStart_toStartOf="@id/player_panel_x_actions_start"
+                app:layout_constraintEnd_toEndOf="@id/player_panel_x_actions_end"
+                app:layout_constraintTop_toTopOf="@id/player_panel_y_bottom_actions"
+                app:layout_constraintBottom_toBottomOf="@id/player_panel_y_bottom_actions">
 
                 <LinearLayout
                     android:id="@+id/player_bottom_actions"
@@ -416,10 +480,10 @@
                 android:layout_height="0dp"
                 android:fillViewport="false"
                 android:scrollbars="none"
-                app:layout_constraintStart_toStartOf="@id/player_x_playlist_start"
-                app:layout_constraintEnd_toEndOf="@id/player_x_playlist_end"
-                app:layout_constraintTop_toTopOf="@id/player_y_bottom_actions"
-                app:layout_constraintBottom_toBottomOf="@id/player_y_bottom_actions"
+                app:layout_constraintStart_toStartOf="@id/player_panel_x_playlist_start"
+                app:layout_constraintEnd_toEndOf="@id/player_panel_x_playlist_end"
+                app:layout_constraintTop_toTopOf="@id/player_panel_y_bottom_actions"
+                app:layout_constraintBottom_toBottomOf="@id/player_panel_y_bottom_actions"
                 app:layout_constraintHeight_percent="0.1519">
 
                 <LinearLayout
@@ -429,6 +493,8 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal" />
             </HorizontalScrollView>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
         <LinearLayout
             android:id="@+id/player_brightness_hud"
