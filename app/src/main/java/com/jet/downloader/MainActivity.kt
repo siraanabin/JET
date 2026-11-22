@@ -81,6 +81,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootContainer: FrameLayout
     private lateinit var webView: WebView
+    private lateinit var navUi: NavUi
     private lateinit var media3Overlay: LinearLayout
     private lateinit var media3TitleView: TextView
     private lateinit var media3PlayerView: PlayerView
@@ -289,6 +290,8 @@ class MainActivity : AppCompatActivity() {
             )
         }
         rootContainer.addView(webView)
+        navUi = NavUiFactory.create()
+        navUi.attach(this, rootContainer, webView)
         setupNativeMedia3PlayerOverlay()
         setContentView(rootContainer)
 
@@ -311,6 +314,7 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                navUi.onPageLoaded()
                 syncDataStorePreferencesToWeb()
                 notifyEngineState()
                 pendingSharedUrl?.let { shared ->
@@ -343,6 +347,7 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (navUi.handleBack()) return
                 if (media3Overlay.visibility == View.VISIBLE) {
                     closeMedia3Player()
                     return
