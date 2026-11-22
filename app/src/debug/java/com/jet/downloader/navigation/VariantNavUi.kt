@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -69,7 +70,7 @@ private data class TopLevelDestination(
 
 class VariantNavUi : NavUi {
     private var webView: WebView? = null
-    private var selectedIndex: (() -> Unit)? = null
+    private var backHandler: (() -> Boolean)? = null
     private var composeView: ComposeView? = null
 
     override fun attach(activity: MainActivity, container: FrameLayout, webView: WebView) {
@@ -78,6 +79,7 @@ class VariantNavUi : NavUi {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 DebugFloatingNavigation(
+                    onBackHandler = { handler -> backHandler = handler },
                     onSelect = { target ->
                         val safeTarget = target.replace("'", "")
                         this@VariantNavUi.webView?.evaluateJavascript(
@@ -107,13 +109,14 @@ class VariantNavUi : NavUi {
         )
     }
 
-    override fun handleBack(): Boolean {
-        return false
-    }
+    override fun handleBack(): Boolean = backHandler?.invoke() ?: false
 }
 
 @Composable
-private fun DebugFloatingNavigation(onSelect: (String) -> Unit) {
+private fun DebugFloatingNavigation(
+    onBackHandler: ((() -> Boolean) -> Unit),
+    onSelect: (String) -> Unit,
+) {
     val destinations = remember {
         listOf(
             TopLevelDestination(HomeRoute, "home", "Home", Icons.Filled.Home),
@@ -129,24 +132,33 @@ private fun DebugFloatingNavigation(onSelect: (String) -> Unit) {
     val stacks = listOf(homeStack, downloadsStack, libraryStack, settingsStack)
     var selected by remember { mutableIntStateOf(0) }
     val activeStack = stacks[selected]
+    val onBack = {
+        when {
+            activeStack.size > 1 -> {
+                activeStack.removeAt(activeStack.lastIndex)
+                true
+            }
+            selected != 0 -> {
+                selected = 0
+                onSelect("home")
+                true
+            }
+            else -> false
+        }
+    }
+    SideEffect { onBackHandler(onBack) }
 
     MaterialTheme {
         Box(Modifier.fillMaxSize()) {
             NavDisplay(
                 backStack = activeStack,
                 modifier = Modifier.size(0.dp),
-                onBack = {
-                    if (activeStack.size > 1) activeStack.removeAt(activeStack.lastIndex)
-                    else if (selected != 0) {
-                        selected = 0
-                        onSelect("home")
-                    }
-                },
+                onBack = { onBack() },
                 entryProvider = { key ->
                     NavEntry(key) { Spacer(Modifier.size(0.dp)) }
                 },
             )
-            Box(
+            if (activeStack.size == 1) Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
