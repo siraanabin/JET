@@ -315,7 +315,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                             seek.setDuration(duration)
                             seek.setPosition(pendingSeekPosition)
                             currentTime.text = time(pendingSeekPosition)
-                            showSeekPill(pendingSeekPosition, duration)
+                            seekPill.visibility = View.GONE
                         }
                     }
                 }
@@ -444,6 +444,8 @@ class VideoPlayerActivity : AppCompatActivity() {
         controls.visibility = View.VISIBLE
         topBar.visibility = View.GONE
         centerControls.visibility = View.GONE
+        bottomPanel.getChildAt(1)?.visibility = View.GONE
+        seekPill.visibility = View.GONE
         bottomPanel.visibility = View.VISIBLE
         bottomPanel.alpha = 1f
         bottomPanel.translationY = 0f
@@ -473,8 +475,9 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
         revealHudWithoutControls()
-        findViewById<TextView>(if (hud.id == R.id.player_brightness_hud) R.id.player_brightness_icon else R.id.player_volume_icon).text = glyph
         val isBrightness = hud.id == R.id.player_brightness_hud
+        if (isBrightness) findViewById<TextView>(R.id.player_brightness_icon).text = glyph
+        else findViewById<ImageView>(R.id.player_volume_icon).setImageResource(R.drawable.ic_player_music_note)
         findViewById<TextView>(if (isBrightness) R.id.player_hud_percent else R.id.player_volume_percent).text =
             "${(fraction * 100).roundToInt()}%"
         findViewById<ProgressBar>(if (isBrightness) R.id.player_hud_progress else R.id.player_volume_progress).progress =
@@ -503,6 +506,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(hideIsolatedHudContainer)
         val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
+            bottomPanel.getChildAt(1)?.visibility = View.VISIBLE
             controls.visibility = View.VISIBLE
             topBar.visibility = View.VISIBLE
             bottomPanel.visibility = View.VISIBLE
@@ -568,7 +572,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
             val card = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(36), dp(28)).apply { marginEnd = dp(2) }
+                layoutParams = LinearLayout.LayoutParams(dp(56), dp(36)).apply { marginEnd = dp(3) }
                 tag = file.absolutePath
                 background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
                 clipToOutline = true
