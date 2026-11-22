@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 
@@ -18,7 +19,7 @@ android {
     }
 
     namespace = "com.jet.downloader"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.jet.downloader"
@@ -74,10 +75,6 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
-    }
 }
 
 
@@ -86,7 +83,7 @@ val validateReleaseSigning = tasks.register("validateReleaseSigning") {
         val missing = buildList {
             if (!releaseKeystoreFile.isFile) add("app/jet-release.jks")
             if (releaseStorePassword.isNullOrBlank()) add("ANDROID_KEYSTORE_PASSWORD")
-            if (releaseKeyAlias.isNullOrBlank()) add("ANDROID_KEY_ALIAS")
+            if (releaseKeyAlias.isNullOrBlank()) add("ANDROID_KEY_PASSWORD")
             if (releaseKeyPassword.isNullOrBlank()) add("ANDROID_KEY_PASSWORD")
         }
         if (missing.isNotEmpty()) {
@@ -104,13 +101,15 @@ tasks.configureEach {
 }
 
 dependencies {
-    // Debug-only Compose UI; BOM 2024.06.00 aligns Compose UI/runtime 1.6.8 and Material3 1.2.1.
-    debugImplementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    // Navigation3 + Compose UI, initially isolated to Debug until the first green build.
+    debugImplementation(platform("androidx.compose:compose-bom:2025.11.00"))
     debugImplementation("androidx.compose.ui:ui")
     debugImplementation("androidx.compose.foundation:foundation")
     debugImplementation("androidx.compose.animation:animation")
     debugImplementation("androidx.compose.material3:material3")
     debugImplementation("androidx.compose.material:material-icons-extended")
+    debugImplementation("androidx.navigation3:navigation3-runtime:1.0.0")
+    debugImplementation("androidx.navigation3:navigation3-ui:1.0.0")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 

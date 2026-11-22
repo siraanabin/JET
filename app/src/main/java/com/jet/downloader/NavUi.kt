@@ -3,12 +3,11 @@ package com.jet.downloader
 import android.widget.FrameLayout
 import android.webkit.WebView
 
-/**
- * Variant-specific navigation UI. The main source set deliberately has no Compose dependency.
- */
+/** Navigation bridge used by the native Compose navigation host. */
 interface NavUi {
     fun attach(activity: MainActivity, container: FrameLayout, webView: WebView)
     fun onPageLoaded()
+    fun onScreenChanged(target: String)
     fun handleBack(): Boolean
 }
 
@@ -21,6 +20,7 @@ object NavUiFactory {
         object : NavUi {
             override fun attach(activity: MainActivity, container: FrameLayout, webView: WebView) = Unit
             override fun onPageLoaded() = Unit
+            override fun onScreenChanged(target: String) = Unit
             override fun handleBack(): Boolean = false
         }
     }

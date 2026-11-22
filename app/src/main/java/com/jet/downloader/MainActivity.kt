@@ -735,6 +735,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class JetNativeBridge {
+        @JavascriptInterface
+        fun onScreenChanged(target: String) {
+            runOnUiThread {
+                if (::navUi.isInitialized) navUi.onScreenChanged(target)
+            }
+        }
+
 
         @JavascriptInterface
         fun setStatusBarTheme(isDark: Boolean) {

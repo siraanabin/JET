@@ -684,6 +684,9 @@
       // Navigation
       function switchScreen(target) {
         state.screen = target;
+        if (hasAndroid() && window.JetAndroid.onScreenChanged) {
+          window.JetAndroid.onScreenChanged(target);
+        }
         ['home', 'downloads', 'library', 'settings'].forEach((s) => {
           const sec = $('screen-' + s);
           if (sec) sec.classList.toggle('hidden', s !== target);
@@ -1487,10 +1490,7 @@
           $('format-modal').classList.add('hidden');
           return true;
         }
-        if (state.screen !== 'home') {
-          switchScreen('home');
-          return true;
-        }
+        // Top-level tab back is owned by Navigation3 so each tab keeps its own stack.
         return false;
       };
 
