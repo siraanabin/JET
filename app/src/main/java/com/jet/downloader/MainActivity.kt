@@ -455,17 +455,6 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (::webView.isInitialized && (hasVideoReadPermission() || hasAudioReadPermission())) {
-            webView.post {
-                if (::webView.isInitialized) {
-                    webView.evaluateJavascript("if (window.onNativeAppResumed) window.onNativeAppResumed();", null)
-                }
-            }
-        }
-    }
-
     private fun setupNativeMedia3PlayerOverlay() {
         media3Overlay = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -642,6 +631,9 @@ class MainActivity : AppCompatActivity() {
             webView.postDelayed({
                 dispatchClipboardUrlToWebView()
                 pushScannedLibraryToWeb()
+                if (hasVideoReadPermission() || hasAudioReadPermission()) {
+                    webView.evaluateJavascript("if (window.onNativeAppResumed) window.onNativeAppResumed();", null)
+                }
             }, 350)
         }
     }
