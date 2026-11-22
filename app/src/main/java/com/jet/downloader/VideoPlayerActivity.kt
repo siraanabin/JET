@@ -77,7 +77,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private val clock = object : Runnable {
         override fun run() {
             findViewById<TextView>(R.id.player_clock).text =
-                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                SimpleDateFormat(if (BuildConfig.DEBUG) "hh:mm a" else "HH:mm", Locale.getDefault()).format(Date())
             handler.postDelayed(this, 30_000L)
         }
     }
@@ -95,7 +95,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         fadeHud(volumeHud); fadeHud(brightnessHud); fadeHud(seekHud)
         fadeHud(leftTapHud); fadeHud(rightTapHud); fadeHud(zoomHud)
     }
-    private val hideControls = Runnable { if (!locked && player?.isPlaying == true) showControls(false) }
+    private val hideControls = Runnable {
+        if (!locked && (BuildConfig.DEBUG || player?.isPlaying == true)) showControls(false)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,7 +134,14 @@ class VideoPlayerActivity : AppCompatActivity() {
             finish(); return
         }
         currentPath = path
-        titleView.text = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
+        val rawTitle = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
+        titleView.text = if (BuildConfig.DEBUG) {
+            val prefix = intent.getStringExtra("video_prefix")
+                ?: intent.getStringExtra("video_quality").orEmpty()
+            if (prefix.isNotBlank() && !rawTitle.contains(" : ")) "$prefix : $rawTitle" else rawTitle
+        } else {
+            intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
+        }
         val exo = ExoPlayer.Builder(this).build()
         player = exo
         playerView.player = exo
@@ -144,7 +153,10 @@ class VideoPlayerActivity : AppCompatActivity() {
                 findViewById<ImageButton>(R.id.player_play).setImageResource(
                     if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play
                 )
-                if (isPlaying) handler.postDelayed(hideControls, 3000L)
+                if (BuildConfig.DEBUG) {
+                    handler.removeCallbacks(hideControls)
+                    handler.postDelayed(hideControls, 3500L)
+                } else if (isPlaying) handler.postDelayed(hideControls, 3000L)
             }
         })
         setupControls()
@@ -168,15 +180,32 @@ class VideoPlayerActivity : AppCompatActivity() {
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !ccEnabled).build()
             it.alpha = if (ccEnabled) 1f else .45f
         }
-        findViewById<ImageButton>(R.id.player_more).setOnClickListener { showMore() }
-        val unlock = findViewById<Button>(R.id.player_unlock)
-        findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
-            locked = true; showControls(false); unlock.visibility = View.VISIBLE
-            Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
-        }
-        unlock.setOnClickListener {
-            locked = false; unlock.visibility = View.GONE; showControls(true)
-            Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
+        findViewById<View>(R.id.player_more).setOnClickListener { showMore() }
+        if (BuildConfig.DEBUG) {
+            val unlock = findViewById<ImageButton>(R.id.player_unlock)
+            findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
+                locked = true
+                showControls(false)
+                unlock.setImageResource(android.R.drawable.ic_lock_idle_unlock)
+                unlock.visibility = View.VISIBLE
+                Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
+            }
+            unlock.setOnClickListener {
+                locked = false
+                unlock.visibility = View.GONE
+                showControls(true)
+                Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            val unlock = findViewById<Button>(R.id.player_unlock)
+            findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
+                locked = true; showControls(false); unlock.visibility = View.VISIBLE
+                Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
+            }
+            unlock.setOnClickListener {
+                locked = false; unlock.visibility = View.GONE; showControls(true)
+                Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
+            }
         }
         findViewById<ImageButton>(R.id.player_mute).setOnClickListener {
             muted = !muted; player?.volume = if (muted) 0f else 1f
@@ -318,7 +347,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             topBar.animate().alpha(1f).translationY(0f).setDuration(240L).setInterpolator(interp).start()
             bottomPanel.animate().alpha(1f).translationY(0f).setDuration(240L).setInterpolator(interp).start()
             centerControls.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(240L).setInterpolator(interp).start()
-            if (player?.isPlaying == true) handler.postDelayed(hideControls, 3500L)
+            if (BuildConfig.DEBUG || player?.isPlaying == true) handler.postDelayed(hideControls, 3500L)
         } else {
             topBar.animate().alpha(0f).translationY(-dp(76).toFloat()).setDuration(220L).setInterpolator(interp).start()
             bottomPanel.animate().alpha(0f).translationY(dp(110).toFloat()).setDuration(220L).setInterpolator(interp).start()
@@ -361,13 +390,25 @@ class VideoPlayerActivity : AppCompatActivity() {
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
             val card = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(68), dp(42)).apply { marginEnd = dp(6) }
+                layoutParams = if (BuildConfig.DEBUG) {
+                    val metrics = resources.displayMetrics
+                    LinearLayout.LayoutParams(
+                        (metrics.widthPixels * 0.0975f).roundToInt(),
+                        (metrics.heightPixels * 0.1194f).roundToInt()
+                    ).apply { marginEnd = (metrics.widthPixels * 0.0067f).roundToInt() }
+                } else {
+                    LinearLayout.LayoutParams(dp(68), dp(42)).apply { marginEnd = dp(6) }
+                }
                 tag = file.absolutePath
                 background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
                 clipToOutline = true
                 setOnClickListener {
                     currentPath = file.absolutePath
-                    titleView.text = file.nameWithoutExtension
+                    titleView.text = if (BuildConfig.DEBUG) {
+                        val prefix = intent.getStringExtra("video_prefix")
+                            ?: intent.getStringExtra("video_quality").orEmpty()
+                        if (prefix.isNotBlank()) "$prefix : ${file.nameWithoutExtension}" else file.nameWithoutExtension
+                    } else file.nameWithoutExtension
                     player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
                     player?.prepare()
                     player?.play()
@@ -412,8 +453,29 @@ class VideoPlayerActivity : AppCompatActivity() {
             val child = playlist.getChildAt(i)
             val selected = child.tag == currentPath
             child.setBackgroundResource(if (selected) R.drawable.player_playlist_selected else R.drawable.player_playlist_item)
-            child.scaleX = if (selected) 1.05f else 1f
-            child.scaleY = if (selected) 1.05f else 1f
+            if (BuildConfig.DEBUG) {
+                val metrics = resources.displayMetrics
+                val params = child.layoutParams as LinearLayout.LayoutParams
+                params.width = (metrics.widthPixels * if (selected) 0.1117f else 0.0975f).roundToInt()
+                params.height = (metrics.heightPixels * if (selected) 0.1519f else 0.1194f).roundToInt()
+                child.layoutParams = params
+                child.scaleX = 1f
+                child.scaleY = 1f
+            } else {
+                child.scaleX = if (selected) 1.05f else 1f
+                child.scaleY = if (selected) 1.05f else 1f
+            }
+        }
+        if (BuildConfig.DEBUG) {
+            val selectedIndex = (0 until playlist.childCount).firstOrNull {
+                playlist.getChildAt(it).tag == currentPath
+            } ?: return
+            val selectedChild = playlist.getChildAt(selectedIndex)
+            val previousChild = playlist.getChildAt(selectedIndex - 1)
+            val gap = (resources.displayMetrics.widthPixels * 0.0067f).roundToInt()
+            val scrollX = (selectedChild.left - (previousChild?.width ?: 0) - gap).coerceAtLeast(0)
+            val scrollView = findViewById<HorizontalScrollView>(R.id.player_playlist_scroll)
+            scrollView.post { scrollView.smoothScrollTo(scrollX, 0) }
         }
     }
     private fun backgroundAudio() {
@@ -444,12 +506,14 @@ class VideoPlayerActivity : AppCompatActivity() {
         if (isInPictureInPictureMode) {
             handler.removeCallbacks(hideControls)
             controls.visibility = View.GONE
-            findViewById<Button>(R.id.player_unlock).visibility = View.GONE
+            if (BuildConfig.DEBUG) findViewById<ImageButton>(R.id.player_unlock).visibility = View.GONE
+            else findViewById<Button>(R.id.player_unlock).visibility = View.GONE
         } else if (!locked) {
             showControls(true)
         } else {
             controls.visibility = View.GONE
-            findViewById<Button>(R.id.player_unlock).visibility = View.VISIBLE
+            if (BuildConfig.DEBUG) findViewById<ImageButton>(R.id.player_unlock).visibility = View.VISIBLE
+            else findViewById<Button>(R.id.player_unlock).visibility = View.VISIBLE
         }
     }
 
@@ -478,6 +542,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun time(ms: Long): String {
         val s = ms.coerceAtLeast(0L) / 1000L
         return if (s >= 3600) String.format(Locale.US, "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+            else if (BuildConfig.DEBUG) String.format(Locale.US, "%02d:%02d", s / 60, s % 60)
             else String.format(Locale.US, "%d:%02d", s / 60, s % 60)
     }
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
