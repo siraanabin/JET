@@ -1200,10 +1200,15 @@
         }
       };
 
-      window.onNativeLibraryList = function (list) {
-        if (!Array.isArray(list)) return;
-        $('library-location-label').textContent = 'All device audio and video · ' + list.length + ' files';
-        state.library = list.map((item) => ({
+      window.onNativeLibraryScanStarted = function () {
+        state.library = [];
+        $('library-location-label').textContent = 'Scanning device media…';
+        $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
+      };
+
+      window.onNativeLibraryChunk = function (chunk, isFinal) {
+        if (!Array.isArray(chunk)) return;
+        const mapped = chunk.map((item) => ({
           ...item,
           color: item.type === 'audio'
             ? 'from-emerald-500 to-teal-700'
@@ -1211,7 +1216,11 @@
               ? 'from-amber-500 to-orange-700'
               : 'from-blue-500 to-indigo-700'
         }));
-        if (state.library.length > 0) {
+        const wasEmpty = state.library.length === 0;
+        state.library.push(...mapped);
+        $('library-location-label').textContent = (isFinal ? 'All device audio and video · ' : 'Scanning device media · ')
+          + state.library.length + ' files';
+        if (wasEmpty && state.library.length > 0) {
           const first = state.library[0];
           $('latest-title').textContent = first.title;
           $('latest-meta').textContent = first.meta;
@@ -1220,7 +1229,7 @@
           const preview = $('latest-download-card').querySelector('.relative');
           if (preview) {
             preview.className = 'relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden';
-            if (first.type === 'audio') {
+            if (first.type === 'audio' && first.thumbnailUrl) {
               preview.innerHTML = vinylDiscMarkup(first.thumbnailUrl, 'w-12 h-12');
             } else if (first.thumbnailUrl) {
               preview.innerHTML = `<img src="${first.thumbnailUrl}" alt="" class="absolute inset-0 w-full h-full object-cover">`;
@@ -1231,6 +1240,12 @@
           }
         }
         renderLibrary();
+      };
+
+      window.onNativeLibraryScanFailed = function (message) {
+        $('library-location-label').textContent = 'Media scan failed';
+        $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full"></div>';
+        $('library-items-container').firstElementChild.textContent = String(message || 'Unable to scan device media');
       };
 
       window.onNativeEngineUpdated = function (res) {
