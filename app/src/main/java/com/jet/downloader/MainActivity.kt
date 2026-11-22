@@ -81,6 +81,12 @@ import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
+private data class RealDownloadSpec(
+    val id: String, val url: String, val title: String, val isAudio: Boolean,
+    val audioBitrate: String, val audioExt: String, val maxHeight: Int,
+    val includeSubtitles: Boolean, val thumbnailUrl: String
+)
+
 class MainActivity : AppCompatActivity() {
 
     private val okHttpClient: OkHttpClient by inject()
@@ -89,6 +95,9 @@ class MainActivity : AppCompatActivity() {
     private val downloadDao: DownloadDao by inject()
     private val preferencesManager: PreferencesManager by inject()
     private val json: Json by inject()
+    private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
+    private val pauseRequestedDownloads = ConcurrentHashMap.newKeySet<String>()
+    private val pausedDownloads = ConcurrentHashMap.newKeySet<String>()
 
     private lateinit var rootContainer: FrameLayout
     private lateinit var webView: WebView
@@ -1235,6 +1244,11 @@ class MainActivity : AppCompatActivity() {
             includeSubtitles: Boolean,
             thumbnailUrl: String
         ) {
+            realDownloadSpecs[downloadId] = RealDownloadSpec(
+                downloadId, url, title, isAudio, audioBitrate, audioExt, maxHeight, includeSubtitles, thumbnailUrl
+            )
+            pauseRequestedDownloads.remove(downloadId)
+            pausedDownloads.remove(downloadId)
             requestNotificationPermissionForDownload()
             runCatching { DownloadNotificationService.start(this@MainActivity, downloadId, title, thumbnailUrl) }
             lifecycleScope.launch(Dispatchers.IO) {
@@ -1242,79 +1256,7 @@ class MainActivity : AppCompatActivity() {
 
                 try {
                     downloadDao.upsert(DownloadEntity(downloadId, title, url, if (isAudio) audioExt.uppercase(Locale.US) else "${maxHeight}p", "", "", if (isAudio) "audio" else "video", thumbnailUrl = thumbnailUrl))
-                    var resolvedThumbnailUrl = thumbnailUrl
-                    // Fast direct stream download via NewPipe Extractor + OkHttp when muxing isn't needed
-                    var downloadedViaNewPipe = false
-                    if (!isNewPipeFailureCached(url) &&
-                        !includeSubtitles &&
-                        isAudio && audioExt.equals("m4a", ignoreCase = true)
-                    ) {
-                        try {
-                            callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 8, ${JSONObject.quote("NewPipe Extractor...")}")
-                            val info = getOrFetchStreamInfo(url)
-                            if (resolvedThumbnailUrl.isBlank()) resolvedThumbnailUrl = info.thumbnails.maxByOrNull { it.width }?.url.orEmpty()
-                            val safeTitle = sanitizeFileName(info.name ?: title)
-
-                            val targetStreamUrl: String?
-                            val outFile: File
-                            if (isAudio) {
-                                val audioStream = info.audioStreams.maxByOrNull { it.averageBitrate }
-                                targetStreamUrl = audioStream?.content
-                                outFile = File(outDir, "$safeTitle.m4a")
-                            } else {
-                                val muxedStream = info.videoStreams
-                                    .filter { it.height <= maxHeight && it.isUrl }
-                                    .maxByOrNull { it.height }
-                                targetStreamUrl = muxedStream?.content
-                                outFile = File(outDir, "$safeTitle (${muxedStream?.height ?: maxHeight}p).mp4")
-                            }
-
-                            if (!targetStreamUrl.isNullOrBlank()) {
-                                val req = okhttp3.Request.Builder()
-                                    .url(targetStreamUrl)
-                                    .header("User-Agent", "Mozilla/5.0")
-                                    .build()
-                                okHttpClient.newCall(req).execute().use { resp ->
-                                    if (resp.isSuccessful && resp.body != null) {
-                                        val body = resp.body!!
-                                        val totalBytes = body.contentLength()
-                                        var bytesReadTotal = 0L
-                                        var lastReportTime = System.currentTimeMillis()
-                                        var lastBytes = 0L
-
-                                        body.byteStream().use { input ->
-                                            FileOutputStream(outFile).use { output ->
-                                                val buffer = ByteArray(16 * 1024)
-                                                var read: Int
-                                                while (input.read(buffer).also { read = it } != -1) {
-                                                    output.write(buffer, 0, read)
-                                                    bytesReadTotal += read
-                                                    val now = System.currentTimeMillis()
-                                                    if (now - lastReportTime >= 450) {
-                                                        val speedBps = ((bytesReadTotal - lastBytes) * 1000.0) / (now - lastReportTime)
-                                                        val speedStr = "${formatBytes(speedBps.toLong())}/s"
-                                                        val pct = if (totalBytes > 0) ((bytesReadTotal * 100) / totalBytes).toInt().coerceIn(5, 99) else 50
-                                                        callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedStr)}")
-                                                        runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, pct, speedStr, resolvedThumbnailUrl) }
-                                                        lastReportTime = now
-                                                        lastBytes = bytesReadTotal
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        if (outFile.exists() && outFile.length() > 0L) {
-                                            finishDownloadSuccess(downloadId, url, outFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl)
-                                            downloadedViaNewPipe = true
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (_: Exception) {
-                            downloadedViaNewPipe = false
-                        }
-                    }
-
-                    if (downloadedViaNewPipe) return@launch
+                    val resolvedThumbnailUrl = thumbnailUrl
 
                     // Show extraction as a separate phase; yt-dlp can spend several seconds
                     // resolving formats before it reports actual byte progress.
@@ -1330,6 +1272,7 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("--no-mtime")
                     request.addOption("--no-playlist")
                     request.addOption("--ignore-config")
+                    request.addOption("--continue")
                     applyYtDlpNetworkOptions(request)
                     // Thumbnail metadata is carried over from the media-info request.
 
@@ -1387,6 +1330,14 @@ class MainActivity : AppCompatActivity() {
                         callJs("onNativeDownloadError", json.encodeToString(fail))
                     }
                 } catch (e: Exception) {
+                    if (pauseRequestedDownloads.remove(downloadId)) {
+                        pausedDownloads.add(downloadId)
+                        runCatching {
+                            DownloadNotificationService.update(this@MainActivity, downloadId, title, 0, "Paused", thumbnailUrl)
+                        }
+                        callJs("onNativeDownloadPaused", JSONObject.quote(downloadId))
+                        return@launch
+                    }
                     Log.e(
                         "JET-Download",
                         "Download failed for id=$downloadId; selectedFormat=${if (isAudio) "audio" else "${maxHeight}p"}; FFmpeg/yt-dlp stderr follows",
@@ -1394,7 +1345,6 @@ class MainActivity : AppCompatActivity() {
                     )
                     notifyEngineUpdateRequired(e)
                     val fail = DownloadErrorPayload(downloadId, e.message ?: "Download failed")
-                    runCatching { downloadDao.deleteById(downloadId) }
                     runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
                 }
@@ -1432,13 +1382,43 @@ class MainActivity : AppCompatActivity() {
                 filePath = file.absolutePath,
                 fileUri = Uri.fromFile(file).toString()
             )
+            realDownloadSpecs.remove(downloadId)
+            pauseRequestedDownloads.remove(downloadId)
+            pausedDownloads.remove(downloadId)
             runCatching { DownloadNotificationService.completed(this@MainActivity, downloadId, file.nameWithoutExtension, sizeStr, thumbnailUrl) }
             callJs("onNativeDownloadComplete", json.encodeToString(payload))
             pushScannedLibraryToWeb()
         }
 
         @JavascriptInterface
+        fun pauseRealDownload(downloadId: String) {
+            if (!realDownloadSpecs.containsKey(downloadId)) return
+            pauseRequestedDownloads.add(downloadId)
+            lifecycleScope.launch(Dispatchers.IO) {
+                runCatching { YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId") }
+            }
+        }
+
+        @JavascriptInterface
+        fun resumeRealDownload(downloadId: String) {
+            val spec = realDownloadSpecs[downloadId] ?: return
+            if (!pausedDownloads.remove(downloadId)) return
+            startRealDownload(spec.id, spec.url, spec.title, spec.isAudio, spec.audioBitrate,
+                spec.audioExt, spec.maxHeight, spec.includeSubtitles, spec.thumbnailUrl)
+        }
+
+        @JavascriptInterface
+        fun retryRealDownload(downloadId: String) {
+            val spec = realDownloadSpecs[downloadId] ?: return
+            startRealDownload(spec.id, spec.url, spec.title, spec.isAudio, spec.audioBitrate,
+                spec.audioExt, spec.maxHeight, spec.includeSubtitles, spec.thumbnailUrl)
+        }
+
+        @JavascriptInterface
         fun cancelRealDownload(downloadId: String) {
+            realDownloadSpecs.remove(downloadId)
+            pauseRequestedDownloads.remove(downloadId)
+            pausedDownloads.remove(downloadId)
             runCatching { DownloadNotificationService.cancel(this@MainActivity, downloadId) }
             lifecycleScope.launch(Dispatchers.IO) {
                 runCatching { YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId") }
