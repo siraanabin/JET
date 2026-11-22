@@ -1,6 +1,6 @@
 {
-  "versionCode": 365,
-  "versionName": "3.6.5",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.5/JET-debug.apk",
-  "changelog": "• Three-way theme selector: System Default, Dark and Light\n• Theme preference migration and persistence with AndroidX DataStore\n• Immediate native and WebView theme synchronization"
+  "versionCode": 366,
+  "versionName": "3.6.6",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.6/JET-debug.apk",
+  "changelog": "• Resumable downloads with Pause, Resume and Retry\n• Player HUD icon, percentage, battery and touch-layout refinements"
 }
