@@ -115,6 +115,20 @@ class VideoPlayerActivity : AppCompatActivity() {
         playerView = findViewById(R.id.player_view)
         titleView = findViewById(R.id.player_title)
         seek = findViewById(R.id.player_seek)
+        if (BuildConfig.DEBUG) {
+            val metrics = resources.displayMetrics
+            seek.setBarHeight((metrics.heightPixels * 0.026f).roundToInt())
+            seek.setTouchTargetHeight((metrics.heightPixels * 0.065f).roundToInt())
+            val centerHeight = (metrics.heightPixels * 0.062f).roundToInt()
+            val playHeight = (metrics.heightPixels * 0.075f).roundToInt()
+            val sideGap = (metrics.widthPixels * 0.088f).roundToInt()
+            val rewind = findViewById<ImageButton>(R.id.player_rewind)
+            val play = findViewById<ImageButton>(R.id.player_play)
+            val forward = findViewById<ImageButton>(R.id.player_forward)
+            rewind.layoutParams = LinearLayout.LayoutParams(centerHeight, centerHeight).apply { marginEnd = sideGap }
+            play.layoutParams = LinearLayout.LayoutParams(playHeight, playHeight)
+            forward.layoutParams = LinearLayout.LayoutParams(centerHeight, centerHeight).apply { marginStart = sideGap }
+        }
         currentTime = findViewById(R.id.player_current_time)
         durationTime = findViewById(R.id.player_duration)
         controls = findViewById(R.id.player_controls)
@@ -139,13 +153,8 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
         currentPath = path
         val rawTitle = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
-        titleView.text = if (BuildConfig.DEBUG) {
-            val prefix = intent.getStringExtra("video_prefix")
-                ?: intent.getStringExtra("video_quality").orEmpty()
-            if (prefix.isNotBlank() && !rawTitle.contains(" : ")) "$prefix : $rawTitle" else rawTitle
-        } else {
-            intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
-        }
+        titleView.text = if (BuildConfig.DEBUG) "$rawTitle : $rawTitle" else rawTitle
+        if (BuildConfig.DEBUG) titleView.isSelected = true
         val exo = ExoPlayer.Builder(this).build()
         player = exo
         playerView.player = exo
@@ -463,10 +472,9 @@ class VideoPlayerActivity : AppCompatActivity() {
                 setOnClickListener {
                     currentPath = file.absolutePath
                     titleView.text = if (BuildConfig.DEBUG) {
-                        val prefix = intent.getStringExtra("video_prefix")
-                            ?: intent.getStringExtra("video_quality").orEmpty()
-                        if (prefix.isNotBlank()) "$prefix : ${file.nameWithoutExtension}" else file.nameWithoutExtension
+                        "${file.nameWithoutExtension} : ${file.nameWithoutExtension}"
                     } else file.nameWithoutExtension
+                    if (BuildConfig.DEBUG) titleView.isSelected = true
                     player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
                     player?.prepare()
                     player?.play()
