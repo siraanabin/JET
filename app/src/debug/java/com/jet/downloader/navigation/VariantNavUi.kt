@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,6 +56,8 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import com.jet.downloader.MainActivity
 import com.jet.downloader.NavUi
 import kotlinx.serialization.Serializable
@@ -178,7 +181,10 @@ private fun FloatingTabNavigation(
         }
     }
 
-    MaterialTheme(motionScheme = MotionScheme.expressive()) {
+    // ComposeView is attached dynamically; provide a root dispatcher explicitly.
+    val navigationEventOwner = rememberNavigationEventDispatcherOwner(parent = null)
+    CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides navigationEventOwner) {
+        MaterialTheme(motionScheme = MotionScheme.expressive()) {
         Box(Modifier.fillMaxSize()) {
             NavDisplay(
                 backStack = activeBackStack,
@@ -301,5 +307,6 @@ private fun FloatingTabNavigation(
                 }
             }
         }
+    }
     }
 }
