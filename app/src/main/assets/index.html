@@ -1015,6 +1015,17 @@
           $('latest-meta').textContent = first.meta;
           $('latest-download-card').dataset.filePath = first.filePath || '';
           $('latest-download-card').dataset.fileUri = first.fileUri || '';
+          const preview = $('latest-download-card').querySelector('.relative');
+          if (preview) {
+            preview.className = 'relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden';
+            if (first.thumbnailUrl) {
+              preview.innerHTML = `<img src="${first.thumbnailUrl}" alt="" class="absolute inset-0 w-full h-full object-cover">`;
+            } else if (first.type === 'audio') {
+              preview.innerHTML = '<div class="relative w-12 h-12 rounded-full bg-[#171923] border-4 border-[#343746] flex items-center justify-center"><div class="absolute inset-1 rounded-full border border-white/10"></div><div class="w-4 h-4 rounded-full bg-slate-400 border-2 border-[#242735]"></div></div>';
+            } else {
+              preview.innerHTML = '<div class="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white"><i data-lucide="play" class="w-3.5 h-3.5"></i></div>';
+            }
+          }
         }
         renderLibrary();
       };
