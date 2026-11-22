@@ -190,7 +190,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
                 locked = true
                 showControls(false)
-                unlock.setImageResource(android.R.drawable.ic_lock_idle_unlock)
+                unlock.setImageResource(R.drawable.ic_player_unlock)
                 unlock.visibility = View.VISIBLE
                 Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
             }
@@ -496,15 +496,17 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
         }
         if (BuildConfig.DEBUG) {
-            val selectedIndex = (0 until playlist.childCount).firstOrNull {
-                playlist.getChildAt(it).tag == currentPath
-            } ?: return
-            val selectedChild = playlist.getChildAt(selectedIndex)
-            val previousChild = playlist.getChildAt(selectedIndex - 1)
-            val gap = (resources.displayMetrics.widthPixels * 0.0067f).roundToInt()
-            val scrollX = (selectedChild.left - (previousChild?.width ?: 0) - gap).coerceAtLeast(0)
             val scrollView = findViewById<HorizontalScrollView>(R.id.player_playlist_scroll)
-            scrollView.post { scrollView.smoothScrollTo(scrollX, 0) }
+            scrollView.post {
+                val selectedIndex = (0 until playlist.childCount).firstOrNull {
+                    playlist.getChildAt(it).tag == currentPath
+                } ?: return@post
+                val selectedChild = playlist.getChildAt(selectedIndex)
+                val previousChild = playlist.getChildAt(selectedIndex - 1)
+                val gap = (resources.displayMetrics.widthPixels * 0.0067f).roundToInt()
+                val scrollX = (selectedChild.left - (previousChild?.width ?: 0) - gap).coerceAtLeast(0)
+                scrollView.smoothScrollTo(scrollX, 0)
+            }
         }
     }
     private fun backgroundAudio() {
