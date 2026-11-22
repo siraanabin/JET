@@ -3,6 +3,7 @@ package com.jet.downloader
 import android.Manifest
 import android.app.DownloadManager
 import android.annotation.SuppressLint
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -23,9 +24,11 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -266,6 +269,61 @@ class MainActivity : AppCompatActivity() {
         return estimatedBytes
     }
 
+    private fun showCrashReportScreen() {
+        val reportFile = CrashReporter.pendingReportFile(this) ?: return
+        val reportText = runCatching { reportFile.readText() }
+            .getOrElse { "Could not read crash report: ${it.message}" }
+        val padding = (resources.displayMetrics.density * 20).toInt()
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding, padding, padding)
+        }
+        root.addView(TextView(this).apply {
+            text = "JET Debug crashed during the previous launch"
+            textSize = 20f
+        })
+        root.addView(TextView(this).apply {
+            text = "Share this report so the startup crash can be identified. Review it first; it may include device details or URLs."
+            textSize = 14f
+            setPadding(0, padding / 2, 0, padding / 2)
+        })
+        val details = TextView(this).apply {
+            text = reportText
+            textSize = 12f
+            setTextIsSelectable(true)
+        }
+        root.addView(ScrollView(this).apply {
+            addView(details)
+        }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+        root.addView(Button(this).apply {
+            text = "Share crash report"
+            setOnClickListener {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "JET Debug crash report")
+                    putExtra(Intent.EXTRA_TEXT, reportText)
+                }
+                startActivity(Intent.createChooser(sendIntent, "Share crash report"))
+            }
+        })
+        root.addView(Button(this).apply {
+            text = "Copy crash report"
+            setOnClickListener {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("JET Debug crash report", reportText))
+                Toast.makeText(this@MainActivity, "Crash report copied", Toast.LENGTH_SHORT).show()
+            }
+        })
+        root.addView(Button(this).apply {
+            text = "Close"
+            setOnClickListener { finishAffinity() }
+        })
+        setContentView(root)
+    }
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { /* Permissions handled */ }
@@ -273,6 +331,11 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled", "AllowFileAccessFromFileURLs")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEBUG && CrashReporter.hasPendingReport(this)) {
+            showCrashReportScreen()
+            return
+        }
+
 
         requestRuntimePermissions()
         initializeFallbackEngine()

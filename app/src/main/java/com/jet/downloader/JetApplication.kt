@@ -17,6 +17,13 @@ class JetApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.DEBUG) {
+            CrashReporter.install(this)
+            // If the previous launch crashed, keep startup dependencies untouched so
+            // MainActivity can show the saved report instead of crashing again.
+            if (CrashReporter.hasPendingReport(this)) return
+        }
+
 
         startKoin {
             androidContext(this@JetApplication)
