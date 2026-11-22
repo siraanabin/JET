@@ -102,7 +102,7 @@ tasks.configureEach {
 
 dependencies {
     // Debug-only Jetpack Compose + Navigation 3. Release keeps the original WebView UI.
-    debugImplementation(platform("androidx.compose:compose-bom:2025.01.00"))
+    debugImplementation(platform("androidx.compose:compose-bom:2025.11.00"))
     debugImplementation("androidx.activity:activity-compose:1.9.1")
     debugImplementation("androidx.compose.ui:ui")
     debugImplementation("androidx.compose.foundation:foundation")
