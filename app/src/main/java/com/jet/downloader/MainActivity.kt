@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Bitmap
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
@@ -17,6 +18,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.util.LruCache
+import android.util.Base64
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -71,6 +73,7 @@ import org.schabi.newpipe.extractor.stream.StreamInfo
 import com.jet.downloader.network.JetOkHttpDownloader
 import java.io.File
 import java.io.FileInputStream
+import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -655,6 +658,31 @@ class MainActivity : AppCompatActivity() {
         return name.replace(Regex("[^a-zA-Z0-9._ -]"), "_").trim().take(80).ifEmpty { "JET_Media" }
     }
 
+    private fun createLocalVideoThumbnailDataUrl(file: File): String {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val frame = retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: return ""
+            val scale = minOf(1.0, 320.0 / frame.width, 180.0 / frame.height)
+            val width = (frame.width * scale).toInt().coerceAtLeast(1)
+            val height = (frame.height * scale).toInt().coerceAtLeast(1)
+            val bitmap = if (width != frame.width || height != frame.height) {
+                Bitmap.createScaledBitmap(frame, width, height, true).also { frame.recycle() }
+            } else frame
+            ByteArrayOutputStream().use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 68, output)
+                bitmap.recycle()
+                "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+            }
+        } catch (error: Exception) {
+            Log.w("JET-Library", "Unable to create video thumbnail for ${file.name}", error)
+            ""
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
     private fun pushScannedLibraryToWeb() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -697,7 +725,7 @@ class MainActivity : AppCompatActivity() {
                         duration = duration,
                         filePath = f.absolutePath,
                         fileUri = Uri.fromFile(f).toString(),
-                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty(),
+                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl?.takeIf { it.isNotBlank() } ?: if (type == "video") createLocalVideoThumbnailDataUrl(f) else "",
                         size = formatBytes(f.length()),
                         format = ext
                     )
