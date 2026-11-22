@@ -76,6 +76,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var multiTouchGesture = false
     private lateinit var scaleDetector: ScaleGestureDetector
     private val playerPrefs by lazy { getSharedPreferences("player_settings", MODE_PRIVATE) }
+    private fun appSettingsForPlayer() = getSharedPreferences("app_settings", MODE_PRIVATE)
     private var controlsVisible = true
     private var scrubbing = false
     private var gestureMode = 0 // 1 brightness, 2 volume, 3 seek
@@ -114,7 +115,11 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (appSettingsForPlayer().getString("player_keep_screen_on", "true") != "false") {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         setContentView(R.layout.activity_video_player)
         applyImmersivePlayerMode()
         playerView = findViewById(R.id.player_view)
@@ -146,7 +151,8 @@ class VideoPlayerActivity : AppCompatActivity() {
         titleView.text = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
         titleView.isSelected = true
         aspect = playerPrefs.getInt("aspect", 0).coerceIn(0, 2)
-        playbackSpeed = playerPrefs.getFloat("speed", 1f).coerceIn(0.25f, 3f)
+        val configuredSpeed = appSettingsForPlayer().getString("player_default_speed", "1.0")?.toFloatOrNull() ?: 1f
+        playbackSpeed = playerPrefs.getFloat("speed", configuredSpeed).coerceIn(0.25f, 3f)
         repeatEnabled = playerPrefs.getBoolean("repeat", false)
         muted = playerPrefs.getBoolean("muted", false)
         findViewById<TextView>(R.id.player_speed_label).text = String.format(Locale.US, "%.2gx", playbackSpeed)

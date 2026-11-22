@@ -308,18 +308,18 @@
           <p class="text-xs font-medium text-app-secondary mt-0.5">DataStore preferences &amp; open-source stack</p>
         </header>
 
-        <!-- Preferences (Persisted via AndroidX DataStore) -->
-        <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
-          <div class="p-4 flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-bold text-app-text">Dark Mode</p>
-              <p class="text-[11px] text-app-secondary">Saved with AndroidX DataStore</p>
-            </div>
-            <button id="settings-dark-toggle" type="button" role="switch" aria-checked="false"
-              class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center">
-              <span id="settings-dark-thumb" class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span>
-            </button>
+        <div class="surface-card rounded-3xl p-4 space-y-3">
+          <div><p class="text-xs font-bold text-app-text">Appearance</p><p class="text-[11px] text-app-secondary">Choose how JET follows your device theme</p></div>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" data-theme-mode="system" class="theme-mode-btn rounded-xl border border-app-border px-2 py-2 text-xs font-bold">System</button>
+            <button type="button" data-theme-mode="dark" class="theme-mode-btn rounded-xl border border-app-border px-2 py-2 text-xs font-bold">Dark</button>
+            <button type="button" data-theme-mode="light" class="theme-mode-btn rounded-xl border border-app-border px-2 py-2 text-xs font-bold">Light</button>
           </div>
+        </div>
+        <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+          <button type="button" data-nav-target="player-settings" class="w-full p-4 flex items-center justify-between text-left"><span><span class="block text-xs font-bold text-app-text">Player Settings</span><span class="text-[11px] text-app-secondary">Playback speed and screen behavior</span></span><i data-lucide="chevron-right" class="w-4 h-4 text-app-muted"></i></button>
+          <button type="button" data-nav-target="download-settings" class="w-full p-4 flex items-center justify-between text-left"><span><span class="block text-xs font-bold text-app-text">Download Settings</span><span class="text-[11px] text-app-secondary">Default quality and subtitles</span></span><i data-lucide="chevron-right" class="w-4 h-4 text-app-muted"></i></button>
+        </div>
 
           <div class="p-4 flex items-center justify-between gap-3">
             <div>
@@ -394,6 +394,22 @@
         </div>
 
         <p class="text-center text-[11px] text-app-muted pb-2">JET · Download at Full Speed.</p>
+      </section>
+      <section id="screen-player-settings" class="hidden screen-fade space-y-4">
+        <button type="button" data-nav-target="settings" class="text-xs font-bold text-app-primary">‹ Back to Settings</button><h1 class="text-2xl font-extrabold text-app-text">Player Settings</h1>
+        <div class="surface-card rounded-3xl p-4 space-y-4">
+          <label class="block text-xs font-bold text-app-text" for="player-default-speed">Default playback speed</label>
+          <select id="player-default-speed" class="w-full rounded-xl border border-app-border bg-app-elevated p-3 text-sm text-app-text"><option value="0.5">0.5×</option><option value="1.0">1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2.0">2.0×</option></select>
+          <label class="flex items-center justify-between text-xs font-bold text-app-text">Keep screen on during playback<input id="player-keep-screen-on" type="checkbox" class="h-5 w-5 accent-current" /></label>
+        </div>
+      </section>
+      <section id="screen-download-settings" class="hidden screen-fade space-y-4">
+        <button type="button" data-nav-target="settings" class="text-xs font-bold text-app-primary">‹ Back to Settings</button><h1 class="text-2xl font-extrabold text-app-text">Download Settings</h1>
+        <div class="surface-card rounded-3xl p-4 space-y-4">
+          <label class="block text-xs font-bold text-app-text" for="download-default-height">Default video quality</label>
+          <select id="download-default-height" class="w-full rounded-xl border border-app-border bg-app-elevated p-3 text-sm text-app-text"><option value="360">360p</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option><option value="1440">1440p</option><option value="2160">4K</option></select>
+          <label class="flex items-center justify-between text-xs font-bold text-app-text">Include subtitles by default<input id="download-include-subtitles" type="checkbox" class="h-5 w-5 accent-current" /></label>
+        </div>
       </section>
     </main>
 
@@ -693,7 +709,7 @@
       // Navigation
       function switchScreen(target) {
         state.screen = target;
-        ['home', 'downloads', 'library', 'settings'].forEach((s) => {
+        ['home', 'downloads', 'library', 'settings', 'player-settings', 'download-settings'].forEach((s) => {
           const sec = $('screen-' + s);
           if (sec) sec.classList.toggle('hidden', s !== target);
         });
@@ -753,8 +769,34 @@
         }
       }
 
-      $('topbar-theme-btn').addEventListener('click', () => applyTheme(!state.darkMode, true));
-      $('settings-dark-toggle').addEventListener('click', () => applyTheme(!state.darkMode, true));
+      function readAppSetting(key, fallback) {
+        if (hasAndroid() && window.JetAndroid.getAppPreference) return window.JetAndroid.getAppPreference(key, fallback);
+        try { return localStorage.getItem('jet_' + key) || fallback; } catch (_) { return fallback; }
+      }
+      function saveAppSetting(key, value) {
+        if (hasAndroid() && window.JetAndroid.setAppPreference) window.JetAndroid.setAppPreference(key, String(value));
+        try { localStorage.setItem('jet_' + key, String(value)); } catch (_) {}
+      }
+      function applyThemeMode(mode, persist = true) {
+        state.themeMode = ['system', 'dark', 'light'].includes(mode) ? mode : 'system';
+        const dark = state.themeMode === 'dark' || (state.themeMode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        applyTheme(Boolean(dark), false);
+        document.querySelectorAll('[data-theme-mode]').forEach((button) => {
+          const active = button.dataset.themeMode === state.themeMode;
+          button.classList.toggle('bg-app-primary', active); button.classList.toggle('text-white', active); button.classList.toggle('border-app-primary', active);
+        });
+        if (persist) saveAppSetting('theme_mode', state.themeMode);
+        if (hasAndroid() && window.JetAndroid.setStatusBarTheme) window.JetAndroid.setStatusBarTheme(Boolean(dark));
+      }
+      document.querySelectorAll('[data-theme-mode]').forEach((button) => button.addEventListener('click', () => applyThemeMode(button.dataset.themeMode, true)));
+      $('topbar-theme-btn').addEventListener('click', () => applyThemeMode(state.themeMode === 'dark' ? 'light' : 'dark', true));
+      const playerSpeedSetting = $('player-default-speed'), keepScreenSetting = $('player-keep-screen-on');
+      const downloadHeightSetting = $('download-default-height'), subtitlesSetting = $('download-include-subtitles');
+      if (playerSpeedSetting) { playerSpeedSetting.value = readAppSetting('player_default_speed', '1.0'); playerSpeedSetting.addEventListener('change', () => saveAppSetting('player_default_speed', playerSpeedSetting.value)); }
+      if (keepScreenSetting) { keepScreenSetting.checked = readAppSetting('player_keep_screen_on', 'true') !== 'false'; keepScreenSetting.addEventListener('change', () => saveAppSetting('player_keep_screen_on', keepScreenSetting.checked)); }
+      if (downloadHeightSetting) { downloadHeightSetting.value = readAppSetting('download_default_height', '1080'); const getQualityId = (height) => ({ '1440': 'vid-2k', '2160': 'vid-4k' }[String(height)] || 'vid-' + height); state.selectedFormatId = getQualityId(downloadHeightSetting.value); downloadHeightSetting.addEventListener('change', () => { saveAppSetting('download_default_height', downloadHeightSetting.value); state.selectedFormatId = getQualityId(downloadHeightSetting.value); }); }
+      if (subtitlesSetting) { subtitlesSetting.checked = readAppSetting('download_include_subtitles', 'false') === 'true'; subtitlesSetting.addEventListener('change', () => { saveAppSetting('download_include_subtitles', subtitlesSetting.checked); state.ccEnabled = subtitlesSetting.checked; }); }
+      state.themeMode = readAppSetting('theme_mode', 'system'); applyThemeMode(state.themeMode, false);
       $('clipboard-pref-toggle').addEventListener('click', () => applyClipboardToggle(!state.clipboardAutoDetect, true));
 
       // Open-source software modal
@@ -875,8 +917,8 @@
       }
 
       // Native Android Bridge Callbacks
-      window.onNativePreferencesLoaded = function (isDark, clipEnabled) {
-        applyTheme(Boolean(isDark), false);
+      window.onNativePreferencesLoaded = function (isDark, clipEnabled, themeMode) {
+        applyThemeMode(themeMode || readAppSetting('theme_mode', 'system'), false);
         applyClipboardToggle(Boolean(clipEnabled), false);
       };
 
@@ -1594,10 +1636,8 @@
           $('format-modal').classList.add('hidden');
           return true;
         }
-        if (state.screen !== 'home') {
-          switchScreen('home');
-          return true;
-        }
+        if (state.screen === 'player-settings' || state.screen === 'download-settings') { switchScreen('settings'); return true; }
+        if (state.screen !== 'home') { switchScreen('home'); return true; }
         return false;
       };
 

@@ -89,6 +89,7 @@ class MainActivity : AppCompatActivity() {
     private val downloadDao: DownloadDao by inject()
     private val preferencesManager: PreferencesManager by inject()
     private val json: Json by inject()
+    private val appSettings by lazy { getSharedPreferences("app_settings", MODE_PRIVATE) }
 
     private lateinit var rootContainer: FrameLayout
     private lateinit var webView: WebView
@@ -518,7 +519,8 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val isDark = preferencesManager.darkModeFlow.first()
             val clipEnabled = preferencesManager.clipboardDetectFlow.first()
-            callJs("onNativePreferencesLoaded", "$isDark, $clipEnabled")
+            val themeMode = appSettings.getString("theme_mode", "system") ?: "system"
+            callJs("onNativePreferencesLoaded", "$isDark, $clipEnabled, ${org.json.JSONObject.quote(themeMode)}")
         }
     }
 
@@ -850,6 +852,25 @@ class MainActivity : AppCompatActivity() {
                 preferencesManager.setDarkMode(isDark)
             }
             runOnUiThread { applySystemBarTheme(isDark) }
+        }
+
+        @JavascriptInterface
+        fun setAppPreference(key: String, value: String) {
+            val allowed = setOf("theme_mode", "player_default_speed", "player_keep_screen_on",
+                "download_default_height", "download_include_subtitles")
+            if (key !in allowed) return
+            appSettings.edit().putString(key, value.take(80)).apply()
+            if (key == "player_default_speed") {
+                getSharedPreferences("player_settings", MODE_PRIVATE).edit().remove("speed").apply()
+            }
+        }
+
+        @JavascriptInterface
+        fun getAppPreference(key: String, defaultValue: String): String {
+            val allowed = setOf("theme_mode", "player_default_speed", "player_keep_screen_on",
+                "download_default_height", "download_include_subtitles")
+            if (key !in allowed) return defaultValue
+            return appSettings.getString(key, defaultValue) ?: defaultValue
         }
 
         @JavascriptInterface
