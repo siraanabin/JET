@@ -108,6 +108,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         fadeHud(leftTapHud); fadeHud(rightTapHud); fadeHud(zoomHud)
     }
     private val hideControls = Runnable { if (!locked && player?.isPlaying == true) showControls(false) }
+    private val hideIsolatedHudContainer = Runnable {
+        if (!controlsVisible && ::controls.isInitialized) controls.visibility = View.GONE
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -395,6 +398,9 @@ class VideoPlayerActivity : AppCompatActivity() {
                         seekPill.alpha = 1f
                     } else if (gestureMode != 0) {
                         handler.postDelayed(hideHud, 400L)
+                        if (gestureMode == 1 || gestureMode == 2) {
+                            handler.postDelayed(hideIsolatedHudContainer, 650L)
+                        }
                     }
                     if (gestureMode == 3) handler.postDelayed(hideControls, 3500L)
                     gestureMode = 0
@@ -403,7 +409,12 @@ class VideoPlayerActivity : AppCompatActivity() {
                     seekPill.animate().cancel()
                     seekPill.visibility = View.GONE
                     seekPill.alpha = 1f
-                    if (gestureMode != 0) handler.postDelayed(hideHud, 400L)
+                    if (gestureMode != 0) {
+                        handler.postDelayed(hideHud, 400L)
+                        if (gestureMode == 1 || gestureMode == 2) {
+                            handler.postDelayed(hideIsolatedHudContainer, 650L)
+                        }
+                    }
                     gestureMode = 0
                 }
             }
@@ -451,7 +462,17 @@ class VideoPlayerActivity : AppCompatActivity() {
         seekPill.alpha = 1f
     }
 
+    private fun revealHudWithoutControls() {
+        if (controlsVisible) return
+        handler.removeCallbacks(hideIsolatedHudContainer)
+        controls.visibility = View.VISIBLE
+        topBar.visibility = View.GONE
+        bottomPanel.visibility = View.GONE
+        centerControls.visibility = View.GONE
+    }
+
     private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
+        revealHudWithoutControls()
         findViewById<TextView>(if (hud.id == R.id.player_brightness_hud) R.id.player_brightness_icon else R.id.player_volume_icon).text = glyph
         val isBrightness = hud.id == R.id.player_brightness_hud
         findViewById<TextView>(if (isBrightness) R.id.player_hud_percent else R.id.player_volume_percent).text =
@@ -466,9 +487,11 @@ class VideoPlayerActivity : AppCompatActivity() {
         hud.alpha = 1f
     }
     private fun showHud(view: View) {
+        revealHudWithoutControls()
         handler.removeCallbacks(hideHud)
         view.animate().cancel(); view.visibility = View.VISIBLE; view.alpha = 1f
         handler.postDelayed(hideHud, 400L)
+        if (!controlsVisible) handler.postDelayed(hideIsolatedHudContainer, 650L)
     }
     private fun fadeHud(view: View) {
         if (view.visibility != View.VISIBLE) return
@@ -477,6 +500,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showControls(show: Boolean) {
         controlsVisible = show
         handler.removeCallbacks(hideControls)
+        handler.removeCallbacks(hideIsolatedHudContainer)
         val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
             controls.visibility = View.VISIBLE
