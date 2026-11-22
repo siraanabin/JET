@@ -43,6 +43,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
@@ -302,13 +303,33 @@ class MainActivity : AppCompatActivity() {
 
     private val streamInfoFailureAt = ConcurrentHashMap<String, Long>()
 
+    // Notification and legacy startup permissions remain separate from Library media access.
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            results[Manifest.permission.READ_MEDIA_VIDEO] == true && results[Manifest.permission.READ_MEDIA_AUDIO] == true
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
         } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         if (granted) pushScannedLibraryToWeb()
+    }
+
+    private val libraryPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        val hasVideo = hasVideoReadPermission()
+        val hasAudio = hasAudioReadPermission()
+        val state = when {
+            hasVideo && hasAudio -> "granted"
+            hasVideo || hasAudio -> "partial"
+            else -> "denied"
+        }
+        callJs("onNativeLibraryPermissionState", JSONObject.quote(state))
+        if (hasVideo || hasAudio) {
+            pushScannedLibraryToWeb()
+        } else {
+            Toast.makeText(this, "Allow audio and video access to load your Library.", Toast.LENGTH_LONG).show()
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AllowFileAccessFromFileURLs")
@@ -432,6 +453,17 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         if (::networkMonitor.isInitialized) networkMonitor.stop()
         super.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::webView.isInitialized && (hasVideoReadPermission() || hasAudioReadPermission())) {
+            webView.post {
+                if (::webView.isInitialized) {
+                    webView.evaluateJavascript("if (window.onNativeAppResumed) window.onNativeAppResumed();", null)
+                }
+            }
+        }
     }
 
     private fun setupNativeMedia3PlayerOverlay() {
@@ -961,11 +993,60 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun hasMediaReadPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+    private fun hasVideoReadPermission(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
         } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasAudioReadPermission(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+        } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasMediaReadPermission(): Boolean = hasVideoReadPermission() && hasAudioReadPermission()
+
+    private fun requestLibraryMediaPermissions() {
+        runOnUiThread {
+            val missing = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                buildList {
+                    if (!hasVideoReadPermission()) add(Manifest.permission.READ_MEDIA_VIDEO)
+                    if (!hasAudioReadPermission()) add(Manifest.permission.READ_MEDIA_AUDIO)
+                }
+            } else if (!hasMediaReadPermission()) {
+                listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            } else emptyList()
+
+            if (missing.isEmpty()) {
+                callJs("onNativeLibraryPermissionState", JSONObject.quote("granted"))
+                pushScannedLibraryToWeb()
+                return@runOnUiThread
+            }
+
+            val permissionPrefs = getSharedPreferences("jet_library_permissions", Context.MODE_PRIVATE)
+            val requestedBefore = permissionPrefs.getBoolean("media_permissions_requested", false)
+            val canExplain = missing.any { shouldShowRequestPermissionRationale(it) }
+
+            if (requestedBefore && !canExplain) {
+                AlertDialog.Builder(this)
+                    .setTitle("Media access needed")
+                    .setMessage("Allow JET to access audio and video files so the Library can scan your device. Enable the missing permissions in App settings.")
+                    .setPositiveButton("Open settings") { _, _ ->
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:$packageName")
+                        })
+                    }
+                    .setNegativeButton("Not now") { _, _ ->
+                        callJs("onNativeLibraryPermissionState", JSONObject.quote(if (hasVideoReadPermission() || hasAudioReadPermission()) "partial" else "denied"))
+                        if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb()
+                    }
+                    .show()
+                return@runOnUiThread
+            }
+
+            permissionPrefs.edit().putBoolean("media_permissions_requested", true).apply()
+            callJs("onNativeLibraryPermissionState", JSONObject.quote("requesting"))
+            libraryPermissionLauncher.launch(missing.toTypedArray())
+        }
     }
 
     private fun isMobileDataConnected(): Boolean {
@@ -1611,11 +1692,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun refreshLibrary() {
-            if (!hasMediaReadPermission()) {
-                requestRuntimePermissions()
-                return
-            }
-            pushScannedLibraryToWeb()
+            requestLibraryMediaPermissions()
         }
 
         @JavascriptInterface

@@ -1178,6 +1178,28 @@
         showToast(`Error: ${data.error || 'Download failed'}`);
       };
 
+      window.onNativeLibraryPermissionState = function (permissionState) {
+        const label = $('library-location-label');
+        const container = $('library-items-container');
+        if (permissionState === 'requesting') {
+          label.textContent = 'Requesting audio and video access…';
+          container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Allow media access in the Android permission prompt to scan your device.</div>';
+        } else if (permissionState === 'denied') {
+          label.textContent = 'Media access is required to scan device files';
+          container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Media access was not granted. Open Library again and allow audio and video access, or enable it in Android App settings.</div>';
+        } else if (permissionState === 'partial') {
+          label.textContent = 'Partial media access · showing permitted files';
+        } else if (permissionState === 'granted') {
+          label.textContent = 'Access granted · scanning device media…';
+        }
+      };
+
+      window.onNativeAppResumed = function () {
+        if (state.screen === 'library' && hasAndroid() && window.JetAndroid.refreshLibrary) {
+          window.JetAndroid.refreshLibrary();
+        }
+      };
+
       window.onNativeLibraryList = function (list) {
         if (!Array.isArray(list)) return;
         $('library-location-label').textContent = 'All device audio and video · ' + list.length + ' files';
