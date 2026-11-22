@@ -143,8 +143,9 @@
                 android:id="@+id/player_close"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
+                android:rotation="90"
                 android:background="@android:color/transparent"
-                android:contentDescription="Back"
+                android:contentDescription="Minimize"
                 android:src="@drawable/ic_player_back"
                 android:layout_marginEnd="14dp"
                 android:tint="#FFFFFF" />
@@ -174,32 +175,32 @@
                 android:textStyle="bold"
                 android:visibility="visible" />
 
-            <TextView
+            <ImageButton
                 android:id="@+id/player_more"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@drawable/bg_player_toolbar_btn"
-                android:gravity="center"
-                android:text="⋮"
-                android:textColor="#FFFFFF"
-                android:textSize="24sp"
+                android:src="@drawable/ic_player_more"
+                android:tint="#FFFFFF"
                 android:contentDescription="More player options" />
 
             <TextView
                 android:id="@+id/player_battery"
-                android:layout_width="52dp"
+                android:layout_width="48dp"
                 android:layout_height="wrap_content"
+                android:drawableStart="@drawable/ic_player_battery"
+                android:drawablePadding="3dp"
                 android:gravity="center"
-                android:text="▰ --%"
+                android:text="--%"
                 android:textColor="#DDFFFFFF"
                 android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/player_clock"
-                android:layout_width="42dp"
+                android:layout_width="76dp"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="00:00"
+                android:text="00:00 am"
                 android:textColor="#DDFFFFFF"
                 android:textSize="12sp" />
         </LinearLayout>
