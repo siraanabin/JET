@@ -417,7 +417,36 @@ class VideoPlayerActivity : AppCompatActivity() {
         val files = folder?.listFiles()?.filter { it.isFile && it.extension.lowercase(Locale.US) in
             setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "mp3", "m4a", "opus") }
             ?.sortedByDescending { it.lastModified() }.orEmpty()
-        files.forEach { file ->
+        val displayFiles: List<File?> = if (BuildConfig.DEBUG) {
+            val currentIndex = files.indexOfFirst { it.absolutePath == currentPath }
+            val window = mutableListOf<File?>()
+            if (currentIndex <= 0) window.add(null) else window.add(files[currentIndex - 1])
+            if (currentIndex >= 0) {
+                window.add(files[currentIndex])
+                window.addAll(files.drop(currentIndex + 1).take(2))
+            } else {
+                window.add(files.firstOrNull())
+                window.addAll(files.drop(1).take(2))
+            }
+            while (window.size < 4) window.add(null)
+            window.take(4)
+        } else {
+            files.map { it }
+        }
+        displayFiles.forEach { file ->
+            if (file == null) {
+                val placeholder = FrameLayout(this).apply {
+                    val metrics = resources.displayMetrics
+                    layoutParams = LinearLayout.LayoutParams(
+                        (metrics.widthPixels * 0.0975f).roundToInt(),
+                        (metrics.heightPixels * 0.1194f).roundToInt()
+                    ).apply { marginEnd = (metrics.widthPixels * 0.0067f).roundToInt() }
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    tag = null
+                }
+                playlist.addView(placeholder)
+                return@forEach
+            }
             val card = FrameLayout(this).apply {
                 layoutParams = if (BuildConfig.DEBUG) {
                     val metrics = resources.displayMetrics
