@@ -12,6 +12,10 @@ val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 
 android {
+    buildFeatures {
+        buildConfig = true
+    }
+
     namespace = "com.jet.downloader"
     compileSdk = 34
 
