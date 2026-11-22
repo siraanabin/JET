@@ -134,7 +134,6 @@
             <TextView android:id="@+id/player_right_tap_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_gravity="center" android:text="10s »" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" />
         </FrameLayout>
-    </FrameLayout>
     <androidx.media3.ui.DefaultTimeBar
         android:id="@+id/player_seek" android:layout_width="667dp" android:layout_height="38dp"
         android:layout_gravity="bottom|start" android:layout_marginStart="94dp" android:layout_marginBottom="73dp"
@@ -142,6 +141,7 @@
         app:bar_height="5dp" app:touch_target_height="38dp" app:scrubber_enabled_size="16dp"
         app:scrubber_dragged_size="22dp" app:played_color="#FFFFFFFF" app:scrubber_color="#FFFFFFFF"
         app:buffered_color="#66FFFFFF" app:unplayed_color="#55FFFFFF" />
+    </FrameLayout>
     <TextView android:id="@+id/player_seek_pill" android:layout_width="wrap_content"
         android:layout_height="wrap_content" android:layout_gravity="center"
         android:translationY="-54dp" android:paddingHorizontal="20dp" android:paddingVertical="10dp"
