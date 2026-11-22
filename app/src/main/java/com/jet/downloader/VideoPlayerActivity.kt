@@ -596,8 +596,15 @@ class VideoPlayerActivity : AppCompatActivity() {
             setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "mp3", "m4a", "opus") }
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
+            val thumbnailWidth = (resources.displayMetrics.widthPixels * 0.0975f).roundToInt()
+            val thumbnailHeight = (resources.displayMetrics.heightPixels * 0.1194f).roundToInt()
+            val thumbnailGap = (resources.displayMetrics.widthPixels * 0.0067f).roundToInt()
+            val selectedThumbnailWidth = (resources.displayMetrics.widthPixels * 0.1117f).roundToInt()
+            val selectedThumbnailHeight = (resources.displayMetrics.heightPixels * 0.1519f).roundToInt()
             val card = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(56), dp(36)).apply { marginEnd = dp(3) }
+                layoutParams = LinearLayout.LayoutParams(thumbnailWidth, thumbnailHeight).apply {
+                    marginEnd = thumbnailGap
+                }
                 tag = file.absolutePath
                 background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
                 clipToOutline = true
@@ -673,8 +680,24 @@ class VideoPlayerActivity : AppCompatActivity() {
             val child = playlist.getChildAt(i)
             val selected = child.tag == currentPath
             child.setBackgroundResource(if (selected) R.drawable.player_playlist_selected else R.drawable.player_playlist_item)
-            child.scaleX = if (selected) 1.05f else 1f
-            child.scaleY = if (selected) 1.05f else 1f
+            val params = child.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
+            val targetWidth = if (selected) {
+                (resources.displayMetrics.widthPixels * 0.1117f).roundToInt()
+            } else {
+                (resources.displayMetrics.widthPixels * 0.0975f).roundToInt()
+            }
+            val targetHeight = if (selected) {
+                (resources.displayMetrics.heightPixels * 0.1519f).roundToInt()
+            } else {
+                (resources.displayMetrics.heightPixels * 0.1194f).roundToInt()
+            }
+            if (params.width != targetWidth || params.height != targetHeight) {
+                params.width = targetWidth
+                params.height = targetHeight
+                child.layoutParams = params
+            }
+            child.scaleX = 1f
+            child.scaleY = 1f
         }
     }
     private fun backgroundAudio() {
