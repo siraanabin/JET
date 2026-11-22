@@ -70,6 +70,7 @@ import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
+@androidx.media3.common.util.UnstableApi
 class MainActivity : AppCompatActivity() {
 
     private val okHttpClient: OkHttpClient by inject()
