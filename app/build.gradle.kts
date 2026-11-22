@@ -19,7 +19,7 @@ android {
     }
 
     namespace = "com.jet.downloader"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.jet.downloader"
