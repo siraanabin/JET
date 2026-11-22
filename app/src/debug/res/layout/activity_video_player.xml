@@ -147,7 +147,7 @@
                 android:contentDescription="Minimize"
                 android:src="@drawable/ic_player_chevron_down"
                 android:layout_marginEnd="14dp"
-                android:tint="#FFFFFF" />
+                app:tint="#FFFFFF" />
 
             <TextView
                 android:id="@+id/player_title"
@@ -180,7 +180,7 @@
                 android:layout_height="40dp"
                 android:background="@drawable/bg_player_toolbar_btn"
                 android:src="@drawable/ic_player_more"
-                android:tint="#FFFFFF"
+                app:tint="#FFFFFF"
                 android:contentDescription="More player options" />
 
             <TextView
@@ -224,7 +224,7 @@
                 android:background="@drawable/bg_player_toolbar_btn"
                 android:contentDescription="Rewind 10 seconds"
                 android:src="@drawable/ic_player_rewind"
-                android:tint="#FFFFFF" />
+                app:tint="#FFFFFF" />
 
             <ImageButton
                 android:id="@+id/player_play"
@@ -234,7 +234,7 @@
                 android:contentDescription="Play or pause"
                 android:padding="0dp"
                 android:src="@drawable/ic_player_play"
-                android:tint="#FFFFFF" />
+                app:tint="#FFFFFF" />
 
             <ImageButton
                 android:id="@+id/player_forward"
@@ -244,7 +244,7 @@
                 android:background="@drawable/bg_player_toolbar_btn"
                 android:contentDescription="Forward 10 seconds"
                 android:src="@drawable/ic_player_forward"
-                android:tint="#FFFFFF" />
+                app:tint="#FFFFFF" />
         </LinearLayout>
 
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -376,7 +376,7 @@
                         android:layout_weight="1"
                         android:padding="9dp"
                         android:background="@drawable/bg_player_toolbar_btn"
-                        android:tint="#FFFFFF"
+                        app:tint="#FFFFFF"
                         android:contentDescription="Unlock controls"
                         android:src="@drawable/ic_player_unlock" />
 
@@ -387,7 +387,7 @@
                         android:layout_weight="1"
                         android:padding="9dp"
                         android:background="@drawable/bg_player_toolbar_btn"
-                        android:tint="#FFFFFF"
+                        app:tint="#FFFFFF"
                         android:contentDescription="Volume"
                         android:src="@drawable/ic_player_speaker" />
 
@@ -398,7 +398,7 @@
                         android:layout_weight="1"
                         android:padding="9dp"
                         android:background="@drawable/bg_player_toolbar_btn"
-                        android:tint="#FFFFFF"
+                        app:tint="#FFFFFF"
                         android:contentDescription="Picture in picture"
                         android:src="@drawable/ic_player_pip" />
 
@@ -409,7 +409,7 @@
                         android:layout_weight="1"
                         android:padding="9dp"
                         android:background="@drawable/bg_player_toolbar_btn"
-                        android:tint="#FFFFFF"
+                        app:tint="#FFFFFF"
                         android:contentDescription="Resize mode"
                         android:src="@drawable/ic_player_fit_fill" />
 
@@ -425,7 +425,7 @@
                             android:background="@drawable/bg_player_toolbar_btn"
                             android:contentDescription="Playback speed"
                             android:src="@drawable/ic_player_speed_dashed"
-                            android:tint="#FFFFFF" />
+                            app:tint="#FFFFFF" />
                         <TextView
                             android:id="@+id/player_speed_label"
                             android:visibility="gone"
@@ -449,7 +449,7 @@
                         android:layout_weight="1"
                         android:padding="9dp"
                         android:background="@drawable/bg_player_toolbar_btn"
-                        android:tint="#FFFFFF"
+                        app:tint="#FFFFFF"
                         android:contentDescription="Background audio"
                         android:src="@drawable/ic_player_headphones_ref" />
 
@@ -468,7 +468,7 @@
                         android:layout_weight="1"
                         android:padding="9dp"
                         android:background="@drawable/bg_player_toolbar_btn"
-                        android:tint="#FFFFFF"
+                        app:tint="#FFFFFF"
                         android:contentDescription="Rotate"
                         android:src="@drawable/ic_player_rotate_screen" />
                 </LinearLayout>
@@ -551,7 +551,7 @@
                 android:layout_width="24dp"
                 android:layout_height="28dp"
                 android:src="@drawable/ic_player_music_note"
-                android:tint="#FFFFFF"
+                app:tint="#FFFFFF"
                 android:contentDescription="Volume" />
             <ProgressBar
                 android:id="@+id/player_volume_progress"
@@ -681,7 +681,7 @@
         android:padding="12dp"
         android:background="@drawable/bg_player_toolbar_btn"
         android:contentDescription="Unlock controls"
-        android:tint="#FFFFFF"
+        app:tint="#FFFFFF"
         android:src="@drawable/ic_player_unlock"
         android:visibility="gone" />
 </FrameLayout>
