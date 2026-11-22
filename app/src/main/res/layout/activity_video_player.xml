@@ -84,31 +84,27 @@
             </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout android:id="@+id/player_brightness_hud" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="bottom|start" android:layout_marginStart="12dp" android:layout_marginBottom="106dp"
-            android:gravity="center" android:orientation="vertical" android:padding="0dp"
-            android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
-            <ImageView android:id="@+id/player_brightness_icon" android:layout_width="34dp" android:layout_height="34dp"
+        <LinearLayout android:id="@+id/player_brightness_hud" android:layout_width="46dp" android:layout_height="168dp"
+            android:layout_gravity="center_vertical|end" android:layout_marginEnd="24dp" android:gravity="center"
+            android:orientation="vertical" android:padding="8dp" android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
+            <ImageView android:id="@+id/player_brightness_icon" android:layout_width="28dp" android:layout_height="28dp"
                 android:contentDescription="Brightness" android:src="@drawable/ic_player_brightness" android:tint="#FFFFFF" />
             <ProgressBar android:id="@+id/player_hud_progress" style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="32dp" android:layout_height="196dp" android:padding="8dp" android:layout_gravity="start"
+                android:layout_width="6dp" android:layout_height="96dp"
                 android:progressDrawable="@drawable/bg_player_vertical_progress" android:max="100" />
             <TextView android:id="@+id/player_hud_percent" android:layout_width="56dp" android:layout_height="wrap_content"
-                android:layout_marginTop="4dp" android:gravity="center" android:maxLines="1" android:singleLine="true"
-                android:includeFontPadding="false" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
+                android:layout_marginTop="8dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
         </LinearLayout>
-        <LinearLayout android:id="@+id/player_volume_hud" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end" android:layout_marginEnd="12dp" android:layout_marginBottom="106dp"
-            android:gravity="center" android:orientation="vertical" android:padding="0dp"
-            android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
-            <ImageView android:id="@+id/player_volume_icon" android:layout_width="50dp" android:layout_height="50dp" android:padding="8dp"
+        <LinearLayout android:id="@+id/player_volume_hud" android:layout_width="46dp" android:layout_height="168dp"
+            android:layout_gravity="center_vertical|start" android:layout_marginStart="24dp" android:gravity="center"
+            android:orientation="vertical" android:padding="8dp" android:background="@drawable/bg_player_hud_pill" android:visibility="gone">
+            <ImageView android:id="@+id/player_volume_icon" android:layout_width="28dp" android:layout_height="28dp"
                 android:contentDescription="Volume" android:src="@drawable/ic_player_volume_on" android:tint="#FFFFFF" />
             <ProgressBar style="?android:attr/progressBarStyleHorizontal" android:id="@+id/player_volume_progress"
-                android:layout_width="32dp" android:layout_height="196dp" android:padding="8dp" android:layout_gravity="end"
+                android:layout_width="6dp" android:layout_height="96dp"
                 android:progressDrawable="@drawable/bg_player_vertical_progress" android:max="100" />
             <TextView android:id="@+id/player_volume_percent" android:layout_width="56dp" android:layout_height="wrap_content"
-                android:layout_marginTop="4dp" android:gravity="center" android:maxLines="1" android:singleLine="true"
-                android:includeFontPadding="false" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
+                android:layout_marginTop="8dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="11sp" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/player_seek_hud" android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -136,7 +132,7 @@
         </FrameLayout>
     <androidx.media3.ui.DefaultTimeBar
         android:id="@+id/player_seek" android:layout_width="667dp" android:layout_height="38dp"
-        android:layout_gravity="bottom|start" android:layout_marginStart="94dp" android:layout_marginBottom="73dp"
+        android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="73dp"
         android:paddingStart="14dp" android:paddingEnd="14dp"
         app:bar_height="5dp" app:touch_target_height="38dp" app:scrubber_enabled_size="16dp"
         app:scrubber_dragged_size="22dp" app:played_color="#FFFFFFFF" app:scrubber_color="#FFFFFFFF"
