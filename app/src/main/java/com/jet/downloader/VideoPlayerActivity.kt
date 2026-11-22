@@ -90,7 +90,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
-            if (level >= 0) findViewById<TextView>(R.id.player_battery).text = "${level * 100 / scale}%"
+            if (level >= 0) findViewById<TextView>(R.id.player_battery).text = "▰ ${level * 100 / scale}%"
         }
     }
     private val progress = object : Runnable {
@@ -404,7 +404,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
         val isBrightness = hud.id == R.id.player_brightness_hud
         if (isBrightness) {
-            findViewById<ImageView>(R.id.player_brightness_icon).setImageResource(R.drawable.ic_player_brightness)
+            findViewById<TextView>(R.id.player_brightness_icon).text = glyph
         } else {
             updateVolumeIcon((fraction * 100).roundToInt())
         }

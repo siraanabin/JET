@@ -1011,11 +1011,6 @@
         }
       };
 
-      window.onNativeDownloadPaused = function (id) {
-        const item = state.activeDownloads.find((d) => d.id === id);
-        if (item) { item.status = 'paused'; item.speed = 'Paused'; renderDownloads(); }
-      };
-
       window.onNativeDownloadComplete = function (data) {
         state.retryDownloadArgs = null;
         state.retryDownloadRecord = null;
@@ -1048,13 +1043,24 @@
       };
 
       window.onNativeDownloadError = function (data) {
+        const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
+        if (idx >= 0) state.activeDownloads.splice(idx, 1);
+        renderDownloads();
         if (window.jetCancelledDownloadIds && window.jetCancelledDownloadIds.has(data.id)) {
           window.jetCancelledDownloadIds.delete(data.id);
           return;
         }
-        const item = state.activeDownloads.find((d) => d.id === data.id);
-        if (item) { item.status = 'failed'; item.speed = data.error || 'Download failed'; renderDownloads(); }
         showToast(`Error: ${data.error || 'Download failed'}`);
+        if (state.retryDownloadArgs) {
+          const args = state.retryDownloadArgs;
+          const record = state.retryDownloadRecord;
+          showJetRetryBanner(data.error || 'Download failed.', () => {
+            if (!jetIsOnline) return;
+            if (record) state.activeDownloads.unshift({ ...record, progress: 2, speed: 'Retrying...' });
+            renderDownloads();
+            if (hasAndroid() && window.JetAndroid.startRealDownload) window.JetAndroid.startRealDownload(...args);
+          }, 'Download interrupted');
+        }
       };
 
       window.onNativeLibraryList = function (list) {
@@ -1230,14 +1236,11 @@
           downloadId, targetUrl, displayTitle, fmt.group === 'music',
           fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, state.ccEnabled, state.fetchedThumbnail
         ];
-        const activeItem = state.activeDownloads.find((d) => d.id === downloadId);
-        if (activeItem) activeItem.requestArgs = requestArgs;
         state.retryDownloadArgs = requestArgs;
         state.retryDownloadRecord = {
           id: downloadId, title: displayTitle,
           format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
-          size: fmt.sizeText || 'Size N/A', progress: 0, speed: 'Preparing retry…', status: 'preparing',
-          thumbnailUrl: state.fetchedThumbnail, requestArgs
+          size: fmt.sizeText || 'Size N/A', progress: 0, speed: 'Preparing retry…', status: 'preparing', thumbnailUrl: state.fetchedThumbnail
         };
         if (hasAndroid() && window.JetAndroid.startRealDownload) {
           window.JetAndroid.startRealDownload(...requestArgs);
@@ -1287,16 +1290,9 @@
                   <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
                   <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}</p>
                 </div>
-                <div class="flex items-center gap-1 shrink-0">
-                  ${item.status === 'failed'
-                    ? `<button type="button" data-dl-retry="${item.id}" class="px-2.5 h-8 rounded-lg bg-app-primaryTint text-app-primary text-[11px] font-bold">Retry</button>`
-                    : item.status === 'paused'
-                      ? `<button type="button" data-dl-resume="${item.id}" class="px-2.5 h-8 rounded-lg bg-app-primaryTint text-app-primary text-[11px] font-bold">Resume</button>`
-                      : `<button type="button" data-dl-pause="${item.id}" class="px-2.5 h-8 rounded-lg bg-app-elevated text-app-text text-[11px] font-bold">${item.status === 'pausing' ? 'Pausing…' : 'Pause'}</button>`}
-                  <button type="button" data-dl-cancel="${item.id}" aria-label="Cancel download" class="w-8 h-8 rounded-xl bg-app-elevated flex items-center justify-center text-app-danger">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x w-3.5 h-3.5" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                  </button>
-                </div>
+                <button type="button" data-dl-cancel="${item.id}" aria-label="Cancel download" class="w-8 h-8 rounded-xl bg-app-elevated flex items-center justify-center text-app-danger shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x w-3.5 h-3.5" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
               </div>
               <div class="w-full h-2 rounded-full bg-app-elevated overflow-hidden">
                 <div class="h-full rounded-full bg-app-primary transition-all duration-300" style="width:${item.progress}%"></div>
@@ -1349,30 +1345,6 @@
 
       window.jetCancelledDownloadIds = window.jetCancelledDownloadIds || new Set();
       document.addEventListener('click', (e) => {
-        const pauseBtn = e.target.closest('[data-dl-pause]');
-        if (pauseBtn) {
-          const id = pauseBtn.dataset.dlPause, item = state.activeDownloads.find((d) => d.id === id);
-          if (item && hasAndroid() && window.JetAndroid.pauseRealDownload) {
-            item.status = 'pausing'; item.speed = 'Pausing…'; window.JetAndroid.pauseRealDownload(id); renderDownloads();
-          }
-          return;
-        }
-        const resumeBtn = e.target.closest('[data-dl-resume]');
-        if (resumeBtn) {
-          const id = resumeBtn.dataset.dlResume, item = state.activeDownloads.find((d) => d.id === id);
-          if (item && hasAndroid() && window.JetAndroid.resumeRealDownload) {
-            item.status = 'preparing'; item.speed = 'Resuming…'; window.JetAndroid.resumeRealDownload(id); renderDownloads();
-          }
-          return;
-        }
-        const retryBtn = e.target.closest('[data-dl-retry]');
-        if (retryBtn) {
-          const id = retryBtn.dataset.dlRetry, item = state.activeDownloads.find((d) => d.id === id);
-          if (item && hasAndroid() && window.JetAndroid.retryRealDownload) {
-            item.status = 'preparing'; item.progress = 0; item.speed = 'Retrying…'; window.JetAndroid.retryRealDownload(id); renderDownloads();
-          }
-          return;
-        }
         const cancelBtn = e.target.closest('[data-dl-cancel]');
         if (cancelBtn) {
           const id = cancelBtn.dataset.dlCancel;
