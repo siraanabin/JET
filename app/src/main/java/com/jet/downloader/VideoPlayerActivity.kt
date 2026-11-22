@@ -265,6 +265,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             it.isSelected = repeatEnabled
         }
         findViewById<ImageButton>(R.id.player_repeat).isSelected = repeatEnabled
+        findViewById<TextView>(R.id.player_more).setOnClickListener { showMore() }
         findViewById<ImageButton>(R.id.player_mute).isSelected = muted
         listOf(R.id.player_close, R.id.player_rewind, R.id.player_play, R.id.player_forward,
             R.id.player_lock, R.id.player_mute, R.id.player_pip,
@@ -680,7 +681,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             val child = playlist.getChildAt(i)
             val selected = child.tag == currentPath
             child.setBackgroundResource(if (selected) R.drawable.player_playlist_selected else R.drawable.player_playlist_item)
-            val params = child.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
+            val params = child.layoutParams as? LinearLayout.LayoutParams ?: continue
             val targetWidth = if (selected) {
                 (resources.displayMetrics.widthPixels * 0.1117f).roundToInt()
             } else {
