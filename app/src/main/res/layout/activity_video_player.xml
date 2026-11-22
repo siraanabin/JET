@@ -39,45 +39,83 @@
 
         <!-- Reference lines are percentages of the available player viewport. -->
         <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/player_x_time_left"
+            android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintGuide_percent="0.0596" />
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/player_x_actions_start"
+            android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintGuide_percent="0.048" />
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/player_x_top_end"
+            android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintGuide_percent="0.927" />
+        <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_x_left"
             android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.0692" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_x_seek_end"
             android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.875" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_x_actions_end"
             android:orientation="vertical"
-            app:layout_constraintGuide_percent="0.405" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintGuide_percent="0.386" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_x_playlist_start"
             android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.5583" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_x_playlist_end"
             android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.885" />
 
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_y_top"
             android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.0815" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_y_center"
             android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.5009" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_y_seek"
             android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.7093" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_y_time"
             android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.7676" />
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/player_y_bottom_actions"
             android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:layout_constraintGuide_percent="0.8889" />
 
         <LinearLayout
@@ -93,7 +131,7 @@
             app:layout_constraintTop_toTopOf="@id/player_y_top"
             app:layout_constraintBottom_toBottomOf="@id/player_y_top"
             app:layout_constraintStart_toStartOf="@id/player_x_left"
-            app:layout_constraintEnd_toEndOf="parent">
+            app:layout_constraintEnd_toEndOf="@id/player_x_top_end">
 
             <ImageButton
                 android:id="@+id/player_close"
@@ -128,6 +166,17 @@
                 android:textColor="#FFFFFF"
                 android:textStyle="bold"
                 android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/player_more"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_player_toolbar_btn"
+                android:gravity="center"
+                android:text="⋮"
+                android:textColor="#FFFFFF"
+                android:textSize="24sp"
+                android:contentDescription="More player options" />
 
             <TextView
                 android:id="@+id/player_battery"
@@ -220,7 +269,7 @@
                 android:text="0:00"
                 android:textColor="#CCFFFFFF"
                 android:textSize="12sp"
-                app:layout_constraintStart_toStartOf="@id/player_x_left"
+                app:layout_constraintStart_toStartOf="@id/player_x_time_left"
                 app:layout_constraintTop_toTopOf="@id/player_y_time"
                 app:layout_constraintBottom_toBottomOf="@id/player_y_time" />
 
@@ -242,7 +291,7 @@
                 android:layout_height="48dp"
                 android:fillViewport="true"
                 android:scrollbars="none"
-                app:layout_constraintStart_toStartOf="@id/player_x_left"
+                app:layout_constraintStart_toStartOf="@id/player_x_actions_start"
                 app:layout_constraintEnd_toEndOf="@id/player_x_actions_end"
                 app:layout_constraintTop_toTopOf="@id/player_y_bottom_actions"
                 app:layout_constraintBottom_toBottomOf="@id/player_y_bottom_actions">
