@@ -1018,13 +1018,14 @@
           const preview = $('latest-download-card').querySelector('.relative');
           if (preview) {
             preview.className = 'relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden';
-            if (first.thumbnailUrl) {
+            if (first.type === 'audio') {
+              preview.innerHTML = vinylDiscMarkup(first.thumbnailUrl, 'w-12 h-12');
+            } else if (first.thumbnailUrl) {
               preview.innerHTML = `<img src="${first.thumbnailUrl}" alt="" class="absolute inset-0 w-full h-full object-cover">`;
-            } else if (first.type === 'audio') {
-              preview.innerHTML = '<div class="relative w-12 h-12 rounded-full bg-[#171923] border-4 border-[#343746] flex items-center justify-center"><div class="absolute inset-1 rounded-full border border-white/10"></div><div class="w-4 h-4 rounded-full bg-slate-400 border-2 border-[#242735]"></div></div>';
             } else {
               preview.innerHTML = '<div class="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white"><i data-lucide="play" class="w-3.5 h-3.5"></i></div>';
             }
+            refreshIcons();
           }
         }
         renderLibrary();
@@ -1313,6 +1314,18 @@
         }
       }
 
+      function vinylDiscMarkup(artUrl, sizeClass = 'w-20 h-20') {
+        const art = artUrl
+          ? `<img src="${artUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full rounded-full object-cover">`
+          : `<i data-lucide="music-2" class="w-6 h-6 text-white"></i>`;
+        return `<div class="relative ${sizeClass} rounded-full bg-[#15171D] border-[5px] border-[#30343D] shadow-xl flex items-center justify-center overflow-hidden">
+          <div class="absolute inset-[12%] rounded-full border border-white/10 pointer-events-none"></div>
+          <div class="absolute inset-[25%] rounded-full border border-white/10 pointer-events-none"></div>
+          <div class="relative w-[43%] h-[43%] rounded-full bg-emerald-500 border-2 border-[#242735] overflow-hidden flex items-center justify-center">${art}</div>
+          <span class="absolute w-1.5 h-1.5 rounded-full bg-[#111318] border border-white/30 z-10"></span>
+        </div>`;
+      }
+
       function renderLibrary() {
         const filtered = state.library.filter((item) => {
           const matchCat = state.libFilter === 'all' || item.type === state.libFilter;
@@ -1337,7 +1350,7 @@
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
                 class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
                 <div class="relative h-24 bg-gradient-to-br ${item.color} flex items-center justify-center text-white overflow-hidden">
-                  ${item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover">` : item.type === 'audio' ? `<div class="relative w-20 h-20 rounded-full bg-[#171923] border-[5px] border-[#343746] shadow-xl flex items-center justify-center"><div class="absolute inset-2 rounded-full border border-white/10"></div><div class="absolute inset-4 rounded-full border border-white/10"></div><div class="w-6 h-6 rounded-full bg-gradient-to-br from-slate-300 to-slate-500 border-4 border-[#242735] z-10"></div></div>` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
+                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
                 </div>
                 <div class="p-2.5 flex items-center gap-2">
@@ -1357,7 +1370,7 @@
             <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
               class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} text-white flex items-center justify-center shrink-0 overflow-hidden">
-                ${item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-full h-full object-cover">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
+                ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-10 h-10') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-full h-full object-cover">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>

@@ -658,29 +658,65 @@ class MainActivity : AppCompatActivity() {
         return name.replace(Regex("[^a-zA-Z0-9._ -]"), "_").trim().take(80).ifEmpty { "JET_Media" }
     }
 
-    private fun createLocalVideoThumbnailDataUrl(file: File): String {
+    private fun createSmartMediaThumbnailDataUrl(file: File, isAudio: Boolean, savedThumbnailUrl: String = ""): String {
+        if (savedThumbnailUrl.startsWith("data:image/", true) ||
+            savedThumbnailUrl.startsWith("https://", true) ||
+            savedThumbnailUrl.startsWith("http://", true)
+        ) return savedThumbnailUrl
+
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(file.absolutePath)
-            val frame = retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                ?: return ""
-            val scale = minOf(1.0, 320.0 / frame.width, 180.0 / frame.height)
-            val width = (frame.width * scale).toInt().coerceAtLeast(1)
-            val height = (frame.height * scale).toInt().coerceAtLeast(1)
-            val bitmap = if (width != frame.width || height != frame.height) {
-                Bitmap.createScaledBitmap(frame, width, height, true).also { frame.recycle() }
-            } else frame
+            val embedded = retriever.embeddedPicture
+            val cover = embedded?.let { bytes ->
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }
+            val bitmap = cover ?: if (isAudio) null else {
+                val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    ?.toLongOrNull() ?: 0L
+                val durationUs = durationMs * 1_000L
+                val firstTimeUs = if (durationUs > 4_000_000L) durationUs / 4 else 1_000_000L
+                val firstFrame = retriever.getFrameAtTime(firstTimeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                if (firstFrame != null && isFrameTooDark(firstFrame) && durationUs > 4_000_000L) {
+                    retriever.getFrameAtTime(durationUs / 2, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        ?: firstFrame
+                } else firstFrame
+            } ?: return ""
+            val scale = minOf(1.0, 320.0 / bitmap.width, 180.0 / bitmap.height)
+            val width = (bitmap.width * scale).toInt().coerceAtLeast(1)
+            val height = (bitmap.height * scale).toInt().coerceAtLeast(1)
+            val scaled = if (width != bitmap.width || height != bitmap.height) {
+                Bitmap.createScaledBitmap(bitmap, width, height, true).also { if (it !== bitmap) bitmap.recycle() }
+            } else bitmap
             ByteArrayOutputStream().use { output ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 68, output)
-                bitmap.recycle()
+                scaled.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                scaled.recycle()
                 "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
             }
         } catch (error: Exception) {
-            Log.w("JET-Library", "Unable to create video thumbnail for ${file.name}", error)
+            Log.w("JET-Library", "Unable to create media thumbnail for ${file.name}", error)
             ""
         } finally {
             runCatching { retriever.release() }
         }
+    }
+
+    private fun isFrameTooDark(bitmap: Bitmap): Boolean {
+        val stepX = (bitmap.width / 10).coerceAtLeast(1)
+        val stepY = (bitmap.height / 10).coerceAtLeast(1)
+        var luminance = 0.0
+        var samples = 0
+        for (x in 0 until bitmap.width step stepX) {
+            for (y in 0 until bitmap.height step stepY) {
+                val pixel = bitmap.getPixel(x, y)
+                val red = (pixel shr 16) and 0xFF
+                val green = (pixel shr 8) and 0xFF
+                val blue = pixel and 0xFF
+                luminance += 0.299 * red + 0.587 * green + 0.114 * blue
+                samples++
+            }
+        }
+        return samples > 0 && luminance / samples < 26.0
     }
 
     private fun pushScannedLibraryToWeb() {
@@ -701,7 +737,7 @@ class MainActivity : AppCompatActivity() {
                 val items = files.map { f ->
                     val lower = f.name.lowercase(Locale.US)
                     val type = when {
-                        lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".opus") || lower.endsWith(".wav") -> "audio"
+                        listOf(".mp3", ".m4a", ".opus", ".wav", ".aac", ".flac", ".ogg", ".oga", ".wma").any { lower.endsWith(it) } -> "audio"
                         lower.endsWith(".pdf") || lower.endsWith(".txt") || lower.endsWith(".zip") -> "document"
                         else -> "video"
                     }
@@ -725,7 +761,13 @@ class MainActivity : AppCompatActivity() {
                         duration = duration,
                         filePath = f.absolutePath,
                         fileUri = Uri.fromFile(f).toString(),
-                        thumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl?.takeIf { it.isNotBlank() } ?: if (type == "video") createLocalVideoThumbnailDataUrl(f) else "",
+                        thumbnailUrl = if (type == "video" || type == "audio") {
+                            createSmartMediaThumbnailDataUrl(
+                                f,
+                                isAudio = type == "audio",
+                                savedThumbnailUrl = savedByPath[f.absolutePath]?.thumbnailUrl.orEmpty()
+                            )
+                        } else "",
                         size = formatBytes(f.length()),
                         format = ext
                     )

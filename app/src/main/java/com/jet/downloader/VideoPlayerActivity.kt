@@ -24,6 +24,8 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.DefaultTimeBar
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TimeBar
+import com.jet.downloader.player.PlayerPrefsManager
+import com.jet.downloader.player.applyGranularVolumePercent
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -64,6 +66,8 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var currentPath = ""
     private var locked = false
     private var muted = false
+    private var volumePercent = 50
+    private lateinit var playerPrefs: PlayerPrefsManager
     private var aspect = 0
     private var controlsVisible = true
     private var scrubbing = false
@@ -131,11 +135,28 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
         currentPath = path
         titleView.text = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
+        playerPrefs = PlayerPrefsManager(this)
+        volumePercent = playerPrefs.savedVolumePercent
+        val savedResizeModes = intArrayOf(
+            AspectRatioFrameLayout.RESIZE_MODE_FIT,
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+            AspectRatioFrameLayout.RESIZE_MODE_FILL
+        )
+        aspect = savedResizeModes.indexOf(playerPrefs.savedResizeMode).takeIf { it >= 0 } ?: 0
+        playerView.resizeMode = savedResizeModes[aspect]
+        val savedBrightness = playerPrefs.savedBrightnessPercent
+        if (savedBrightness >= 0) {
+            window.attributes = window.attributes.apply { screenBrightness = savedBrightness / 100f }
+        }
         val exo = ExoPlayer.Builder(this).build()
         player = exo
         playerView.player = exo
         playerView.useController = false
         exo.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(File(path))))
+        exo.setPlaybackSpeed(playerPrefs.savedPlaybackSpeed)
+        applyGranularVolumePercent(this, exo, volumePercent)
+        updateVolumeIcon(volumePercent)
+        findViewById<TextView>(R.id.player_speed_label).text = speedLabel(playerPrefs.savedPlaybackSpeed)
         exo.prepare(); exo.play()
         exo.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -195,8 +216,12 @@ class VideoPlayerActivity : AppCompatActivity() {
             Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
         }
         findViewById<ImageButton>(R.id.player_mute).setOnClickListener {
-            muted = !muted; player?.volume = if (muted) 0f else 1f
+            muted = !muted
+            player?.let { active ->
+                if (muted) active.volume = 0f else applyGranularVolumePercent(this, active, volumePercent)
+            }
             it.isSelected = muted
+            updateVolumeIcon(if (muted) 0 else volumePercent)
         }
         findViewById<ImageButton>(R.id.player_pip).setOnClickListener { enterPip() }
         findViewById<ImageButton>(R.id.player_aspect).setOnClickListener { cycleAspect() }
@@ -250,17 +275,20 @@ class VideoPlayerActivity : AppCompatActivity() {
                 }
                 when (gestureMode) {
                     1 -> {
-                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height)
-                            .coerceIn(.02f, 1f)
-                        window.attributes = window.attributes.apply { screenBrightness = value }
-                        showVerticalHud(brightnessHud, value, "☼")
+                        val percent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * 100f)
+                            .roundToInt().coerceIn(0, 100)
+                        playerPrefs.savedBrightnessPercent = percent
+                        window.attributes = window.attributes.apply { screenBrightness = percent / 100f }
+                        showVerticalHud(brightnessHud, percent / 100f, "☼")
                     }
                     2 -> {
-                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-                        val value = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * max)
-                            .roundToInt().coerceIn(0, max)
-                        audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
-                        showVerticalHud(volumeHud, value.toFloat() / max, "◖")
+                        volumePercent = (gestureStartValue + (gestureStartY - e2.y) / playerView.height * 100f)
+                            .roundToInt().coerceIn(0, 100)
+                        playerPrefs.savedVolumePercent = volumePercent
+                        muted = false
+                        player?.let { applyGranularVolumePercent(this@VideoPlayerActivity, it, volumePercent) }
+                        findViewById<ImageButton>(R.id.player_mute).isSelected = false
+                        showVerticalHud(volumeHud, volumePercent / 100f, "")
                     }
                     3 -> {
                         val duration = player?.duration?.takeIf { it > 0 && it != C.TIME_UNSET } ?: 0L
@@ -315,9 +343,10 @@ class VideoPlayerActivity : AppCompatActivity() {
                     gestureStartPosition = player?.currentPosition ?: 0L
                     pendingSeekPosition = gestureStartPosition
                     gestureStartValue = if (event.x < playerView.width * .5f) {
-                        (window.attributes.screenBrightness.takeIf { it >= 0f } ?: .5f)
+                        (playerPrefs.savedBrightnessPercent.takeIf { it >= 0 }?.toFloat()
+                            ?: (window.attributes.screenBrightness.takeIf { it >= 0f }?.times(100f) ?: 50f))
                     } else {
-                        audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+                        volumePercent.toFloat()
                     }
                     handler.removeCallbacks(hideHud)
                 }
@@ -373,13 +402,32 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
 
     private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
-        findViewById<TextView>(if (hud.id == R.id.player_brightness_hud) R.id.player_brightness_icon else R.id.player_volume_icon).text = glyph
         val isBrightness = hud.id == R.id.player_brightness_hud
+        if (isBrightness) {
+            findViewById<TextView>(R.id.player_brightness_icon).text = glyph
+        } else {
+            updateVolumeIcon((fraction * 100).roundToInt())
+        }
         findViewById<TextView>(if (isBrightness) R.id.player_hud_percent else R.id.player_volume_percent).text =
             "${(fraction * 100).roundToInt()}%"
         findViewById<ProgressBar>(if (isBrightness) R.id.player_hud_progress else R.id.player_volume_progress).progress =
             (fraction * 100).roundToInt()
         showHud(hud)
+    }
+
+    private fun updateVolumeIcon(percent: Int) {
+        val icon = findViewById<ImageView>(R.id.player_volume_icon)
+        icon.setImageResource(if (percent <= 0) R.drawable.ic_player_volume_muted else R.drawable.ic_player_volume_on)
+        icon.contentDescription = if (percent <= 0) "Muted" else "Volume"
+    }
+
+    private fun speedLabel(speed: Float): String = when (speed) {
+        0.5f -> "0.5x"
+        1f -> "1.0x"
+        1.25f -> "1.25x"
+        1.5f -> "1.5x"
+        2f -> "2.0x"
+        else -> "${speed}x"
     }
     private fun showHud(view: View) {
         handler.removeCallbacks(hideHud)
@@ -425,6 +473,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         val modes = intArrayOf(AspectRatioFrameLayout.RESIZE_MODE_FIT, AspectRatioFrameLayout.RESIZE_MODE_ZOOM, AspectRatioFrameLayout.RESIZE_MODE_FILL)
         val labels = arrayOf("FIT", "CROP", "100%")
         playerView.resizeMode = modes[aspect]
+        playerPrefs.savedResizeMode = modes[aspect]
         zoomHud.text = labels[aspect]
         zoomHud.visibility = View.VISIBLE; zoomHud.alpha = 1f
         handler.removeCallbacks(hideHud); handler.postDelayed({ fadeHud(zoomHud) }, 800L)
@@ -433,9 +482,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showMore() {
         AlertDialog.Builder(this).setItems(arrayOf("Fit", "Crop", "Fill", "Playback speed")) { _, which ->
             when (which) {
-                0 -> { aspect = 0; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT }
-                1 -> { aspect = 1; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM }
-                2 -> { aspect = 2; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL }
+                0 -> { aspect = 0; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; playerPrefs.savedResizeMode = playerView.resizeMode }
+                1 -> { aspect = 1; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; playerPrefs.savedResizeMode = playerView.resizeMode }
+                2 -> { aspect = 2; playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL; playerPrefs.savedResizeMode = playerView.resizeMode }
                 3 -> showSpeed()
             }
         }.show()
@@ -445,6 +494,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         val labels = arrayOf("0.5x", "1.0x", "1.25x", "1.5x", "2.0x")
         AlertDialog.Builder(this).setTitle("Playback speed").setItems(labels) { _, which ->
             player?.setPlaybackSpeed(values[which])
+            playerPrefs.savedPlaybackSpeed = values[which]
             findViewById<TextView>(R.id.player_speed_label).text = labels[which]
         }.show()
     }
