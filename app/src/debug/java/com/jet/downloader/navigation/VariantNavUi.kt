@@ -1,7 +1,4 @@
-@file:OptIn(
-    androidx.compose.animation.ExperimentalSharedTransitionApi::class,
-    androidx.media3.common.util.UnstableApi::class,
-)
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 
 package com.jet.downloader.navigation
 
@@ -80,6 +77,7 @@ private data class TopLevelDestination(
     val icon: ImageVector,
 )
 
+@androidx.media3.common.util.UnstableApi
 class VariantNavUi : NavUi {
     private var webView: WebView? = null
     private var backHandler: (() -> Boolean)? = null
@@ -131,6 +129,7 @@ class VariantNavUi : NavUi {
     override fun handleBack(): Boolean = backHandler?.invoke() ?: false
 }
 
+@androidx.media3.common.util.UnstableApi
 @Composable
 private fun FloatingTabNavigation(
     onBackHandler: ((() -> Boolean) -> Unit),
