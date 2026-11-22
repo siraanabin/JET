@@ -1,6 +1,6 @@
 {
-  "versionCode": 367,
-  "versionName": "3.6.7",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.7/JET-debug.apk",
+  "versionCode": 368,
+  "versionName": "3.6.8",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.8/JET-debug.apk",
   "changelog": "• Device-wide MediaStore library and storage insights\n• Album-art colour gradients and expanded download settings"
 }
