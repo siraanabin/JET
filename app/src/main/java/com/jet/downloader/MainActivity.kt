@@ -1350,7 +1350,6 @@ class MainActivity : AppCompatActivity() {
                     var lastReportedProgress = 0
                     currentCoroutineContext().ensureActive()
                     synchronized(ytDlpEngineLock) {
-                        currentCoroutineContext().ensureActive()
                         YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, etaInSeconds, line ->
                         val reported = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else lastReportedProgress
                         lastReportedProgress = maxOf(lastReportedProgress, reported)

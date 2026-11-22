@@ -450,7 +450,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         controls.visibility = View.VISIBLE
         topBar.visibility = View.GONE
         centerControls.visibility = View.GONE
-        bottomPanel.getChildAt(1)?.visibility = View.GONE
+        findViewById<View>(R.id.player_bottom_actions).visibility = View.GONE
         seekPill.visibility = View.GONE
         bottomPanel.visibility = View.VISIBLE
         bottomPanel.alpha = 1f
@@ -512,7 +512,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(hideIsolatedHudContainer)
         val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
-            bottomPanel.getChildAt(1)?.visibility = View.VISIBLE
+            findViewById<View>(R.id.player_bottom_actions).visibility = View.VISIBLE
             controls.visibility = View.VISIBLE
             topBar.visibility = View.VISIBLE
             bottomPanel.visibility = View.VISIBLE
