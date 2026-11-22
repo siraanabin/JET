@@ -16,7 +16,7 @@
             android:orientation="horizontal" android:paddingStart="12dp" android:paddingEnd="12dp">
             <ImageButton android:id="@+id/player_close" android:layout_width="40dp" android:layout_height="40dp"
                 android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Back"
-                android:src="@drawable/ic_player_back" android:tint="#FFFFFF" />
+                android:src="@drawable/ic_player_back" app:tint="#FFFFFF" />
             <TextView android:id="@+id/player_title" android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" android:ellipsize="marquee" android:singleLine="true"
                 android:marqueeRepeatLimit="marquee_forever" android:focusable="true" android:focusableInTouchMode="true"
@@ -30,7 +30,7 @@
                 android:gravity="center" android:text="00:00" android:textColor="#FFFFFF" android:textSize="12sp" />
             <ImageButton android:id="@+id/player_more" android:layout_width="40dp" android:layout_height="40dp"
                 android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="More"
-                android:src="@drawable/ic_player_more" android:tint="#FFFFFF" />
+                android:src="@drawable/ic_player_more" app:tint="#FFFFFF" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/player_center_controls" android:layout_width="wrap_content"
@@ -38,13 +38,13 @@
             android:orientation="horizontal">
             <ImageButton android:id="@+id/player_rewind" android:layout_width="52dp" android:layout_height="52dp"
                 android:layout_marginEnd="44dp" android:background="@drawable/bg_player_toolbar_btn"
-                android:contentDescription="Rewind 10 seconds" android:src="@drawable/ic_player_rewind" android:tint="#FFFFFF" />
+                android:contentDescription="Rewind 10 seconds" android:src="@drawable/ic_player_rewind" app:tint="#FFFFFF" />
             <ImageButton android:id="@+id/player_play" android:layout_width="68dp" android:layout_height="68dp"
                 android:background="@drawable/bg_player_glass_circle" android:contentDescription="Play or pause"
-                android:padding="16dp" android:src="@drawable/ic_player_play" android:tint="#FFFFFF" />
+                android:padding="16dp" android:src="@drawable/ic_player_play" app:tint="#FFFFFF" />
             <ImageButton android:id="@+id/player_forward" android:layout_width="52dp" android:layout_height="52dp"
                 android:layout_marginStart="44dp" android:background="@drawable/bg_player_toolbar_btn"
-                android:contentDescription="Forward 10 seconds" android:src="@drawable/ic_player_forward" android:tint="#FFFFFF" />
+                android:contentDescription="Forward 10 seconds" android:src="@drawable/ic_player_forward" app:tint="#FFFFFF" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/player_bottom_panel" android:background="@drawable/bg_player_bottom_scrim" android:layout_width="match_parent"
@@ -65,19 +65,19 @@
             </LinearLayout>
             <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
                 android:gravity="center" android:orientation="horizontal">
-                <ImageButton android:id="@+id/player_lock" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Lock" android:src="@drawable/ic_player_lock" />
-                <ImageButton android:id="@+id/player_mute" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Mute" android:src="@drawable/ic_player_mute" />
-                <ImageButton android:id="@+id/player_pip" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Picture in picture" android:src="@drawable/ic_player_pip" />
-                <ImageButton android:id="@+id/player_aspect" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Zoom mode" android:src="@drawable/ic_player_zoom" />
+                <ImageButton android:id="@+id/player_lock" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" app:tint="#FFFFFF" android:contentDescription="Lock" android:src="@drawable/ic_player_lock" />
+                <ImageButton android:id="@+id/player_mute" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" app:tint="#FFFFFF" android:contentDescription="Mute" android:src="@drawable/ic_player_mute" />
+                <ImageButton android:id="@+id/player_pip" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" app:tint="#FFFFFF" android:contentDescription="Picture in picture" android:src="@drawable/ic_player_pip" />
+                <ImageButton android:id="@+id/player_aspect" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" app:tint="#FFFFFF" android:contentDescription="Zoom mode" android:src="@drawable/ic_player_zoom" />
                 <FrameLayout android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp">
                     <ImageButton android:id="@+id/player_speed" android:layout_width="match_parent" android:layout_height="match_parent"
                         android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:contentDescription="Playback speed"
-                        android:src="@drawable/ic_player_speed" android:tint="#FFFFFF" />
+                        android:src="@drawable/ic_player_speed" app:tint="#FFFFFF" />
                     <TextView android:id="@+id/player_speed_label" android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:layout_gravity="bottom|end" android:layout_marginEnd="2dp" android:layout_marginBottom="2dp" android:gravity="center" android:paddingHorizontal="2dp" android:text="1.0x" android:textColor="#FFFFFF" android:textSize="7sp" android:background="@drawable/bg_player_speed_badge" />
                 </FrameLayout>
-                <ImageButton android:id="@+id/player_background" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
-                <ImageButton android:id="@+id/player_rotate" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" android:tint="#FFFFFF" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
+                <ImageButton android:id="@+id/player_background" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" app:tint="#FFFFFF" android:contentDescription="Background audio" android:src="@drawable/ic_player_headphones" />
+                <ImageButton android:id="@+id/player_rotate" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginHorizontal="3dp" android:padding="9dp" android:background="@drawable/bg_player_toolbar_btn" app:tint="#FFFFFF" android:contentDescription="Rotate" android:src="@drawable/ic_player_rotate" />
             </LinearLayout>
             <HorizontalScrollView android:layout_width="match_parent" android:layout_height="52dp"
                 android:fillViewport="false" android:scrollbars="none">
