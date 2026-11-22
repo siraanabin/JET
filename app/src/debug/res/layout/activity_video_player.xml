@@ -143,7 +143,6 @@
                 android:id="@+id/player_close"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:rotation="90"
                 android:background="@android:color/transparent"
                 android:contentDescription="Minimize"
                 android:src="@drawable/ic_player_chevron_down"
