@@ -409,7 +409,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun applySystemOrientationPolicy() {
         if (locked) { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED; return }
         val autoRotate = runCatching { Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0) == 1 }.getOrDefault(false)
-        requestedOrientation = if (autoRotate) ActivityInfo.SCREEN_ORIENTATION_SENSOR else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        requestedOrientation = if (autoRotate) ActivityInfo.SCREEN_ORIENTATION_SENSOR else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
     private fun resizeModeForAspect(value: Int): Int = when (value) {
         1 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
@@ -453,7 +453,12 @@ class VideoPlayerActivity : AppCompatActivity() {
             "${(fraction * 100).roundToInt()}%"
         findViewById<ProgressBar>(if (isBrightness) R.id.player_hud_progress else R.id.player_volume_progress).progress =
             (fraction * 100).roundToInt()
-        showHud(hud)
+        // Keep the vertical indicator visible for the entire active swipe.
+        // It is dismissed from ACTION_UP/ACTION_CANCEL, never by a mid-gesture timer.
+        handler.removeCallbacks(hideHud)
+        hud.animate().cancel()
+        hud.visibility = View.VISIBLE
+        hud.alpha = 1f
     }
     private fun showHud(view: View) {
         handler.removeCallbacks(hideHud)
@@ -567,9 +572,22 @@ class VideoPlayerActivity : AppCompatActivity() {
                     val retriever = MediaMetadataRetriever()
                     try {
                         retriever.setDataSource(file.absolutePath)
-                        bitmap = retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            retriever.getScaledFrameAtTime(
+                                1_000_000L,
+                                MediaMetadataRetriever.OPTION_CLOSEST,
+                                dp(144),
+                                dp(96)
+                            )
+                        } else null
+                        bitmap = bitmap
+                            ?: retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST)
                             ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                        if (bitmap == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) bitmap = android.media.ThumbnailUtils.createVideoThumbnail(file, android.util.Size(dp(144), dp(96)), null)
+                        if (bitmap == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            bitmap = android.media.ThumbnailUtils.createVideoThumbnail(
+                                file, android.util.Size(dp(144), dp(96)), null
+                            )
+                        }
                     } catch (_: Exception) {
                     } finally {
                         try { retriever.release() } catch (_: Exception) {}
