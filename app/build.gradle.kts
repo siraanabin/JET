@@ -3,7 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
     id("org.jetbrains.kotlin.plugin.serialization")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 
@@ -19,7 +18,7 @@ android {
     }
 
     namespace = "com.jet.downloader"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.jet.downloader"
@@ -75,6 +74,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.14"
+    }
 }
 
 
@@ -101,14 +104,13 @@ tasks.configureEach {
 }
 
 dependencies {
-    // Debug-only Compose UI. Compose BOM 2024.06.00 aligns Compose 1.6.8 and Material3 1.2.1.
+    // Debug-only Compose UI; BOM 2024.06.00 aligns Compose UI/runtime 1.6.8 and Material3 1.2.1.
     debugImplementation(platform("androidx.compose:compose-bom:2024.06.00"))
     debugImplementation("androidx.compose.ui:ui")
     debugImplementation("androidx.compose.foundation:foundation")
     debugImplementation("androidx.compose.animation:animation")
     debugImplementation("androidx.compose.material3:material3")
     debugImplementation("androidx.compose.material:material-icons-extended")
-
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
