@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 
 package com.jet.downloader.navigation
 
@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -228,6 +227,7 @@ private fun FloatingTabNavigation(
                                             .height(60.dp),
                                     ) {
                                         val tabWidth = maxWidth / destinations.size
+                                        val motionScheme = MaterialTheme.motionScheme
                                         Box(
                                             modifier = Modifier
                                                 .offset(x = tabWidth * selectedIndex)
@@ -238,7 +238,7 @@ private fun FloatingTabNavigation(
                                                 .animateBounds(
                                                     lookaheadScope = this@LookaheadScope,
                                                     boundsTransform = { _, _ ->
-                                                        MaterialTheme.motionScheme.defaultSpatialSpec()
+                                                        motionScheme.defaultSpatialSpec()
                                                     },
                                                 )
                                                 .zIndex(0f),

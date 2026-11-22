@@ -102,11 +102,11 @@ tasks.configureEach {
 
 dependencies {
     // Navigation3 + Compose UI, initially isolated to Debug until the first green build.
-    debugImplementation(platform("androidx.compose:compose-bom:2025.11.00"))
+    debugImplementation(platform("androidx.compose:compose-bom:2026.02.00"))
     debugImplementation("androidx.compose.ui:ui")
     debugImplementation("androidx.compose.foundation:foundation")
     debugImplementation("androidx.compose.animation:animation")
-    debugImplementation("androidx.compose.material3:material3")
+    debugImplementation("androidx.compose.material3:material3:1.5.0-alpha15")
     debugImplementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.navigation3:navigation3-runtime:1.0.0")
     debugImplementation("androidx.navigation3:navigation3-ui:1.0.0")

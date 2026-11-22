@@ -117,8 +117,6 @@ class VideoPlayerActivity : AppCompatActivity() {
         seek = findViewById(R.id.player_seek)
         if (BuildConfig.DEBUG) {
             val metrics = resources.displayMetrics
-            seek.setBarHeight((metrics.heightPixels * 0.026f).roundToInt())
-            seek.setTouchTargetHeight((metrics.heightPixels * 0.065f).roundToInt())
             val centerHeight = (metrics.heightPixels * 0.062f).roundToInt()
             val playHeight = (metrics.heightPixels * 0.075f).roundToInt()
             val sideGap = (metrics.widthPixels * 0.104f).roundToInt()
