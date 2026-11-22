@@ -145,6 +145,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         aspect = playerPrefs.getInt("aspect", 0).coerceIn(0, 2)
         playbackSpeed = playerPrefs.getFloat("speed", 1f).coerceIn(0.25f, 3f)
         repeatEnabled = playerPrefs.getBoolean("repeat", false)
+        muted = playerPrefs.getBoolean("muted", false)
         findViewById<TextView>(R.id.player_speed_label).text = String.format(Locale.US, "%.2gx", playbackSpeed)
         applySystemOrientationPolicy()
         val exo = ExoPlayer.Builder(this).build()
@@ -154,6 +155,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         playerView.resizeMode = resizeModeForAspect(aspect)
         exo.setPlaybackSpeed(playbackSpeed)
         exo.repeatMode = if (repeatEnabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+        exo.volume = if (muted) 0f else 1f
         exo.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(File(path))))
         exo.prepare(); exo.play()
         exo.addListener(object : Player.Listener {
@@ -215,7 +217,9 @@ class VideoPlayerActivity : AppCompatActivity() {
             Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
         }
         findViewById<ImageButton>(R.id.player_mute).setOnClickListener {
-            muted = !muted; player?.volume = if (muted) 0f else 1f
+            muted = !muted
+            player?.volume = if (muted) 0f else 1f
+            playerPrefs.edit().putBoolean("muted", muted).apply()
             it.isSelected = muted
         }
         findViewById<ImageButton>(R.id.player_pip).setOnClickListener { enterPip() }
@@ -233,6 +237,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             it.isSelected = repeatEnabled
         }
         findViewById<ImageButton>(R.id.player_repeat).isSelected = repeatEnabled
+        findViewById<ImageButton>(R.id.player_mute).isSelected = muted
         listOf(R.id.player_close, R.id.player_rewind, R.id.player_play, R.id.player_forward,
             R.id.player_lock, R.id.player_mute, R.id.player_pip,
             R.id.player_aspect, R.id.player_speed, R.id.player_background, R.id.player_rotate, R.id.player_repeat)
