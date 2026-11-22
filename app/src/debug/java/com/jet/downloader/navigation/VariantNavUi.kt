@@ -173,6 +173,7 @@ private fun DebugFloatingNavigation(
             ) {
                 Box(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .padding(bottom = 12.dp)
                         .shadow(7.dp, CircleShape)
