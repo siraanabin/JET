@@ -50,7 +50,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
@@ -185,7 +184,7 @@ private fun DebugFloatingNavigation(
                             shadowElevation = 8.dp,
                         ) {
                             Box(Modifier.padding(4.dp)) {
-                                BoxWithConstraints {
+                                BoxWithConstraints(Modifier.fillMaxWidth()) {
                                     val tabWidth = maxWidth / destinations.size
                                     val selectedOffset by animateDpAsState(
                                         targetValue = tabWidth * selected,
