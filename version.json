@@ -2,5 +2,5 @@
   "versionCode": 364,
   "versionName": "3.6.4",
   "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.4/JET-debug.apk",
-  "changelog": "• Smart bright video thumbnails and circular vinyl album art in Home and Library\\n• Persistent player fit, volume, brightness and playback speed\\n• Smooth 1% volume gesture control and clear speaker HUD icon"
+  "changelog": "• Smart bright video thumbnails and circular vinyl album art in Home and Library\n• Persistent player fit, volume, brightness and playback speed\n• Smooth 1% volume gesture control and clear speaker HUD icon"
 }
