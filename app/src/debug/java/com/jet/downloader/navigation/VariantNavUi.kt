@@ -62,7 +62,7 @@ private data class TopLevelDestination(
     val icon: ImageVector,
 )
 
-private fun tabStackSaver(): Saver<SnapshotStateList<String>, List<String>> = listSaver(
+private fun tabStackSaver(): Saver<SnapshotStateList<String>, Any> = listSaver(
     save = { stack -> stack.toList() },
     restore = { saved -> saved.toMutableStateList() },
 )
