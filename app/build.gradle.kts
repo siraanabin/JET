@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 
@@ -14,10 +15,11 @@ val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 android {
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     namespace = "com.jet.downloader"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.jet.downloader"
@@ -99,6 +101,18 @@ tasks.configureEach {
 }
 
 dependencies {
+    // Debug-only Jetpack Compose + Navigation 3. Release keeps the original WebView UI.
+    debugImplementation(platform("androidx.compose:compose-bom:2025.01.00"))
+    debugImplementation("androidx.activity:activity-compose:1.9.1")
+    debugImplementation("androidx.compose.ui:ui")
+    debugImplementation("androidx.compose.foundation:foundation")
+    debugImplementation("androidx.compose.animation:animation")
+    debugImplementation("androidx.compose.material3:material3")
+    debugImplementation("androidx.compose.material:material-icons-extended")
+    debugImplementation("androidx.navigation3:navigation3-runtime:1.0.0")
+    debugImplementation("androidx.navigation3:navigation3-ui:1.0.0")
+
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // Core AndroidX & WebView
