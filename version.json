@@ -1,6 +1,6 @@
 {
-  "versionCode": 364,
-  "versionName": "3.6.4",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.4/JET-debug.apk",
-  "changelog": "• Isolated volume/brightness swipe HUDs and smoother 0–100 controls\n• Improved mini-playlist thumbnails and right-aligned four-item strip\n• Persist playback speed, aspect, repeat and mute settings\n• Pinch-to-zoom, pan and system-aware auto-rotation\n• Improved player title spacing/marquee and Home latest-file thumbnails\n• Removed duplicate Home Settings button"
+  "versionCode": 365,
+  "versionName": "3.6.5",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.5/JET-debug.apk",
+  "changelog": "• Safer cancellation with per-download task tracking and partial-file cleanup\\n• Isolated seek, volume and brightness gesture HUDs\\n• Refined player controls and four-item thumbnail strip"
 }
