@@ -121,7 +121,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             seek.setTouchTargetHeight((metrics.heightPixels * 0.065f).roundToInt())
             val centerHeight = (metrics.heightPixels * 0.062f).roundToInt()
             val playHeight = (metrics.heightPixels * 0.075f).roundToInt()
-            val sideGap = (metrics.widthPixels * 0.088f).roundToInt()
+            val sideGap = (metrics.widthPixels * 0.104f).roundToInt()
             val rewind = findViewById<ImageButton>(R.id.player_rewind)
             val play = findViewById<ImageButton>(R.id.player_play)
             val forward = findViewById<ImageButton>(R.id.player_forward)
