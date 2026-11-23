@@ -104,8 +104,7 @@ tasks.configureEach {
 }
 
 dependencies {
-    // Firebase BoM 35.0.0 includes the protobuf/gRPC dependency alignment
-    // required to avoid duplicate DescriptorProtos classes.
+    // Firebase BoM 35.0.0 aligns the protobuf/gRPC dependency graph.
     implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-crashlytics")
@@ -131,8 +130,8 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
 
-    // AndroidX Room (Apache 2.0)
-    val roomVersion = "2.6.1"
+    // AndroidX Room (Apache 2.0) - updated processor supports newer Kotlin metadata.
+    val roomVersion = "2.8.5"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
