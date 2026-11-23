@@ -1,9 +1,10 @@
 {
-  "versionCode": 374,
-  "versionName": "3.7.4",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.4/JET-debug.apk",
+  "versionCode": 375,
+  "versionName": "3.7.5",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.5/JET-debug.apk",
   "changelog": [
-    "Firebase Analytics, Crashlytics and Firestore feedback integration",
-    "Download platform tracking and WebView JavaScript crash reporting"
+    "Fix stale empty Library cache and WebView bridge initialization race",
+    "Support Android 14 selected media access and restore media scanning",
+    "Material 3 bottom navigation with filled active icons and pill highlight"
   ]
 }

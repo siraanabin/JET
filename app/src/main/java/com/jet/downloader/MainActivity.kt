@@ -32,6 +32,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
+import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -110,6 +111,8 @@ class MainActivity : AppCompatActivity() {
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
     @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
+    @Volatile private var webViewPageReady = false
+    private val pendingJsCalls = mutableListOf<Pair<String, String>>()
     private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
     private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
     private val mediaRefreshHandler = Handler(Looper.getMainLooper())
@@ -396,31 +399,46 @@ class MainActivity : AppCompatActivity() {
 
         webView.addJavascriptInterface(JetNativeBridge(), "JetAndroid")
         webView.addJavascriptInterface(JetNetworkBridge(), "JetNetwork")
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                Log.e("JET-WebView", "JS " + message.message() + " (" + message.sourceId() + ":" + message.lineNumber() + ")")
+                return true
+            }
+        }
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                webViewPageReady = false
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 webView.evaluateJavascript(
                     """(function(){
                         if(window.__jetFirebaseErrorHooksInstalled)return;
                         window.__jetFirebaseErrorHooksInstalled=true;
-                        window.onerror=function(message,source,line,column,error){
-                            try{window.JetAndroid.reportWebViewError(String(message||"JavaScript error"),String((error&&error.stack)||source+":"+line+":"+column));}catch(_){}
-                        };
+                        window.addEventListener("error",function(event){
+                            try{var error=event.error;window.JetAndroid.reportWebViewError(String(event.message||"JavaScript error"),String((error&&error.stack)||event.filename+":"+event.lineno+":"+event.colno));}catch(_){}
+                        },true);
                         window.addEventListener("unhandledrejection",function(event){
                             try{var reason=event.reason;window.JetAndroid.reportWebViewError(String((reason&&reason.message)||reason||"Unhandled promise rejection"),String((reason&&reason.stack)||""));}catch(_){}
                         });
-                    })();""".trimIndent(), null
-                )
-                syncDataStorePreferencesToWeb()
-                notifyEngineState()
-                pendingSharedUrl?.let { shared ->
-                    callJs("onNativeSharedUrl", JSONObject.quote(shared))
-                    pendingSharedUrl = null
+                    })();""".trimIndent()
+                ) {
+                    webViewPageReady = true
+                    val queuedCalls = pendingJsCalls.toList()
+                    pendingJsCalls.clear()
+                    queuedCalls.forEach { (fnName, rawArgs) -> evaluateJsCall(fnName, rawArgs) }
+                    syncDataStorePreferencesToWeb()
+                    notifyEngineState()
+                    pendingSharedUrl?.let { shared ->
+                        callJs("onNativeSharedUrl", JSONObject.quote(shared))
+                        pendingSharedUrl = null
+                    }
+                    dispatchClipboardUrlToWebView()
+                    pushScannedLibraryToWeb()
+                    syncNetworkStateToJs()
                 }
-                dispatchClipboardUrlToWebView()
-                pushScannedLibraryToWeb()
-                syncNetworkStateToJs()
             }
 
             override fun onReceivedError(
@@ -751,10 +769,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun evaluateJsCall(fnName: String, rawArgs: String) {
+        if (::webView.isInitialized && webViewPageReady) {
+            webView.evaluateJavascript("if (window.$fnName) window.$fnName($rawArgs);", null)
+        }
+    }
+
     private fun callJs(fnName: String, rawArgs: String) {
         runOnUiThread {
-            if (::webView.isInitialized) {
-                webView.evaluateJavascript("if (window.$fnName) window.$fnName($rawArgs);", null)
+            if (!::webView.isInitialized) return@runOnUiThread
+            if (!webViewPageReady) {
+                pendingJsCalls.add(fnName to rawArgs)
+            } else {
+                evaluateJsCall(fnName, rawArgs)
             }
         }
     }
@@ -983,7 +1010,7 @@ class MainActivity : AppCompatActivity() {
                     val diskItems = cachedLibraryItems ?: runCatching {
                         if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else null
                     }.getOrNull()
-                    if (diskItems != null) {
+                    if (!diskItems.isNullOrEmpty()) {
                         cachedLibraryItems = diskItems
                         deliverCachedLibrary(diskItems)
                         val audioBytes = if (hasAudioReadPermission()) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
@@ -1155,7 +1182,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun hasVideoReadPermission(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED)
         } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
 
     private fun hasAudioReadPermission(): Boolean =
@@ -1169,7 +1198,12 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val missing = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 buildList {
-                    if (!hasVideoReadPermission()) add(Manifest.permission.READ_MEDIA_VIDEO)
+                    if (!hasVideoReadPermission()) {
+                        add(Manifest.permission.READ_MEDIA_VIDEO)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                        }
+                    }
                     if (!hasAudioReadPermission()) add(Manifest.permission.READ_MEDIA_AUDIO)
                 }
             } else if (!hasMediaReadPermission()) {
