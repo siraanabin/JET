@@ -856,6 +856,48 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private suspend fun pushCompletedDownloadHistoryToWeb(files: List<File>): Map<String, DownloadEntity> {
+        val savedDownloads = downloadDao.getAll()
+        val savedByPath = savedDownloads.associateBy { it.filePath }
+        val historyByPath = LinkedHashMap<String, DownloadHistoryPayload>()
+
+        savedDownloads
+            .filter { it.filePath.isNotBlank() && File(it.filePath).isFile }
+            .forEach { item ->
+                historyByPath[item.filePath] = DownloadHistoryPayload(
+                    item.id,
+                    item.title,
+                    item.formatLabel,
+                    item.fileSize,
+                    item.filePath,
+                    Uri.fromFile(File(item.filePath)).toString(),
+                    item.thumbnailUrl,
+                    "Saved"
+                )
+            }
+
+        // Recover older downloads that exist in Downloads/JET but have no Room row.
+        files.forEach { file ->
+            if (!historyByPath.containsKey(file.absolutePath)) {
+                val saved = savedByPath[file.absolutePath]
+                val ext = file.extension.uppercase(Locale.US).ifEmpty { "FILE" }
+                historyByPath[file.absolutePath] = DownloadHistoryPayload(
+                    saved?.id ?: "file-${file.absolutePath.hashCode()}",
+                    saved?.title ?: file.nameWithoutExtension,
+                    saved?.formatLabel ?: ext,
+                    saved?.fileSize ?: formatBytes(file.length()),
+                    file.absolutePath,
+                    Uri.fromFile(file).toString(),
+                    saved?.thumbnailUrl.orEmpty(),
+                    "Saved"
+                )
+            }
+        }
+
+        callJs("onNativeCompletedDownloads", json.encodeToString(historyByPath.values.toList()))
+        return savedByPath
+    }
+
     private fun pushScannedLibraryToWeb() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -945,36 +987,7 @@ class MainActivity : AppCompatActivity() {
                     ?.filter { it.isFile && !it.name.startsWith(".") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
                     ?.sortedByDescending { it.lastModified() }
                     ?: emptyList()
-                val savedDownloads = downloadDao.getAll()
-                val savedByPath = savedDownloads.associateBy { it.filePath }
-                val historyByPath = LinkedHashMap<String, DownloadHistoryPayload>()
-                savedDownloads
-                    .filter { it.filePath.isNotBlank() && File(it.filePath).isFile }
-                    .forEach { item ->
-                        historyByPath[item.filePath] = DownloadHistoryPayload(
-                            item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
-                            Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved"
-                        )
-                    }
-                // Room is the primary history store; also recover files already present
-                // in Downloads/JET so older or missing database rows remain visible.
-                files.forEach { file ->
-                    if (!historyByPath.containsKey(file.absolutePath)) {
-                        val saved = savedByPath[file.absolutePath]
-                        val ext = file.extension.uppercase(Locale.US).ifEmpty { "FILE" }
-                        historyByPath[file.absolutePath] = DownloadHistoryPayload(
-                            saved?.id ?: "file-${file.absolutePath.hashCode()}",
-                            saved?.title ?: file.nameWithoutExtension,
-                            saved?.formatLabel ?: ext,
-                            saved?.fileSize ?: formatBytes(file.length()),
-                            file.absolutePath,
-                            Uri.fromFile(file).toString(),
-                            saved?.thumbnailUrl.orEmpty(),
-                            "Saved"
-                        )
-                    }
-                }
-                callJs("onNativeCompletedDownloads", json.encodeToString(historyByPath.values.toList()))
+                val savedByPath = pushCompletedDownloadHistoryToWeb(files)
 
                 for (file in files) {
                     val lower = file.name.lowercase(Locale.US)
@@ -1738,6 +1751,24 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun getNotificationOpenTab(): String = intent?.getStringExtra(DownloadNotificationService.EXTRA_OPEN_TAB).orEmpty()
+
+        @JavascriptInterface
+        fun refreshDownloadHistory() {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val files = getJetDownloadDir().listFiles()
+                        ?.filter {
+                            it.isFile && !it.name.startsWith(".") &&
+                                !it.name.endsWith(".part") && !it.name.endsWith(".ytdl")
+                        }
+                        ?.sortedByDescending { it.lastModified() }
+                        ?: emptyList()
+                    pushCompletedDownloadHistoryToWeb(files)
+                } catch (error: Exception) {
+                    Log.e("JET-Downloads", "Unable to restore download history", error)
+                }
+            }
+        }
 
         @JavascriptInterface
         fun refreshLibrary() {
