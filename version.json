@@ -1,10 +1,9 @@
 {
-  "versionCode": 373,
-  "versionName": "3.7.3",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.3/JET-debug.apk",
+  "versionCode": 374,
+  "versionName": "3.7.4",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.4/JET-debug.apk",
   "changelog": [
-    "Tactile compact bottom navigation",
-    "In-app feedback form and About screen",
-    "Minimalist player controls and playlist drawer"
+    "Firebase Analytics, Crashlytics and Firestore feedback integration",
+    "Download platform tracking and WebView JavaScript crash reporting"
   ]
 }
