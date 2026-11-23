@@ -85,6 +85,12 @@ kotlin {
     }
 }
 
+// Keep annotation processors aligned with Kotlin 2.4 metadata. Room KAPT otherwise
+// resolves an older kotlin-metadata-jvm that rejects metadata version 2.4.0.
+configurations.configureEach {
+    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.21")
+}
+
 
 val validateReleaseSigning = tasks.register("validateReleaseSigning") {
     doLast {
