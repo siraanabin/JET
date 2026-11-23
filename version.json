@@ -1,7 +1,7 @@
 {
   "versionCode": 373,
   "versionName": "3.7.3",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.2/JET-debug.apk",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.3/JET-debug.apk",
   "changelog": [
     "Tactile compact bottom navigation",
     "In-app feedback form and About screen",
