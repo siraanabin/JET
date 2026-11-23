@@ -1,6 +1,6 @@
 {
-  "versionCode": 369,
-  "versionName": "3.6.9",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.6.9/JET-debug.apk",
-  "changelog": "• Restore completed Downloads history on app launch\n• Compact Library storage legend and Settings icons\n• Refined flat player seekbar, controls and gesture HUDs"
+  "versionCode": 370,
+  "versionName": "3.7.0",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.0/JET-debug.apk",
+  "changelog": "• Complete Settings icons and compact Library grid with real video thumbnails\n• Correct MediaStore audio/video storage accounting and legend spacing\n• Refine player seekbar, HUD sliders, stroke icons, header and vertical battery"
 }

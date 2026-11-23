@@ -276,11 +276,11 @@
           <div id="storage-progress-bar" class="flex h-3 w-full overflow-hidden rounded-full bg-[#292D35]" role="img" aria-label="Storage usage by media type">
             <span id="storage-audio-segment" class="h-full bg-red-500" style="width:0%"></span><span id="storage-video-segment" class="h-full bg-orange-500" style="width:0%"></span><span id="storage-other-segment" class="h-full bg-green-500" style="width:0%"></span><span id="storage-free-segment" class="h-full bg-[#292D35]" style="width:100%"></span>
           </div>
-          <div class="flex flex-nowrap items-center justify-between gap-1 text-[9px] text-app-secondary whitespace-nowrap overflow-hidden" style="display:flex; flex-wrap:nowrap; justify-content:space-between; font-size:smaller; width:100%;">
-            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></i><span>Audio</span><b id="storage-audio-label" class="tabular-nums shrink-0">0%</b></span>
-            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></i><span>Video</span><b id="storage-video-label" class="tabular-nums shrink-0">0%</b></span>
-            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></i><span>Others</span><b id="storage-other-label" class="tabular-nums shrink-0">0%</b></span>
-            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-[#292D35] shrink-0"></i><span>Free</span><b id="storage-free-label" class="tabular-nums shrink-0">0%</b></span>
+          <div class="flex flex-nowrap items-center justify-between gap-1.5 text-[8px] text-app-secondary whitespace-nowrap w-full overflow-hidden" style="display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:6px; font-size:8px; white-space:nowrap; width:100%;">
+            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></i><span>Audio</span><b id="storage-audio-label" class="tabular-nums shrink-0">0%</b></span>
+            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></i><span>Video</span><b id="storage-video-label" class="tabular-nums shrink-0">0%</b></span>
+            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></i><span>Others</span><b id="storage-other-label" class="tabular-nums shrink-0">0%</b></span>
+            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-[#292D35] shrink-0"></i><span>Free</span><b id="storage-free-label" class="tabular-nums shrink-0">0%</b></span>
           </div>
         </div>
 
@@ -324,18 +324,24 @@
         <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
           <button id="settings-theme-row" type="button"
             class="w-full p-4 flex items-center justify-between gap-3 text-left active:bg-app-elevated/60 transition">
-            <span class="min-w-0">
-              <span class="block text-xs font-bold text-app-text">Theme</span>
-              <span id="settings-theme-value" class="block text-[11px] text-app-secondary mt-0.5">System Default</span>
+            <span class="flex min-w-0 flex-1 items-center gap-3">
+              <span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="palette" class="w-4 h-4"></i></span>
+              <span class="min-w-0">
+                <span class="block text-xs font-bold text-app-text">Theme</span>
+                <span id="settings-theme-value" class="block text-[11px] text-app-secondary mt-0.5">System Default</span>
+              </span>
             </span>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-app-muted" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
           </button>
 
           <div class="p-4 flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-bold text-app-text">Auto-Detect Clipboard Links</p>
-              <p class="text-[11px] text-app-secondary">Show 1-tap banner when a URL is copied</p>
-            </div>
+            <span class="flex min-w-0 flex-1 items-center gap-3">
+              <span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="clipboard-check" class="w-4 h-4"></i></span>
+              <span class="min-w-0">
+                <span class="block text-xs font-bold text-app-text">Auto-Detect Clipboard Links</span>
+                <span class="block text-[11px] text-app-secondary">Show 1-tap banner when a URL is copied</span>
+              </span>
+            </span>
             <button id="clipboard-pref-toggle" type="button" aria-checked="true"
               class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center">
               <span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span>
@@ -346,10 +352,10 @@
         <div class="space-y-2">
           <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">Download Settings</p>
           <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
-            <div class="p-4"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">STORAGE</p><div class="mt-2 flex items-center justify-between gap-3"><div class="min-w-0"><p class="text-xs font-bold text-app-text">Download path</p><p id="download-path-value" class="text-[11px] text-app-secondary mt-0.5 break-all">Loading…</p></div><i data-lucide="folder" class="w-4 h-4 text-app-muted shrink-0"></i></div></div>
+            <div class="p-4"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">STORAGE</p><div class="mt-2 flex items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-4 h-4"></i></span><div class="min-w-0 flex-1"><p class="text-xs font-bold text-app-text">Download path</p><p id="download-path-value" class="text-[11px] text-app-secondary mt-0.5 break-all">Loading…</p></div></div></div>
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">DOWNLOADS</p>
-              <label class="flex items-center justify-between gap-3"><span><span class="block text-xs font-bold text-app-text">Default quality</span><span class="block text-[11px] text-app-secondary mt-0.5">Preselected format</span></span><select id="default-quality-setting" class="max-w-[145px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="vid-360">360p</option><option value="vid-480">480p</option><option value="vid-720">720p</option><option value="vid-1080">1080p</option><option value="vid-2k">2K</option><option value="vid-4k">4K</option><option value="aud-fast">Audio Fast</option><option value="aud-128">MP3 128K</option><option value="aud-320">MP3 320K</option></select></label>
-              <div class="flex items-center justify-between gap-3"><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
+              <label class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="hd" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Default quality</span><span class="block text-[11px] text-app-secondary mt-0.5">Preselected format</span></span></span><select id="default-quality-setting" class="max-w-[145px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="vid-360">360p</option><option value="vid-480">480p</option><option value="vid-720">720p</option><option value="vid-1080">1080p</option><option value="vid-2k">2K</option><option value="vid-4k">4K</option><option value="aud-fast">Audio Fast</option><option value="aud-128">MP3 128K</option><option value="aud-320">MP3 320K</option></select></label>
+              <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="closed-caption" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
             </div>
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">NETWORK</p>
               <label class="flex items-center justify-between gap-3">
@@ -1598,7 +1604,8 @@
 
         $('library-item-count').textContent = `${filtered.length} files`;
         const container = $('library-items-container');
-        container.className = state.libView === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-2.5';
+        container.className = state.libView === 'grid' ? 'grid gap-2' : 'space-y-2.5';
+        container.style.gridTemplateColumns = state.libView === 'grid' ? 'repeat(4, minmax(0, 1fr))' : '';
 
         if (filtered.length === 0) {
           container.className = 'block';
@@ -1613,20 +1620,20 @@
           if (state.libView === 'grid') {
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
-                class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
-                <div class="relative h-32 ${item.type === 'audio' ? '' : 'bg-gradient-to-br ' + item.color} flex items-center justify-center text-white overflow-hidden" ${item.type === 'audio' ? 'style="' + audioBackground + '"' : ''}>
-                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-28 h-28') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
+                class="surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
+                <div class="relative aspect-video w-full ${item.type === 'audio' ? '' : 'bg-gradient-to-br ' + item.color} flex items-center justify-center text-white overflow-hidden" ${item.type === 'audio' ? 'style="' + audioBackground + '"' : ''}>
+                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-10 h-10') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="absolute inset-0 w-full h-full object-cover">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
                 </div>
-                <div class="p-2.5 flex items-center gap-2">
+                <div class="p-1.5 flex items-center gap-1 min-w-0">
                   <div class="min-w-0 flex-1">
-                    <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                    <p class="mt-1 flex items-center gap-1.5 text-[10px] text-app-secondary truncate tabular-nums">
+                    <p class="text-[9px] font-bold text-app-text truncate">${item.title}</p>
+                    <p class="mt-0.5 flex items-center gap-1 text-[8px] text-app-secondary truncate tabular-nums">
                       <span class="shrink-0">${item.type === 'audio' ? '🎵' : item.type === 'document' ? '📄' : '🎬'}</span>
                       <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}</span>
                     </p>
                   </div>
-                  <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i></button>
+                  <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-5 h-5 rounded-md bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-3 h-3 pointer-events-none"></i></button>
                 </div>
               </div>
             `;

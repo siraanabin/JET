@@ -90,7 +90,14 @@ class VideoPlayerActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
-            if (level >= 0) findViewById<TextView>(R.id.player_battery).text = "${level * 100 / scale}%"
+            if (level >= 0) {
+                val percent = (level * 100 / scale).coerceIn(0, 100)
+                findViewById<TextView>(R.id.player_battery).text = "$percent%"
+                val fill = findViewById<View>(R.id.player_battery_fill)
+                fill.layoutParams = fill.layoutParams.apply {
+                    height = (14f * percent / 100f).roundToInt().coerceAtLeast(1)
+                }
+            }
         }
     }
     private val progress = object : Runnable {

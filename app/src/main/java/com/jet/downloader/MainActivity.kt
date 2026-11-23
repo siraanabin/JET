@@ -843,12 +843,20 @@ class MainActivity : AppCompatActivity() {
         return try {
             contentResolver.query(
                 collection,
-                arrayOf("SUM(${MediaStore.MediaColumns.SIZE}) AS total_size"),
+                arrayOf(MediaStore.MediaColumns.SIZE),
                 null,
                 null,
                 null
             )?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getLong(0).coerceAtLeast(0L) else 0L
+                val sizeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+                var totalBytes = 0L
+                if (sizeIndex >= 0) {
+                    while (cursor.moveToNext()) {
+                        totalBytes = (totalBytes + cursor.getLong(sizeIndex).coerceAtLeast(0L))
+                            .coerceAtMost(Long.MAX_VALUE)
+                    }
+                }
+                totalBytes
             } ?: 0L
         } catch (error: Exception) {
             Log.w("JET-Library", "MediaStore aggregate size query failed for $collection", error)
@@ -968,8 +976,8 @@ class MainActivity : AppCompatActivity() {
                                     duration = formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
                                     filePath = file.absolutePath,
                                     fileUri = Uri.fromFile(file).toString(),
-                                    // Avoid synchronous per-file metadata/thumbnail extraction during a full scan.
-                                    thumbnailUrl = "",
+                                    // Create compact thumbnails on the background MediaStore scan dispatcher.
+                                    thumbnailUrl = if (type == "video") createSmartMediaThumbnailDataUrl(file, false) else "",
                                     size = formatBytes(size),
                                     format = ext,
                                     dominantColor = "#20242E"
@@ -1003,7 +1011,9 @@ class MainActivity : AppCompatActivity() {
                             id = file.name.hashCode(), title = file.nameWithoutExtension, type = type,
                             meta = formatBytes(size) + " · " + ext, duration = "",
                             filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
-                            thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl.orEmpty(),
+                            thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl
+                                ?.takeIf { it.isNotBlank() }
+                                ?: if (type == "video") createSmartMediaThumbnailDataUrl(file, false) else "",
                             size = formatBytes(size), format = ext, dominantColor = "#20242E"
                         )
                     )
