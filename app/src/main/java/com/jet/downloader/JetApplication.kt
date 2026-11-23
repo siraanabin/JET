@@ -45,7 +45,6 @@ class JetApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        FirebaseTracker.initialize(this)
 
         val savedThemeMode = runBlocking {
             PreferencesManager(applicationContext).migrateLegacyThemePreference()

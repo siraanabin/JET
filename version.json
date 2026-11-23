@@ -1,10 +1,10 @@
 {
-  "versionCode": 376,
-  "versionName": "3.7.6",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.6/JET-debug.apk",
+  "versionCode": 377,
+  "versionName": "3.7.7",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.3/JET-debug.apk",
   "changelog": [
-    "Remove the bottom navigation top dash and use outline/filled bold icon states",
-    "Always rescan MediaStore so device videos appear after permission changes",
-    "Improve Library scan diagnostics"
+    "Tactile compact bottom navigation",
+    "In-app feedback form and About screen",
+    "Minimalist player controls and playlist drawer"
   ]
 }

@@ -91,15 +91,12 @@
     .nav-btn{position:relative;min-height:54px;padding-top:5px!important;padding-bottom:4px!important;transition:transform 260ms cubic-bezier(.2,1.4,.35,1),color 180ms ease}
     .nav-btn:active{transform:scale(.92)}.nav-btn svg{transition:transform 260ms cubic-bezier(.2,1.4,.35,1)}
     .nav-btn[aria-current="page"] svg{transform:translateY(-2px) scale(1.06)}
-    /* No top dash: selection is communicated by the filled icon and icon pill. */
+    .nav-btn[aria-current="page"]::after{content:"";position:absolute;top:1px;left:50%;width:22px;height:3px;border-radius:99px;background:var(--accent-primary);transform:translateX(-50%);animation:navPillIn 220ms cubic-bezier(.2,1.4,.35,1)}
+    @keyframes navPillIn{from{opacity:0;width:4px}to{opacity:1;width:22px}}
     .feedback-field{width:100%;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-primary);border-radius:16px;padding:13px 14px;outline:none;font:inherit;font-size:13px}
     .feedback-field:focus{border-color:var(--accent-primary)}.feedback-send:disabled{opacity:.42}
     .feedback-media-tile{border:1px dashed var(--border-subtle);border-radius:14px;min-height:78px;background:var(--bg-elevated)}
-        .nav-icon-pill{width:48px;height:30px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:inherit;transition:background-color .2s ease,color .2s ease,transform .2s ease;}
-      .nav-icon-pill svg{width:21px;height:21px;}
-      .nav-btn.nav-active .nav-icon-pill{background:var(--accent-tint);color:var(--accent-primary);}
-      .nav-btn.nav-active .nav-icon-pill svg{transform:scale(1.04);}
-</style>
+  </style>
 </head>
 <body>
 
@@ -461,17 +458,17 @@
     </main>
 
     <!-- Bottom Navigation Bar -->
-    <nav aria-label="Main navigation" class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md px-2 py-2 grid grid-cols-4 shrink-0">
+    <nav aria-label="Main navigation" class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-0 grid grid-cols-4 shrink-0">
       <button type="button" data-nav-target="home"
         class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-primary font-bold transition" aria-current="page">
-        <span class="nav-icon-pill"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
         <span class="text-[11px] pointer-events-none">Home</span>
       </button>
 
       <button type="button" data-nav-target="downloads"
         class="nav-btn relative flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary font-semibold transition">
         <div class="relative pointer-events-none">
-          <span class="nav-icon-pill"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download w-5 h-5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download w-5 h-5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           <span id="nav-dl-badge" class="hidden absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-app-primary text-white text-[9px] font-extrabold flex items-center justify-center tabular-nums">0</span>
         </div>
         <span class="text-[11px] pointer-events-none">Downloads</span>
@@ -479,13 +476,13 @@
 
       <button type="button" data-nav-target="library"
         class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary font-semibold transition">
-        <span class="nav-icon-pill"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
         <span class="text-[11px] pointer-events-none">Library</span>
       </button>
 
       <button type="button" data-nav-target="settings"
         class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary font-semibold transition">
-        <span class="nav-icon-pill"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
         <span class="text-[11px] pointer-events-none">Settings</span>
       </button>
     </nav>
@@ -801,13 +798,6 @@
       }
 
       // Navigation
-      const navFilledPaths = {
-        home: '<path d="M12 3 2 12h3v9h5v-6h4v6h5v-9h3L12 3z"/>',
-        downloads: '<path d="M5 20h14v-2H5v2zm8-18h-2v9.17L7.59 7.76 6.17 9.17 12 15l5.83-5.83-1.41-1.41L13 11.17V2z"/>',
-        library: '<path d="M10 4H2v16h20V6H12l-2-2z"/>',
-        settings: '<path d="m19.14 12.94.03-.94-.03-.94 2.03-1.58-2-3.46-2.43.98a7.1 7.1 0 0 0-1.63-.94L14.74 3h-4.48l-.37 3.06c-.59.22-1.14.54-1.63.94l-2.43-.98-2 3.46 2.03 1.58-.03.94.03.94-2.03 1.58 2 3.46 2.43-.98c.49.4 1.04.72 1.63.94L10.26 21h4.48l.37-3.06c.59-.22 1.14-.54 1.63-.94l2.43.98 2-3.46-2.03-1.58ZM12.5 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>'
-      };
-
       function switchScreen(target) {
         state.screen = target;
         ['home', 'downloads', 'library', 'settings'].forEach((s) => {
@@ -820,15 +810,6 @@
           btn.classList.toggle('font-bold', active);
           btn.classList.toggle('text-app-secondary', !active);
           btn.classList.toggle('font-semibold', !active);
-          btn.classList.toggle('nav-active', active);
-          const icon = btn.querySelector('.nav-icon-pill svg');
-          if (icon) {
-            if (!icon.dataset.outlineMarkup) icon.dataset.outlineMarkup = icon.innerHTML;
-            icon.innerHTML = active ? navFilledPaths[target] : icon.dataset.outlineMarkup;
-            icon.setAttribute('fill', active ? 'currentColor' : 'none');
-            icon.setAttribute('stroke', active ? 'none' : 'currentColor');
-            icon.setAttribute('stroke-width', active ? '2.8' : '2');
-          }
           if (active) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
         });
         if (target === 'downloads' && hasAndroid() && window.JetAndroid.refreshDownloadHistory) {
@@ -845,7 +826,6 @@
         const navBtn = e.target.closest('[data-nav-target]');
         if (navBtn) switchScreen(navBtn.dataset.navTarget);
       });
-      switchScreen(state.screen);
       $('library-grid-columns-setting').addEventListener('change', (e) => {
         state.libraryGridColumns = Math.max(2, Math.min(4, Number(e.target.value) || 3));
         renderLibrary();

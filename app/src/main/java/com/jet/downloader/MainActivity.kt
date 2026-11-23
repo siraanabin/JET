@@ -32,7 +32,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
-import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -48,7 +47,9 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
 import android.provider.OpenableColumns
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -111,8 +112,6 @@ class MainActivity : AppCompatActivity() {
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
     @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
-    @Volatile private var webViewPageReady = false
-    private val pendingJsCalls = mutableListOf<Pair<String, String>>()
     private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
     private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
     private val mediaRefreshHandler = Handler(Looper.getMainLooper())
@@ -399,46 +398,19 @@ class MainActivity : AppCompatActivity() {
 
         webView.addJavascriptInterface(JetNativeBridge(), "JetAndroid")
         webView.addJavascriptInterface(JetNetworkBridge(), "JetNetwork")
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-                Log.e("JET-WebView", "JS " + message.message() + " (" + message.sourceId() + ":" + message.lineNumber() + ")")
-                return true
-            }
-        }
+        webView.webChromeClient = WebChromeClient()
         webView.webViewClient = object : WebViewClient() {
-            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                super.onPageStarted(view, url, favicon)
-                webViewPageReady = false
-            }
-
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                webView.evaluateJavascript(
-                    """(function(){
-                        if(window.__jetFirebaseErrorHooksInstalled)return;
-                        window.__jetFirebaseErrorHooksInstalled=true;
-                        window.addEventListener("error",function(event){
-                            try{var error=event.error;window.JetAndroid.reportWebViewError(String(event.message||"JavaScript error"),String((error&&error.stack)||event.filename+":"+event.lineno+":"+event.colno));}catch(_){}
-                        },true);
-                        window.addEventListener("unhandledrejection",function(event){
-                            try{var reason=event.reason;window.JetAndroid.reportWebViewError(String((reason&&reason.message)||reason||"Unhandled promise rejection"),String((reason&&reason.stack)||""));}catch(_){}
-                        });
-                    })();""".trimIndent()
-                ) {
-                    webViewPageReady = true
-                    val queuedCalls = pendingJsCalls.toList()
-                    pendingJsCalls.clear()
-                    queuedCalls.forEach { (fnName, rawArgs) -> evaluateJsCall(fnName, rawArgs) }
-                    syncDataStorePreferencesToWeb()
-                    notifyEngineState()
-                    pendingSharedUrl?.let { shared ->
-                        callJs("onNativeSharedUrl", JSONObject.quote(shared))
-                        pendingSharedUrl = null
-                    }
-                    dispatchClipboardUrlToWebView()
-                    pushScannedLibraryToWeb()
-                    syncNetworkStateToJs()
+                syncDataStorePreferencesToWeb()
+                notifyEngineState()
+                pendingSharedUrl?.let { shared ->
+                    callJs("onNativeSharedUrl", JSONObject.quote(shared))
+                    pendingSharedUrl = null
                 }
+                dispatchClipboardUrlToWebView()
+                pushScannedLibraryToWeb()
+                syncNetworkStateToJs()
             }
 
             override fun onReceivedError(
@@ -769,18 +741,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun evaluateJsCall(fnName: String, rawArgs: String) {
-        if (::webView.isInitialized && webViewPageReady) {
-            webView.evaluateJavascript("if (window.$fnName) window.$fnName($rawArgs);", null)
-        }
-    }
-
     private fun callJs(fnName: String, rawArgs: String) {
         runOnUiThread {
-            if (!::webView.isInitialized || !webViewPageReady) {
-                pendingJsCalls.add(fnName to rawArgs)
-            } else {
-                evaluateJsCall(fnName, rawArgs)
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript("if (window.$fnName) window.$fnName($rawArgs);", null)
             }
         }
     }
@@ -1005,13 +969,22 @@ class MainActivity : AppCompatActivity() {
     private fun pushScannedLibraryToWeb(force: Boolean = false) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Always rescan MediaStore. A previously non-empty cache can contain only
-                // JET downloads or a partial-permission snapshot and must never suppress
-                // discovery of newly granted device videos/audio.
+                if (!force) {
+                    val diskItems = cachedLibraryItems ?: runCatching {
+                        if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else null
+                    }.getOrNull()
+                    if (diskItems != null) {
+                        cachedLibraryItems = diskItems
+                        deliverCachedLibrary(diskItems)
+                        val audioBytes = if (hasAudioReadPermission()) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
+                        val videoBytes = if (hasVideoReadPermission()) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
+                        pushStorageStats(audioBytes, videoBytes)
+                        return@launch
+                    }
+                }
                 callJs("onNativeLibraryScanStarted", "")
                 val videoPermission = hasVideoReadPermission()
                 val audioPermission = hasAudioReadPermission()
-                Log.i("JET-Library", "Starting fresh MediaStore scan: videoPermission=$videoPermission, audioPermission=$audioPermission, sdk=${Build.VERSION.SDK_INT}")
 
                 // Storage capacity is obtained from filesystem metadata; media totals
                 // are calculated by the MediaStore provider, not by summing every row.
@@ -1057,15 +1030,9 @@ class MainActivity : AppCompatActivity() {
                         val sizeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
                         val durationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DURATION)
                         val mimeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
-                        var scannedRows = 0
-                        var rowsWithoutFilePath = 0
                         while (cursor.moveToNext()) {
-                            scannedRows++
                             val path = if (dataIndex >= 0) cursor.getString(dataIndex).orEmpty() else ""
-                            if (path.isBlank()) {
-                                rowsWithoutFilePath++
-                                continue
-                            }
+                            if (path.isBlank()) continue
                             val file = File(path)
                             if (!file.isFile || file.name.startsWith(".")) continue
                             val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else 0L
@@ -1092,7 +1059,6 @@ class MainActivity : AppCompatActivity() {
                                 )
                             )
                         }
-                        Log.i("JET-Library", "$type MediaStore rows=$scannedRows, missingDataPath=$rowsWithoutFilePath")
                     }
                 }
 
@@ -1179,9 +1145,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun hasVideoReadPermission(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED ||
-                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED)
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
         } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
 
     private fun hasAudioReadPermission(): Boolean =
@@ -1195,12 +1159,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val missing = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 buildList {
-                    if (!hasVideoReadPermission()) {
-                        add(Manifest.permission.READ_MEDIA_VIDEO)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
-                        }
-                    }
+                    if (!hasVideoReadPermission()) add(Manifest.permission.READ_MEDIA_VIDEO)
                     if (!hasAudioReadPermission()) add(Manifest.permission.READ_MEDIA_AUDIO)
                 }
             } else if (!hasMediaReadPermission()) {
@@ -1321,43 +1280,41 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun submitFeedback(payload: String) {
-            if (!FirebaseTracker.isAvailable(this@MainActivity)) {
-                callJs("onNativeFeedbackResult", "false,${JSONObject.quote("Feedback is unavailable in this build.")}")
+            val helperUrl = BuildConfig.JET_FEEDBACK_HELPER_URL.trim()
+            if (helperUrl.isBlank()) {
+                callJs("onNativeFeedbackResult", "false,${JSONObject.quote("Feedback service is not configured yet.")}")
                 return
             }
-            try {
-                val input = JSONObject(payload)
-                val details = input.optString("details").trim().take(1000)
-                if (details.isBlank()) throw IllegalArgumentException("Please enter feedback details.")
-                val attachmentMetadata = mutableListOf<Map<String, String>>()
-                val selected = input.optJSONArray("attachments") ?: org.json.JSONArray()
-                for (i in 0 until minOf(selected.length(), 9)) {
-                    val uri = Uri.parse(selected.optString(i))
-                    val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                        if (c.moveToFirst()) c.getString(0) else null
-                    } ?: "attachment-${i + 1}"
-                    attachmentMetadata.add(mapOf(
-                        "name" to name.take(180),
-                        "mime" to (contentResolver.getType(uri) ?: "application/octet-stream").take(120)
-                    ))
-                }
-                FirebaseTracker.submitFeedback(this@MainActivity, details,
-                    input.optString("contact").trim().take(160), attachmentMetadata) { success, error ->
-                    if (success) callJs("onNativeFeedbackResult", "true,${JSONObject.quote("")}")
-                    else {
-                        Log.e("JET-Feedback", "Firestore feedback submission failed", error)
-                        callJs("onNativeFeedbackResult", "false,${JSONObject.quote("Could not send feedback. Please try again.")}")
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val input = JSONObject(payload)
+                    val details = input.optString("details").trim().take(1000)
+                    if (details.isBlank()) throw IllegalArgumentException("Please enter feedback details.")
+                    val attachments = org.json.JSONArray()
+                    val selected = input.optJSONArray("attachments") ?: org.json.JSONArray()
+                    for (i in 0 until minOf(selected.length(), 9)) {
+                        val uri = Uri.parse(selected.getString(i))
+                        val bytes = contentResolver.openInputStream(uri)?.use { stream ->
+                            val out = ByteArrayOutputStream(); val buffer = ByteArray(8192); var total = 0
+                            while (true) { val n = stream.read(buffer); if (n <= 0) break; total += n
+                                if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Each attachment must be 5 MB or smaller.")
+                                out.write(buffer, 0, n) }
+                            out.toByteArray()
+                        } ?: continue
+                        val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "attachment-$i"
+                        attachments.put(JSONObject().put("name", name).put("mime", contentResolver.getType(uri) ?: "application/octet-stream").put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP)))
                     }
+                    val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
+                    val body = JSONObject().put("details", details).put("contact", input.optString("contact").take(160)).put("attachments", attachments)
+                        .put("diagnostics", JSONObject().put("appVersion", version).put("androidVersion", Build.VERSION.RELEASE ?: "unknown").put("deviceModel", Build.MODEL ?: "unknown"))
+                    val request = Request.Builder().url(helperUrl).post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
+                    okHttpClient.newCall(request).execute().use { if (!it.isSuccessful) throw IllegalStateException("Feedback service returned HTTP ${it.code}.") }
+                    callJs("onNativeFeedbackResult", "true,${JSONObject.quote("")}")
+                } catch (error: Exception) {
+                    Log.e("JET-Feedback", "Feedback submission failed", error)
+                    callJs("onNativeFeedbackResult", "false,${JSONObject.quote(error.message ?: "Could not send feedback.")}")
                 }
-            } catch (error: Exception) {
-                Log.e("JET-Feedback", "Invalid feedback payload", error)
-                callJs("onNativeFeedbackResult", "false,${JSONObject.quote(error.message ?: "Could not send feedback.")}")
             }
-        }
-
-        @JavascriptInterface
-        fun reportWebViewError(message: String, stack: String) {
-            FirebaseTracker.recordWebViewError(this@MainActivity, message, stack)
         }
 
         @JavascriptInterface
@@ -1871,7 +1828,6 @@ class MainActivity : AppCompatActivity() {
                 filePath = file.absolutePath,
                 fileUri = Uri.fromFile(file).toString()
             )
-            FirebaseTracker.logDownloadCompleted(this@MainActivity, url, mediaType)
             realDownloadSpecs.remove(downloadId)
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)

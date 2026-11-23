@@ -1,16 +1,8 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
     id("org.jetbrains.kotlin.plugin.serialization")
-}
-
-val requestedReleaseTasks = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
-if (requestedReleaseTasks) {
-    apply(plugin = "com.google.gms.google-services")
-    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 
@@ -19,6 +11,7 @@ val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 
+val feedbackHelperUrl = providers.gradleProperty("JET_FEEDBACK_HELPER_URL").orElse(providers.environmentVariable("JET_FEEDBACK_HELPER_URL").orElse("")).get().replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
     buildFeatures { buildConfig = true }
@@ -29,8 +22,9 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 376
-        versionName = "3.7.6"
+        versionCode = 377
+        versionName = "3.7.7"
+        buildConfigField("String", "JET_FEEDBACK_HELPER_URL", "\"$feedbackHelperUrl\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -77,18 +71,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
+    kotlinOptions {
+        jvmTarget = "17"
     }
-}
-
-// Keep annotation processors aligned with Kotlin 2.4 metadata. Room KAPT otherwise
-// resolves an older kotlin-metadata-jvm that rejects metadata version 2.4.0.
-configurations.configureEach {
-    resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.21")
 }
 
 
@@ -115,12 +100,6 @@ tasks.configureEach {
 }
 
 dependencies {
-    // Firebase BoM 35.0.0 aligns the protobuf/gRPC dependency graph.
-    implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-crashlytics")
-    implementation("com.google.firebase:firebase-firestore")
-
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // Core AndroidX & WebView
@@ -141,30 +120,30 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
 
-    // AndroidX Room (Apache 2.0) - updated processor supports newer Kotlin metadata.
-    val roomVersion = "2.8.5"
+    // AndroidX Room (Apache 2.0)
+    val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    // AndroidX Navigation
+    // AndroidX Navigation (Apache 2.0)
     val navVersion = "2.7.7"
     implementation("androidx.navigation:navigation-fragment-ktx:$navVersion")
     implementation("androidx.navigation:navigation-ui-ktx:$navVersion")
 
-    // AndroidX DataStore
+    // AndroidX DataStore (Apache 2.0)
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // Koin DI
+    // Koin DI (Apache 2.0)
     implementation("io.insert-koin:koin-android:3.5.6")
 
-    // Coil Image Loading
+    // Coil Image Loading (Apache 2.0)
     implementation("io.coil-kt:coil:2.7.0")
 
-    // OkHttp Networking
+    // OkHttp Networking (Apache 2.0)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Kotlin Coroutines & Serialization
+    // Kotlin Coroutines & Serialization (Apache 2.0)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
