@@ -104,10 +104,12 @@ tasks.configureEach {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-analytics-ktx")
-    implementation("com.google.firebase:firebase-crashlytics-ktx")
-    implementation("com.google.firebase:firebase-firestore-ktx")
+    // Firebase BoM 35.0.0 includes the protobuf/gRPC dependency alignment
+    // required to avoid duplicate DescriptorProtos classes.
+    implementation(platform("com.google.firebase:firebase-bom:35.0.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-firestore")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
@@ -135,24 +137,24 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
 
-    // AndroidX Navigation (Apache 2.0)
+    // AndroidX Navigation
     val navVersion = "2.7.7"
     implementation("androidx.navigation:navigation-fragment-ktx:$navVersion")
     implementation("androidx.navigation:navigation-ui-ktx:$navVersion")
 
-    // AndroidX DataStore (Apache 2.0)
+    // AndroidX DataStore
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // Koin DI (Apache 2.0)
+    // Koin DI
     implementation("io.insert-koin:koin-android:3.5.6")
 
-    // Coil Image Loading (Apache 2.0)
+    // Coil Image Loading
     implementation("io.coil-kt:coil:2.7.0")
 
-    // OkHttp Networking (Apache 2.0)
+    // OkHttp Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Kotlin Coroutines & Serialization (Apache 2.0)
+    // Kotlin Coroutines & Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
