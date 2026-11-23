@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.os.*
+import android.graphics.drawable.GradientDrawable
 import android.view.*
 import android.view.animation.OvershootInterpolator
 import android.widget.*
@@ -50,6 +51,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var bottomPanel: View
     private lateinit var centerControls: View
     private lateinit var playlist: LinearLayout
+    private lateinit var playlistDrawer: LinearLayout
+    private lateinit var playlistScrim: View
+    private lateinit var playlistToggle: ImageButton
     private lateinit var volumeHud: View
     private lateinit var brightnessHud: View
     private lateinit var seekHud: View
@@ -134,7 +138,10 @@ class VideoPlayerActivity : AppCompatActivity() {
         topBar = findViewById(R.id.player_top_bar)
         bottomPanel = findViewById(R.id.player_bottom_panel)
         centerControls = findViewById(R.id.player_center_controls)
-        playlist = findViewById(R.id.player_playlist)
+        playlist = findViewById(R.id.player_playlist_list)
+        playlistDrawer = findViewById(R.id.player_playlist_drawer)
+        playlistScrim = findViewById(R.id.player_playlist_scrim)
+        playlistToggle = findViewById(R.id.player_playlist_toggle)
         volumeHud = findViewById(R.id.player_volume_hud)
         brightnessHud = findViewById(R.id.player_brightness_hud)
         seekHud = findViewById(R.id.player_seek_hud)
@@ -224,6 +231,9 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun setupControls() {
         findViewById<ImageButton>(R.id.player_close).setOnClickListener { finish() }
+        playlistToggle.setOnClickListener { togglePlaylistDrawer(true) }
+        findViewById<ImageButton>(R.id.player_playlist_close).setOnClickListener { togglePlaylistDrawer(false) }
+        playlistScrim.setOnClickListener { togglePlaylistDrawer(false) }
         findViewById<ImageButton>(R.id.player_rewind).setOnClickListener { seekBy(-10_000L) }
         findViewById<ImageButton>(R.id.player_play).setOnClickListener {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
@@ -524,7 +534,6 @@ class VideoPlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(hideControls)
         val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
-            (playlist.parent as? View)?.visibility = View.VISIBLE
             controls.visibility = View.VISIBLE
             topBar.visibility = View.VISIBLE
             bottomPanel.visibility = View.VISIBLE
@@ -587,60 +596,65 @@ class VideoPlayerActivity : AppCompatActivity() {
             setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "mp3", "m4a", "opus") }
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
-            val card = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(48), dp(32)).apply { marginEnd = dp(4) }
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                layoutParams = LinearLayout.LayoutParams(-1, dp(82)).apply { bottomMargin = dp(8) }
+                background = GradientDrawable().apply { setColor(0xFF191E29.toInt()); cornerRadius = dp(12).toFloat(); setStroke(dp(1), 0xFF2A3140.toInt()) }
                 tag = file.absolutePath
-                background = ContextCompat.getDrawable(this@VideoPlayerActivity, R.drawable.player_playlist_item)
-                clipToOutline = true
                 setOnClickListener {
-                    currentPath = file.absolutePath
-                    titleView.text = file.nameWithoutExtension
+                    currentPath = file.absolutePath; titleView.text = file.nameWithoutExtension
                     player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
-                    player?.prepare()
-                    player?.play()
-                    refreshSelection()
+                    player?.prepare(); player?.play(); refreshSelection(); togglePlaylistDrawer(false)
                 }
             }
-            val image = ImageView(this).apply {
-                layoutParams = FrameLayout.LayoutParams(-1, -1)
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundResource(R.drawable.player_thumbnail_bg)
-                clipToOutline = true
-                tag = file.absolutePath
+            val thumb = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(112), dp(64)).apply { marginEnd = dp(10) }
+                background = GradientDrawable().apply { setColor(0xFF303746.toInt()); cornerRadius = dp(8).toFloat() }; clipToOutline = true
             }
-            card.addView(image)
+            val image = ImageView(this).apply { layoutParams = FrameLayout.LayoutParams(-1, -1); scaleType = ImageView.ScaleType.CENTER_CROP; tag = file.absolutePath }
+            thumb.addView(image)
+            val durationBadge = TextView(this).apply {
+                text = "--:--"; textSize = 9f; setTextColor(-1); setPadding(dp(4), dp(2), dp(4), dp(2))
+                background = GradientDrawable().apply { setColor(0xCC000000.toInt()); cornerRadius = dp(4).toFloat() }
+                layoutParams = FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(4), dp(4)) }
+            }
+            thumb.addView(durationBadge)
             val cached = thumbCache.get(file.absolutePath)
-            if (cached != null) image.setImageBitmap(cached) else {
-                // Extract frames on a worker thread; never decode thumbnails on the UI thread.
-                thumbExecutor.execute {
-                    var bitmap: android.graphics.Bitmap? = null
-                    val retriever = MediaMetadataRetriever()
-                    try {
-                        retriever.setDataSource(file.absolutePath)
-                        bitmap = retriever.getFrameAtTime(1_000_000L)
-                    } catch (_: Exception) {
-                    } finally {
-                        try { retriever.release() } catch (_: Exception) {}
-                    }
-                    bitmap?.let { decoded ->
-                        thumbCache.put(file.absolutePath, decoded)
-                        runOnUiThread {
-                            if (!isDestroyed && image.tag == file.absolutePath) image.setImageBitmap(decoded)
-                        }
-                    }
-                }
+            if (cached != null) image.setImageBitmap(cached)
+            thumbExecutor.execute {
+                var bitmap: android.graphics.Bitmap? = null; var duration = 0L
+                val retriever = MediaMetadataRetriever()
+                try { retriever.setDataSource(file.absolutePath); bitmap = retriever.getFrameAtTime(1_000_000L); duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L }
+                catch (_: Exception) { } finally { try { retriever.release() } catch (_: Exception) { } }
+                val label = if (duration > 0L) time(duration) else "--:--"
+                bitmap?.let { decoded -> thumbCache.put(file.absolutePath, decoded); runOnUiThread { if (!isDestroyed && image.tag == file.absolutePath) image.setImageBitmap(decoded) } }
+                runOnUiThread { if (!isDestroyed && durationBadge.parent != null) durationBadge.text = label }
             }
-            playlist.addView(card)
+            val textColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -1, 1f) }
+            val title = TextView(this).apply { text = file.nameWithoutExtension; setTextColor(-1); textSize = 12f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+            val size = TextView(this).apply { text = android.text.format.Formatter.formatShortFileSize(this@VideoPlayerActivity, file.length()); setTextColor(0xFF9AA4B5.toInt()); textSize = 10f }
+            textColumn.addView(title); textColumn.addView(size); card.addView(thumb); card.addView(textColumn); playlist.addView(card)
         }
         refreshSelection()
+    }
+
+    private fun togglePlaylistDrawer(show: Boolean) {
+        if (show) {
+            playlistScrim.visibility = View.VISIBLE; playlistDrawer.visibility = View.VISIBLE
+            playlistDrawer.translationX = dp(320).toFloat(); playlistScrim.alpha = 0f
+            playlistScrim.animate().alpha(1f).setDuration(180L).start()
+            playlistDrawer.animate().translationX(0f).setDuration(240L).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        } else {
+            playlistScrim.animate().alpha(0f).setDuration(160L).withEndAction { playlistScrim.visibility = View.GONE }.start()
+            playlistDrawer.animate().translationX(dp(320).toFloat()).setDuration(200L).withEndAction { playlistDrawer.visibility = View.GONE }.start()
+        }
     }
     private fun refreshSelection() {
         for (i in 0 until playlist.childCount) {
             val child = playlist.getChildAt(i)
             val selected = child.tag == currentPath
-            child.setBackgroundResource(if (selected) R.drawable.player_playlist_selected else R.drawable.player_playlist_item)
-            child.scaleX = if (selected) 1.05f else 1f
-            child.scaleY = if (selected) 1.05f else 1f
+            child.background = GradientDrawable().apply { setColor(if (selected) 0xFF202B43.toInt() else 0xFF191E29.toInt()); cornerRadius = dp(12).toFloat(); setStroke(dp(1), if (selected) 0xFF4F7CFF.toInt() else 0xFF2A3140.toInt()) }
         }
     }
     private fun backgroundAudio() {
