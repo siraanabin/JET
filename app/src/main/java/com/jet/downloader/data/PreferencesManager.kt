@@ -19,7 +19,8 @@ data class DownloadPreferences(
     val saveSubtitles: Boolean = false,
     val maxDownloadTasks: Int = 3,
     val speedLimitKbps: Int = 0,
-    val allowMobileData: Boolean = true
+    val allowMobileData: Boolean = true,
+    val libraryGridColumns: Int = 3
 )
 
 class PreferencesManager(private val context: Context) {
@@ -33,6 +34,7 @@ class PreferencesManager(private val context: Context) {
         private val MAX_DOWNLOAD_TASKS_KEY = intPreferencesKey("download_max_tasks")
         private val SPEED_LIMIT_KEY = intPreferencesKey("download_speed_limit_kbps")
         private val ALLOW_MOBILE_DATA_KEY = booleanPreferencesKey("download_mobile_data")
+        private val LIBRARY_GRID_COLUMNS_KEY = intPreferencesKey("library_grid_columns")
 
         const val THEME_SYSTEM = "system"
         const val THEME_DARK = "dark"
@@ -55,7 +57,8 @@ class PreferencesManager(private val context: Context) {
             saveSubtitles = prefs[SAVE_SUBTITLES_KEY] ?: false,
             maxDownloadTasks = (prefs[MAX_DOWNLOAD_TASKS_KEY] ?: 3).coerceIn(1, 5),
             speedLimitKbps = (prefs[SPEED_LIMIT_KEY] ?: 0).coerceAtLeast(0),
-            allowMobileData = prefs[ALLOW_MOBILE_DATA_KEY] ?: true
+            allowMobileData = prefs[ALLOW_MOBILE_DATA_KEY] ?: true,
+            libraryGridColumns = (prefs[LIBRARY_GRID_COLUMNS_KEY] ?: 3).coerceIn(2, 4)
         )
     }
 
@@ -96,6 +99,7 @@ class PreferencesManager(private val context: Context) {
                 "maxDownloadTasks" -> prefs[MAX_DOWNLOAD_TASKS_KEY] = value.toInt().coerceIn(1, 5)
                 "speedLimitKbps" -> prefs[SPEED_LIMIT_KEY] = value.toInt().coerceIn(0, 100_000)
                 "allowMobileData" -> prefs[ALLOW_MOBILE_DATA_KEY] = value.toBooleanStrict()
+                "libraryGridColumns" -> prefs[LIBRARY_GRID_COLUMNS_KEY] = value.toInt().coerceIn(2, 4)
             }
         }
     }

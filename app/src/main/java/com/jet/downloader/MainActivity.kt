@@ -74,6 +74,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import org.json.JSONObject
@@ -103,6 +104,12 @@ class MainActivity : AppCompatActivity() {
     private val preferencesManager: PreferencesManager by inject()
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
+    @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
+    private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
+    private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
+    private val mediaRefreshHandler = Handler(Looper.getMainLooper())
+    private var mediaStoreObserver: android.database.ContentObserver? = null
+    private val mediaRefreshRunnable = Runnable { if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb(force = true) }
     private val pauseRequestedDownloads = ConcurrentHashMap.newKeySet<String>()
     private val downloadAdmissionMutex = kotlinx.coroutines.sync.Mutex()
     private var activeDownloadCount = 0
@@ -408,6 +415,7 @@ class MainActivity : AppCompatActivity() {
         handleIncomingIntent(intent)
         webView.clearCache(true)
         webView.loadUrl("file:///android_asset/index.html")
+        registerMediaStoreObserver()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -630,12 +638,26 @@ class MainActivity : AppCompatActivity() {
         if (::webView.isInitialized) {
             webView.postDelayed({
                 dispatchClipboardUrlToWebView()
-                pushScannedLibraryToWeb()
                 if (hasVideoReadPermission() || hasAudioReadPermission()) {
                     webView.evaluateJavascript("if (window.onNativeAppResumed) window.onNativeAppResumed();", null)
                 }
             }, 350)
         }
+    }
+
+    private fun registerMediaStoreObserver() {
+        if (mediaStoreObserver != null) return
+        mediaStoreObserver = object : android.database.ContentObserver(mediaRefreshHandler) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                super.onChange(selfChange, uri)
+                mediaRefreshHandler.removeCallbacks(mediaRefreshRunnable)
+                mediaRefreshHandler.postDelayed(mediaRefreshRunnable, 900L)
+            }
+        }
+        runCatching {
+            contentResolver.registerContentObserver(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver!!)
+            contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver!!)
+        }.onFailure { Log.w("JET-Library", "MediaStore observer registration failed", it) }
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
@@ -906,9 +928,39 @@ class MainActivity : AppCompatActivity() {
         return savedByPath
     }
 
-    private fun pushScannedLibraryToWeb() {
+    private fun thumbnailFromDiskCache(file: File): String {
+        val key = (file.absolutePath + "|" + file.length() + "|" + file.lastModified()).hashCode().toUInt().toString(16)
+        val cached = File(libraryThumbnailCacheDir, "$key.txt")
+        if (cached.isFile) return runCatching { cached.readText() }.getOrDefault("")
+        val data = createSmartMediaThumbnailDataUrl(file, false)
+        if (data.isNotBlank()) runCatching { cached.writeText(data) }
+        return data
+    }
+
+    private fun deliverCachedLibrary(items: List<LibraryItemPayload>) {
+        callJs("onNativeLibraryScanStarted", "")
+        items.chunked(50).forEachIndexed { index, chunk ->
+            callJs("onNativeLibraryChunk", "${json.encodeToString(chunk)}, ${index == (items.size - 1) / 50}")
+        }
+        if (items.isEmpty()) callJs("onNativeLibraryChunk", "[], true")
+    }
+
+    private fun pushScannedLibraryToWeb(force: Boolean = false) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                if (!force) {
+                    val diskItems = cachedLibraryItems ?: runCatching {
+                        if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else null
+                    }.getOrNull()
+                    if (diskItems != null) {
+                        cachedLibraryItems = diskItems
+                        deliverCachedLibrary(diskItems)
+                        val audioBytes = if (hasAudioReadPermission()) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
+                        val videoBytes = if (hasVideoReadPermission()) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
+                        pushStorageStats(audioBytes, videoBytes)
+                        return@launch
+                    }
+                }
                 callJs("onNativeLibraryScanStarted", "")
                 val videoPermission = hasVideoReadPermission()
                 val audioPermission = hasAudioReadPermission()
@@ -920,6 +972,7 @@ class MainActivity : AppCompatActivity() {
                 pushStorageStats(audioBytes, videoBytes)
 
                 val chunk = ArrayList<LibraryItemPayload>(50)
+                val allItems = ArrayList<LibraryItemPayload>()
                 var sentCount = 0
                 fun flushChunk(isFinal: Boolean = false) {
                     if (chunk.isNotEmpty() || isFinal) {
@@ -933,6 +986,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 fun addItem(item: LibraryItemPayload) {
+                    allItems.add(item)
                     chunk.add(item)
                     if (chunk.size >= 50) flushChunk()
                 }
@@ -977,7 +1031,7 @@ class MainActivity : AppCompatActivity() {
                                     filePath = file.absolutePath,
                                     fileUri = Uri.fromFile(file).toString(),
                                     // Create compact thumbnails on the background MediaStore scan dispatcher.
-                                    thumbnailUrl = if (type == "video") createSmartMediaThumbnailDataUrl(file, false) else "",
+                                    thumbnailUrl = if (type == "video") thumbnailFromDiskCache(file) else "",
                                     size = formatBytes(size),
                                     format = ext,
                                     dominantColor = "#20242E"
@@ -1013,12 +1067,15 @@ class MainActivity : AppCompatActivity() {
                             filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
                             thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl
                                 ?.takeIf { it.isNotBlank() }
-                                ?: if (type == "video") createSmartMediaThumbnailDataUrl(file, false) else "",
+                                ?: if (type == "video") thumbnailFromDiskCache(file) else "",
                             size = formatBytes(size), format = ext, dominantColor = "#20242E"
                         )
                     )
                 }
                 flushChunk(isFinal = true)
+                cachedLibraryItems = allItems.toList()
+                runCatching { libraryCacheFile.writeText(json.encodeToString(allItems)) }
+                    .onFailure { Log.w("JET-Library", "Could not persist Library cache", it) }
                 Log.i("JET-Library", "Media scan delivered $sentCount items in 50-item chunks")
             } catch (error: Exception) {
                 Log.e("JET-Library", "Device media scan failed", error)
@@ -1182,6 +1239,7 @@ class MainActivity : AppCompatActivity() {
                 put("maxDownloadTasks", prefs.maxDownloadTasks)
                 put("speedLimitKbps", prefs.speedLimitKbps)
                 put("allowMobileData", prefs.allowMobileData)
+                put("libraryGridColumns", prefs.libraryGridColumns)
                 put("downloadPath", getJetDownloadDir().absolutePath)
             }.toString()
         }
@@ -1782,7 +1840,14 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun refreshLibrary() {
-            requestLibraryMediaPermissions()
+            if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb()
+            else requestLibraryMediaPermissions()
+        }
+
+        @JavascriptInterface
+        fun forceRefreshLibrary() {
+            if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb(force = true)
+            else requestLibraryMediaPermissions()
         }
 
         @JavascriptInterface

@@ -16,6 +16,7 @@ import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.view.ScaleGestureDetector
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -71,6 +72,13 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var aspect = 0
     private var controlsVisible = true
     private var scrubbing = false
+    private lateinit var scaleDetector: ScaleGestureDetector
+    private var zoomScale = 1f
+    private var panX = 0f
+    private var panY = 0f
+    private var lastPanX = 0f
+    private var lastPanY = 0f
+    private lateinit var bottomIcons: View
     private var gestureMode = 0 // 1 brightness, 2 volume, 3 seek
     private var gestureStartX = 0f
     private var gestureStartY = 0f
@@ -134,6 +142,8 @@ class VideoPlayerActivity : AppCompatActivity() {
         hudPercent = findViewById(R.id.player_hud_percent)
         gestureOverlay = findViewById(R.id.player_gesture_overlay)
         seekPill = findViewById(R.id.player_seek_pill)
+        bottomIcons = findViewById(R.id.player_bottom_icons)
+        titleView.isSelected = true
 
         val path = intent.getStringExtra(EXTRA_FILE_PATH).orEmpty()
         if (path.isBlank() || !File(path).isFile) {
@@ -259,6 +269,18 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupGestures() {
+        scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                zoomScale = (zoomScale * detector.scaleFactor).coerceIn(1f, 4f)
+                if (zoomScale <= 1.001f) { zoomScale = 1f; panX = 0f; panY = 0f }
+                playerView.scaleX = zoomScale; playerView.scaleY = zoomScale
+                val maxX = playerView.width * (zoomScale - 1f) / 2f
+                val maxY = playerView.height * (zoomScale - 1f) / 2f
+                panX = panX.coerceIn(-maxX, maxX); panY = panY.coerceIn(-maxY, maxY)
+                playerView.translationX = panX; playerView.translationY = panY
+                return true
+            }
+        })
         val detector = GestureDetectorCompat(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
 
@@ -268,7 +290,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                if (locked) return false
+                if (locked || zoomScale > 1.001f) return false
                 val start = e1 ?: return false
                 val dx = e2.x - gestureStartX
                 val dy = e2.y - gestureStartY
@@ -341,10 +363,17 @@ class VideoPlayerActivity : AppCompatActivity() {
         // This transparent layer sits above PlayerView but below the clickable player controls.
         // It receives the very first DOWN event, even while ExoPlayer controls are fully hidden.
         gestureOverlay.setOnTouchListener { _, event ->
+            scaleDetector.onTouchEvent(event)
+            if (event.pointerCount > 1 || scaleDetector.isInProgress) {
+                if (event.actionMasked == MotionEvent.ACTION_POINTER_UP || event.actionMasked == MotionEvent.ACTION_UP) gestureMode = 0
+                return@setOnTouchListener true
+            }
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     gestureStartX = event.x
                     gestureStartY = event.y
+                    lastPanX = event.x
+                    lastPanY = event.y
                     gestureMode = 0
                     lastSeekDelta = 0L
                     gestureStartPosition = player?.currentPosition ?: 0L
@@ -356,6 +385,17 @@ class VideoPlayerActivity : AppCompatActivity() {
                         volumePercent.toFloat()
                     }
                     handler.removeCallbacks(hideHud)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (zoomScale > 1.001f && event.pointerCount == 1 && gestureMode == 0) {
+                        val maxX = playerView.width * (zoomScale - 1f) / 2f
+                        val maxY = playerView.height * (zoomScale - 1f) / 2f
+                        panX = (panX + event.x - lastPanX).coerceIn(-maxX, maxX)
+                        panY = (panY + event.y - lastPanY).coerceIn(-maxY, maxY)
+                        playerView.translationX = panX; playerView.translationY = panY
+                        lastPanX = event.x; lastPanY = event.y
+                        return@setOnTouchListener true
+                    }
                 }
             }
 
@@ -390,9 +430,14 @@ class VideoPlayerActivity : AppCompatActivity() {
         controls.visibility = View.VISIBLE
         topBar.visibility = View.GONE
         centerControls.visibility = View.GONE
-        bottomPanel.visibility = View.VISIBLE
+        bottomPanel.visibility = if (gestureMode == 3) View.VISIBLE else View.GONE
+        bottomIcons.visibility = View.GONE
         bottomPanel.alpha = 1f
         bottomPanel.translationY = 0f
+        volumeHud.visibility = View.GONE
+        brightnessHud.visibility = View.GONE
+        seekHud.visibility = View.GONE
+        if (gestureMode != 3) seekPill.visibility = View.GONE
         controlsVisible = false
     }
 
@@ -411,10 +456,16 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun showVerticalHud(hud: View, fraction: Float, glyph: String) {
         val isBrightness = hud.id == R.id.player_brightness_hud
         if (isBrightness) {
+            volumeHud.visibility = View.GONE
             findViewById<ImageView>(R.id.player_brightness_icon).setImageResource(R.drawable.ic_player_brightness)
         } else {
+            brightnessHud.visibility = View.GONE
             updateVolumeIcon((fraction * 100).roundToInt())
         }
+        topBar.visibility = View.GONE
+        bottomPanel.visibility = View.GONE
+        bottomIcons.visibility = View.GONE
+        centerControls.visibility = View.GONE
         findViewById<TextView>(if (isBrightness) R.id.player_hud_percent else R.id.player_volume_percent).text =
             "${(fraction * 100).roundToInt()}%"
         findViewById<ProgressBar>(if (isBrightness) R.id.player_hud_progress else R.id.player_volume_progress).progress =
@@ -453,6 +504,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             controls.visibility = View.VISIBLE
             topBar.visibility = View.VISIBLE
             bottomPanel.visibility = View.VISIBLE
+            bottomIcons.visibility = View.VISIBLE
             centerControls.visibility = View.VISIBLE
             topBar.animate().cancel()
             bottomPanel.animate().cancel()

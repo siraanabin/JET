@@ -271,88 +271,17 @@
           </button>
         </header>
 
-        <div class="surface-card rounded-2xl p-3.5 space-y-2.5">
+        <div class="surface-card rounded-3xl border border-app-border p-4 space-y-3 shadow-lg">
           <div class="flex items-center justify-between gap-2"><p class="text-[11px] font-bold uppercase tracking-wider text-app-secondary">Device storage</p><p id="storage-total-label" class="text-[10px] text-app-muted tabular-nums">Calculating…</p></div>
-          <div id="storage-progress-bar" class="flex h-3 w-full overflow-hidden rounded-full bg-[#292D35]" role="img" aria-label="Storage usage by media type">
+          <div id="storage-progress-bar" class="flex h-4 w-full overflow-hidden rounded-full bg-[#292D35] ring-1 ring-black/5" role="img" aria-label="Storage usage by media type">
             <span id="storage-audio-segment" class="h-full bg-red-500" style="width:0%"></span><span id="storage-video-segment" class="h-full bg-orange-500" style="width:0%"></span><span id="storage-other-segment" class="h-full bg-green-500" style="width:0%"></span><span id="storage-free-segment" class="h-full bg-[#292D35]" style="width:100%"></span>
           </div>
-          <div class="flex flex-nowrap items-center justify-between gap-1.5 text-[8px] text-app-secondary whitespace-nowrap w-full overflow-hidden" style="display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:6px; font-size:8px; white-space:nowrap; width:100%;">
-            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></i><span>Audio</span><b id="storage-audio-label" class="tabular-nums shrink-0">0%</b></span>
-            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></i><span>Video</span><b id="storage-video-label" class="tabular-nums shrink-0">0%</b></span>
-            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></i><span>Others</span><b id="storage-other-label" class="tabular-nums shrink-0">0%</b></span>
-            <span class="flex items-center gap-[3px] shrink-0 whitespace-nowrap" style="font-size:8px;"><i class="w-1.5 h-1.5 rounded-full bg-[#292D35] shrink-0"></i><span>Free</span><b id="storage-free-label" class="tabular-nums shrink-0">0%</b></span>
+          <div class="grid grid-cols-2 gap-2.5">
+            <span class="flex items-center justify-between rounded-xl bg-app-elevated/70 px-3 py-2 text-xs font-semibold text-app-secondary"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full bg-red-500"></i>Audio</span><b id="storage-audio-label" class="text-sm font-extrabold text-app-text tabular-nums">0%</b></span>
+            <span class="flex items-center justify-between rounded-xl bg-app-elevated/70 px-3 py-2 text-xs font-semibold text-app-secondary"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full bg-orange-500"></i>Video</span><b id="storage-video-label" class="text-sm font-extrabold text-app-text tabular-nums">0%</b></span>
+            <span class="flex items-center justify-between rounded-xl bg-app-elevated/70 px-3 py-2 text-xs font-semibold text-app-secondary"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full bg-green-500"></i>Others</span><b id="storage-other-label" class="text-sm font-extrabold text-app-text tabular-nums">0%</b></span>
+            <span class="flex items-center justify-between rounded-xl bg-app-elevated/70 px-3 py-2 text-xs font-semibold text-app-secondary"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full bg-[#292D35]"></i>Free</span><b id="storage-free-label" class="text-sm font-extrabold text-app-text tabular-nums">0%</b></span>
           </div>
-        </div>
-
-        <div class="surface-card flex items-center gap-2.5 focus-within:!border-app-primary rounded-2xl px-3.5 h-11 transition">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search w-4 h-4 text-app-muted shrink-0" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input id="library-search" type="text" placeholder="Search downloaded files..."
-            class="bg-transparent text-xs text-app-text placeholder-app-muted focus:outline-none w-full" />
-        </div>
-
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            <button type="button" data-lib-filter="all" class="lib-filter-btn px-3.5 py-2 rounded-full text-xs font-bold bg-app-primary text-white shadow-sm shrink-0 transition">All</button>
-            <button type="button" data-lib-filter="video" class="lib-filter-btn surface-card px-3.5 py-2 rounded-full text-xs font-bold text-app-secondary shrink-0 transition">Video</button>
-            <button type="button" data-lib-filter="audio" class="lib-filter-btn surface-card px-3.5 py-2 rounded-full text-xs font-bold text-app-secondary shrink-0 transition">Audio</button>
-            <button type="button" data-lib-filter="document" class="lib-filter-btn surface-card px-3.5 py-2 rounded-full text-xs font-bold text-app-secondary shrink-0 transition">Other</button>
-          </div>
-
-          <div class="surface-card flex items-center p-1 rounded-2xl shrink-0">
-            <button id="lib-view-grid" type="button" aria-label="Grid view"
-              class="w-9 h-9 rounded-xl flex items-center justify-center bg-app-primary text-white shadow-sm transition">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid w-4 h-4" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
-            </button>
-            <button id="lib-view-list" type="button" aria-label="List view"
-              class="w-9 h-9 rounded-xl flex items-center justify-center text-app-secondary transition">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list w-4 h-4" aria-hidden="true"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <div id="library-items-container" class="grid grid-cols-2 gap-3"></div>
-      </section>
-
-      <!-- ==================== 4. SETTINGS SCREEN ==================== -->
-      <section id="screen-settings" class="hidden screen-fade space-y-4">
-        <header class="pt-1">
-          <h1 class="text-2xl font-extrabold tracking-tight text-app-text">Settings</h1>
-          <p class="text-xs font-medium text-app-secondary mt-0.5">DataStore preferences &amp; open-source stack</p>
-        </header>
-
-        <!-- Preferences (Persisted via AndroidX DataStore) -->
-        <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
-          <button id="settings-theme-row" type="button"
-            class="w-full p-4 flex items-center justify-between gap-3 text-left active:bg-app-elevated/60 transition">
-            <span class="flex min-w-0 flex-1 items-center gap-3">
-              <span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="palette" class="w-4 h-4"></i></span>
-              <span class="min-w-0">
-                <span class="block text-xs font-bold text-app-text">Theme</span>
-                <span id="settings-theme-value" class="block text-[11px] text-app-secondary mt-0.5">System Default</span>
-              </span>
-            </span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-app-muted" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-
-          <div class="p-4 flex items-center justify-between gap-3">
-            <span class="flex min-w-0 flex-1 items-center gap-3">
-              <span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="clipboard-check" class="w-4 h-4"></i></span>
-              <span class="min-w-0">
-                <span class="block text-xs font-bold text-app-text">Auto-Detect Clipboard Links</span>
-                <span class="block text-[11px] text-app-secondary">Show 1-tap banner when a URL is copied</span>
-              </span>
-            </span>
-            <button id="clipboard-pref-toggle" type="button" aria-checked="true"
-              class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center">
-              <span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span>
-            </button>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">Download Settings</p>
-          <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
-            <div class="p-4"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">STORAGE</p><div class="mt-2 flex items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-4 h-4"></i></span><div class="min-w-0 flex-1"><p class="text-xs font-bold text-app-text">Download path</p><p id="download-path-value" class="text-[11px] text-app-secondary mt-0.5 break-all">Loading…</p></div></div></div>
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">DOWNLOADS</p>
               <label class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="hd" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Default quality</span><span class="block text-[11px] text-app-secondary mt-0.5">Preselected format</span></span></span><select id="default-quality-setting" class="max-w-[145px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="vid-360">360p</option><option value="vid-480">480p</option><option value="vid-720">720p</option><option value="vid-1080">1080p</option><option value="vid-2k">2K</option><option value="vid-4k">4K</option><option value="aud-fast">Audio Fast</option><option value="aud-128">MP3 128K</option><option value="aud-320">MP3 320K</option></select></label>
               <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="closed-caption" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
@@ -626,7 +555,7 @@
 
   </div>
 
-  <!-- GitHub Release App Update Modal -->
+  <!-- JET App Update Modal -->
   <div id="app-update-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-5 py-6" role="dialog" aria-modal="true" aria-labelledby="app-update-title">
     <div class="surface-card w-full max-w-md rounded-3xl p-5 space-y-4 shadow-2xl border border-app-border">
       <div class="flex items-start justify-between gap-3">
@@ -635,7 +564,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
           </div>
           <div class="min-w-0">
-            <h2 id="app-update-title" class="text-lg font-extrabold text-app-text">Update available</h2>
+            <h2 id="app-update-title" class="text-lg font-extrabold text-app-text">JET Update Available</h2>
             <p id="app-update-version" class="text-xs text-app-secondary">A new JET version is ready.</p>
           </div>
         </div>
@@ -654,7 +583,7 @@
           <div id="app-update-progress-bar" class="h-full rounded-full bg-app-primary transition-[width] duration-300" style="width:0%"></div>
         </div>
       </div>
-      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">The matching signed APK will be downloaded from GitHub Releases.</p>
+      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">The matching signed APK will be downloaded from Official Release Channel.</p>
       <div class="grid grid-cols-2 gap-2">
         <button id="app-update-later" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Later</button>
         <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download &amp; Install</button>
@@ -745,7 +674,8 @@
         activeDownloads: [],
         doneDownloads: [],
         library: [],
-        downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true }
+        downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true },
+        libraryGridColumns: 3
       };
 
       const hasAndroid = () => typeof window.JetAndroid === 'object' && window.JetAndroid !== null;
@@ -786,7 +716,7 @@
         if (target === 'downloads' && hasAndroid() && window.JetAndroid.refreshDownloadHistory) {
           window.JetAndroid.refreshDownloadHistory();
         }
-        if (target === 'library' && hasAndroid() && window.JetAndroid.refreshLibrary) {
+        if (target === 'library' && state.library.length === 0 && hasAndroid() && window.JetAndroid.refreshLibrary) {
           window.JetAndroid.refreshLibrary();
         }
         $('scroll-container').scrollTop = 0;
@@ -796,6 +726,11 @@
       document.addEventListener('click', (e) => {
         const navBtn = e.target.closest('[data-nav-target]');
         if (navBtn) switchScreen(navBtn.dataset.navTarget);
+      });
+      $('library-grid-columns-setting').addEventListener('change', (e) => {
+        state.libraryGridColumns = Math.max(2, Math.min(4, Number(e.target.value) || 3));
+        renderLibrary();
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('libraryGridColumns', String(state.libraryGridColumns));
       });
 
       // Three-way theme selection is persisted natively in AndroidX DataStore.
@@ -858,6 +793,9 @@
         applyDownloadToggle('save-subtitles-toggle', Boolean(settings.saveSubtitles), 'saveSubtitles');
         applyDownloadToggle('mobile-data-toggle', settings.allowMobileData !== false, 'allowMobileData');
         state.selectedFormatId = settings.defaultQuality || 'vid-1080';
+        state.libraryGridColumns = [2,3,4].includes(Number(settings.libraryGridColumns)) ? Number(settings.libraryGridColumns) : 3;
+        const gridColumnsSelect = $('library-grid-columns-setting');
+        if (gridColumnsSelect) gridColumnsSelect.value = String(state.libraryGridColumns);
       };
 
       window.onNativeStorageStats = function (stats) {
@@ -1213,15 +1151,12 @@
       };
 
       window.onNativeAppResumed = function () {
-        if (state.screen === 'library' && hasAndroid() && window.JetAndroid.refreshLibrary) {
-          window.JetAndroid.refreshLibrary();
-        }
+        // MediaStore observer and explicit refresh control manage Library freshness.
       };
 
       window.onNativeLibraryScanStarted = function () {
-        state.library = [];
-        $('library-location-label').textContent = 'Scanning device media…';
-        $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
+        $('library-location-label').textContent = state.library.length ? 'Refreshing device media…' : 'Scanning device media…';
+        if (!state.library.length) $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
       };
 
       window.onNativeLibraryChunk = function (chunk, isFinal) {
@@ -1605,7 +1540,7 @@
         $('library-item-count').textContent = `${filtered.length} files`;
         const container = $('library-items-container');
         container.className = state.libView === 'grid' ? 'grid gap-2' : 'space-y-2.5';
-        container.style.gridTemplateColumns = state.libView === 'grid' ? 'repeat(4, minmax(0, 1fr))' : '';
+        container.style.gridTemplateColumns = state.libView === 'grid' ? 'repeat(' + state.libraryGridColumns + ', minmax(0, 1fr))' : '';
 
         if (filtered.length === 0) {
           container.className = 'block';
@@ -1743,7 +1678,7 @@
         }
       });
 
-      // GitHub Releases in-app APK updater
+      // Official Release Channel in-app APK updater
       let pendingApkUpdateUrl = '';
       const appUpdateModal = $('app-update-modal');
       const appUpdateVersion = $('app-update-version');
@@ -1758,7 +1693,7 @@
       function triggerAppUpdateCheck(isManual) {
         const sub = $('app-update-subtitle');
         const btn = $('check-app-update-btn');
-        if (isManual && sub) sub.textContent = 'Checking GitHub Releases...';
+        if (isManual && sub) sub.textContent = 'Checking Official Release Channel...';
         if (isManual && btn) btn.disabled = true;
         if (hasAndroid() && window.JetAndroid.checkForAppUpdate) {
           window.JetAndroid.checkForAppUpdate(Boolean(isManual));
@@ -1777,7 +1712,7 @@
         if (!res || !res.ok) {
           if (res && res.manual) {
             if (sub) sub.textContent = res.error || 'Update check failed';
-            showToast(res.error || 'Unable to check GitHub Releases');
+            showToast(res.error || 'Unable to check Official Release Channel');
           }
           return;
         }
