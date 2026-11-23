@@ -2077,10 +2077,10 @@ class MainActivity : AppCompatActivity() {
                 .build()
             val pageHtml = okHttpClient.newCall(pageRequest).execute().use { response ->
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("GitHub Debug releases page unavailable (${response.code})")
+                    throw IllegalStateException("JET Debug release channel unavailable (${response.code})")
                 }
                 response.body?.string()
-                    ?: throw IllegalStateException("GitHub Debug releases page was empty.")
+                    ?: throw IllegalStateException("JET Debug release channel returned no release.")
             }
 
             val tags = Regex("""/siraanabin/JET/releases/tag/(debug-v[0-9A-Za-z._-]+)""")
@@ -2140,7 +2140,7 @@ class MainActivity : AppCompatActivity() {
                         try {
                             okHttpClient.newCall(request).execute().use { response ->
                                 if (!response.isSuccessful || response.body == null) {
-                                    throw IllegalStateException("GitHub Releases API unavailable (${response.code})")
+                                    throw IllegalStateException("Official Release Channel unavailable (${response.code})")
                                 }
                                 val releases = org.json.JSONArray(response.body!!.string())
                                 (0 until releases.length())
@@ -2168,7 +2168,7 @@ class MainActivity : AppCompatActivity() {
                             .build()
                         okHttpClient.newCall(request).execute().use { response ->
                             if (!response.isSuccessful || response.body == null) {
-                                throw IllegalStateException("GitHub Releases unavailable (${response.code})")
+                                throw IllegalStateException("Official Release Channel unavailable (${response.code})")
                             }
                             JSONObject(response.body!!.string())
                         }
@@ -2207,7 +2207,7 @@ class MainActivity : AppCompatActivity() {
                         val versionIsNewer = tagVersion.isNotBlank() &&
                             compareVersionStrings(tagVersion, installedVersion) > 0
                         if (versionIsNewer && apkUrl.isBlank()) {
-                            throw IllegalStateException("The matching ${if (isDebugApp) "JET Debug" else "JET Release"} APK asset is missing from its GitHub update.")
+                            throw IllegalStateException("The matching ${if (isDebugApp) "JET Debug" else "JET Release"} APK asset is missing from the Official Release Channel.")
                         }
 
                         val appLabel = if (isDebugApp) "JET Debug" else "JET"
@@ -2240,7 +2240,7 @@ class MainActivity : AppCompatActivity() {
         fun downloadAndInstallAppUpdate(apkUrl: String) {
             val parsedUrl = Uri.parse(apkUrl)
             if (parsedUrl.scheme != "https" || parsedUrl.host != "github.com") {
-                callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Invalid GitHub APK URL")}")
+                callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Invalid JET update package URL")}")
                 return
             }
 

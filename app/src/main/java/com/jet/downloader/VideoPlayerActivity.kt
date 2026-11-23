@@ -185,10 +185,10 @@ class VideoPlayerActivity : AppCompatActivity() {
         })
         setupControls()
         setupGestures()
+        showControls(false)
         populatePlaylist(File(path).parentFile)
         handler.post(clock); handler.post(progress)
         registerReceiver(battery, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        handler.postDelayed(hideControls, 3500L)
     }
 
     private fun applyImmersivePlayerMode() {
