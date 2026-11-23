@@ -87,7 +87,7 @@ object FirebaseTracker {
                 "androidVersion" to (Build.VERSION.RELEASE ?: "unknown"),
                 "timestamp" to FieldValue.serverTimestamp()
             )
-            if (attachments.isNotEmpty()) data["attachments"] = attachments.take(9)
+            if (attachments.isNotEmpty()) data["attachments"] = attachments.take(5)
             FirebaseFirestore.getInstance().collection("feedback").add(data)
                 .addOnSuccessListener { onResult(true, null) }
                 .addOnFailureListener { onResult(false, it) }
