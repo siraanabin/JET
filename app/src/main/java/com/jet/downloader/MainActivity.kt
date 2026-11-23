@@ -777,8 +777,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun callJs(fnName: String, rawArgs: String) {
         runOnUiThread {
-            if (!::webView.isInitialized) return@runOnUiThread
-            if (!webViewPageReady) {
+            if (!::webView.isInitialized || !webViewPageReady) {
                 pendingJsCalls.add(fnName to rawArgs)
             } else {
                 evaluateJsCall(fnName, rawArgs)
