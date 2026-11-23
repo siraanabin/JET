@@ -593,7 +593,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun populatePlaylist(folder: File?) {
         playlist.removeAllViews()
         val files = folder?.listFiles()?.filter { it.isFile && it.extension.lowercase(Locale.US) in
-            setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "mp3", "m4a", "opus") }
+            setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "avi") }
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
             val card = LinearLayout(this).apply {
