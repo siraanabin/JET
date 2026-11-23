@@ -47,9 +47,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
 import android.provider.OpenableColumns
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -402,6 +400,18 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                webView.evaluateJavascript(
+                    """(function(){
+                        if(window.__jetFirebaseErrorHooksInstalled)return;
+                        window.__jetFirebaseErrorHooksInstalled=true;
+                        window.onerror=function(message,source,line,column,error){
+                            try{window.JetAndroid.reportWebViewError(String(message||"JavaScript error"),String((error&&error.stack)||source+":"+line+":"+column));}catch(_){}
+                        };
+                        window.addEventListener("unhandledrejection",function(event){
+                            try{var reason=event.reason;window.JetAndroid.reportWebViewError(String((reason&&reason.message)||reason||"Unhandled promise rejection"),String((reason&&reason.stack)||""));}catch(_){}
+                        });
+                    })();""".trimIndent(), null
+                )
                 syncDataStorePreferencesToWeb()
                 notifyEngineState()
                 pendingSharedUrl?.let { shared ->
@@ -1280,41 +1290,43 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun submitFeedback(payload: String) {
-            val helperUrl = BuildConfig.JET_FEEDBACK_HELPER_URL.trim()
-            if (helperUrl.isBlank()) {
-                callJs("onNativeFeedbackResult", "false,${JSONObject.quote("Feedback service is not configured yet.")}")
+            if (!FirebaseTracker.isAvailable(this@MainActivity)) {
+                callJs("onNativeFeedbackResult", "false,${JSONObject.quote("Feedback is unavailable in this build.")}")
                 return
             }
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val input = JSONObject(payload)
-                    val details = input.optString("details").trim().take(1000)
-                    if (details.isBlank()) throw IllegalArgumentException("Please enter feedback details.")
-                    val attachments = org.json.JSONArray()
-                    val selected = input.optJSONArray("attachments") ?: org.json.JSONArray()
-                    for (i in 0 until minOf(selected.length(), 9)) {
-                        val uri = Uri.parse(selected.getString(i))
-                        val bytes = contentResolver.openInputStream(uri)?.use { stream ->
-                            val out = ByteArrayOutputStream(); val buffer = ByteArray(8192); var total = 0
-                            while (true) { val n = stream.read(buffer); if (n <= 0) break; total += n
-                                if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Each attachment must be 5 MB or smaller.")
-                                out.write(buffer, 0, n) }
-                            out.toByteArray()
-                        } ?: continue
-                        val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "attachment-$i"
-                        attachments.put(JSONObject().put("name", name).put("mime", contentResolver.getType(uri) ?: "application/octet-stream").put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP)))
-                    }
-                    val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
-                    val body = JSONObject().put("details", details).put("contact", input.optString("contact").take(160)).put("attachments", attachments)
-                        .put("diagnostics", JSONObject().put("appVersion", version).put("androidVersion", Build.VERSION.RELEASE ?: "unknown").put("deviceModel", Build.MODEL ?: "unknown"))
-                    val request = Request.Builder().url(helperUrl).post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
-                    okHttpClient.newCall(request).execute().use { if (!it.isSuccessful) throw IllegalStateException("Feedback service returned HTTP ${it.code}.") }
-                    callJs("onNativeFeedbackResult", "true,${JSONObject.quote("")}")
-                } catch (error: Exception) {
-                    Log.e("JET-Feedback", "Feedback submission failed", error)
-                    callJs("onNativeFeedbackResult", "false,${JSONObject.quote(error.message ?: "Could not send feedback.")}")
+            try {
+                val input = JSONObject(payload)
+                val details = input.optString("details").trim().take(1000)
+                if (details.isBlank()) throw IllegalArgumentException("Please enter feedback details.")
+                val attachmentMetadata = mutableListOf<Map<String, String>>()
+                val selected = input.optJSONArray("attachments") ?: org.json.JSONArray()
+                for (i in 0 until minOf(selected.length(), 9)) {
+                    val uri = Uri.parse(selected.optString(i))
+                    val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                        if (c.moveToFirst()) c.getString(0) else null
+                    } ?: "attachment-${i + 1}"
+                    attachmentMetadata.add(mapOf(
+                        "name" to name.take(180),
+                        "mime" to (contentResolver.getType(uri) ?: "application/octet-stream").take(120)
+                    ))
                 }
+                FirebaseTracker.submitFeedback(this@MainActivity, details,
+                    input.optString("contact").trim().take(160), attachmentMetadata) { success, error ->
+                    if (success) callJs("onNativeFeedbackResult", "true,${JSONObject.quote("")}")
+                    else {
+                        Log.e("JET-Feedback", "Firestore feedback submission failed", error)
+                        callJs("onNativeFeedbackResult", "false,${JSONObject.quote("Could not send feedback. Please try again.")}")
+                    }
+                }
+            } catch (error: Exception) {
+                Log.e("JET-Feedback", "Invalid feedback payload", error)
+                callJs("onNativeFeedbackResult", "false,${JSONObject.quote(error.message ?: "Could not send feedback.")}")
             }
+        }
+
+        @JavascriptInterface
+        fun reportWebViewError(message: String, stack: String) {
+            FirebaseTracker.recordWebViewError(this@MainActivity, message, stack)
         }
 
         @JavascriptInterface
@@ -1828,6 +1840,7 @@ class MainActivity : AppCompatActivity() {
                 filePath = file.absolutePath,
                 fileUri = Uri.fromFile(file).toString()
             )
+            FirebaseTracker.logDownloadCompleted(this@MainActivity, url, mediaType)
             realDownloadSpecs.remove(downloadId)
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)

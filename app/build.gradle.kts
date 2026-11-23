@@ -5,13 +5,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val requestedReleaseTasks = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+if (requestedReleaseTasks) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 
 val releaseKeystoreFile = file("jet-release.jks")
 val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 
-val feedbackHelperUrl = providers.gradleProperty("JET_FEEDBACK_HELPER_URL").orElse(providers.environmentVariable("JET_FEEDBACK_HELPER_URL").orElse("")).get().replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
     buildFeatures { buildConfig = true }
@@ -22,9 +27,8 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 373
-        versionName = "3.7.3"
-        buildConfigField("String", "JET_FEEDBACK_HELPER_URL", "\"$feedbackHelperUrl\"")
+        versionCode = 374
+        versionName = "3.7.4"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -100,6 +104,11 @@ tasks.configureEach {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-crashlytics-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // Core AndroidX & WebView
