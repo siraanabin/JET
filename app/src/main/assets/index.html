@@ -460,7 +460,7 @@
     <!-- Bottom Navigation Bar -->
     <nav aria-label="Main navigation" class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-0 grid grid-cols-4 shrink-0">
       <button type="button" data-nav-target="home"
-        class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-primary font-bold transition" aria-current="page"">
+        class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-primary font-bold transition" aria-current="page">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
         <span class="text-[11px] pointer-events-none">Home</span>
       </button>
@@ -497,7 +497,7 @@
         <div class="space-y-2"><div class="flex items-center justify-between"><label class="text-xs font-bold text-app-text">Photos and videos</label><span id="feedback-media-count" class="text-[11px] text-app-muted">0/9</span></div><div id="feedback-media-grid" class="grid grid-cols-3 gap-2"><button id="feedback-add-media" type="button" class="feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary"><i data-lucide="plus" class="w-6 h-6"></i><span class="text-[10px] font-semibold">Add media</span></button></div></div>
       </div><div class="shrink-0 p-4 border-t border-app-border bg-app-bg"><button id="feedback-send" type="button" disabled class="feedback-send w-full h-12 rounded-full bg-app-primary text-white text-sm font-extrabold">Send</button></div>
     </section>
-    <section id="about-modal" class="hidden fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm items-center justify-center p-5"><div class="surface-card w-full max-w-sm rounded-3xl p-5 space-y-4">
+    <section id="about-modal" class="hidden fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5"><div class="surface-card w-full max-w-sm rounded-3xl p-5 space-y-4">
       <div class="flex items-center justify-between"><h3 class="text-base font-extrabold text-app-text">About JET</h3><button id="about-close" class="w-9 h-9 rounded-full flex items-center justify-center text-app-secondary"><i data-lucide="x" class="w-5 h-5"></i></button></div>
       <div class="flex items-center gap-3"><img src="./images/jet-logo.svg" class="w-12 h-12 rounded-xl" alt="JET"><div><p class="font-extrabold text-app-text">JET</p><p class="text-xs text-app-secondary">Version v3.7.3</p></div></div>
       <p class="text-sm leading-6 text-app-secondary">A lightweight, ad-free, stroke-minimalist media player engineered for ultra-fluid playback, precise gestures, and effortless local and offline media management.</p>
@@ -810,6 +810,7 @@
           btn.classList.toggle('font-bold', active);
           btn.classList.toggle('text-app-secondary', !active);
           btn.classList.toggle('font-semibold', !active);
+          if (active) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
         });
         if (target === 'downloads' && hasAndroid() && window.JetAndroid.refreshDownloadHistory) {
           window.JetAndroid.refreshDownloadHistory();
