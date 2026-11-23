@@ -1005,22 +1005,13 @@ class MainActivity : AppCompatActivity() {
     private fun pushScannedLibraryToWeb(force: Boolean = false) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                if (!force) {
-                    val diskItems = cachedLibraryItems ?: runCatching {
-                        if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else null
-                    }.getOrNull()
-                    if (!diskItems.isNullOrEmpty()) {
-                        cachedLibraryItems = diskItems
-                        deliverCachedLibrary(diskItems)
-                        val audioBytes = if (hasAudioReadPermission()) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
-                        val videoBytes = if (hasVideoReadPermission()) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
-                        pushStorageStats(audioBytes, videoBytes)
-                        return@launch
-                    }
-                }
+                // Always rescan MediaStore. A previously non-empty cache can contain only
+                // JET downloads or a partial-permission snapshot and must never suppress
+                // discovery of newly granted device videos/audio.
                 callJs("onNativeLibraryScanStarted", "")
                 val videoPermission = hasVideoReadPermission()
                 val audioPermission = hasAudioReadPermission()
+                Log.i("JET-Library", "Starting fresh MediaStore scan: videoPermission=$videoPermission, audioPermission=$audioPermission, sdk=${Build.VERSION.SDK_INT}")
 
                 // Storage capacity is obtained from filesystem metadata; media totals
                 // are calculated by the MediaStore provider, not by summing every row.
