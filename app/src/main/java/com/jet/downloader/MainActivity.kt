@@ -814,7 +814,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (error: Exception) {
             Log.w("JET-Library", "Unable to create media thumbnail for ${file.name}", error)
-            ""
+            if (isAudio) "file:///android_asset/images/music-placeholder.svg" else ""
         } finally {
             runCatching { retriever.release() }
         }
