@@ -2219,7 +2219,7 @@ class MainActivity : AppCompatActivity() {
                             put("latestVersion", tagVersion)
                             put("tagName", tagName)
                             put("appName", appLabel)
-                            put("releaseName", release.optString("name", "$appLabel Update"))
+                            put("releaseName", "Official Release Channel")
                             put("changelog", releaseNotes.ifBlank { "No release notes provided." })
                             put("apkUrl", apkUrl)
                             put("releaseUrl", release.optString("html_url", ""))

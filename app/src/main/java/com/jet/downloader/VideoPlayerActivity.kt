@@ -434,6 +434,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         bottomIcons.visibility = View.GONE
         bottomPanel.alpha = 1f
         bottomPanel.translationY = 0f
+        (playlist.parent as? View)?.visibility = View.GONE
         volumeHud.visibility = View.GONE
         brightnessHud.visibility = View.GONE
         seekHud.visibility = View.GONE
@@ -501,6 +502,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(hideControls)
         val interp = android.view.animation.DecelerateInterpolator()
         if (show) {
+            (playlist.parent as? View)?.visibility = View.VISIBLE
             controls.visibility = View.VISIBLE
             topBar.visibility = View.VISIBLE
             bottomPanel.visibility = View.VISIBLE
