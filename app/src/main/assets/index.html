@@ -1155,8 +1155,9 @@
       };
 
       window.onNativeLibraryScanStarted = function () {
-        $('library-location-label').textContent = state.library.length ? 'Refreshing device media…' : 'Scanning device media…';
-        if (!state.library.length) $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
+        state.library = [];
+        $('library-location-label').textContent = 'Scanning device media…';
+        $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
       };
 
       window.onNativeLibraryChunk = function (chunk, isFinal) {
@@ -1617,9 +1618,12 @@
       }
 
       $('refresh-library-btn').addEventListener('click', () => {
-        if (hasAndroid() && window.JetAndroid.refreshLibrary) {
+        if (hasAndroid() && window.JetAndroid.forceRefreshLibrary) {
+          window.JetAndroid.forceRefreshLibrary();
+          showToast('Refreshing Library…');
+        } else if (hasAndroid() && window.JetAndroid.refreshLibrary) {
           window.JetAndroid.refreshLibrary();
-          showToast('Library refreshed');
+          showToast('Loading Library…');
         }
       });
 
@@ -1693,13 +1697,13 @@
       function triggerAppUpdateCheck(isManual) {
         const sub = $('app-update-subtitle');
         const btn = $('check-app-update-btn');
-        if (isManual && sub) sub.textContent = 'Checking Official Release Channel...';
+        if (isManual && sub) sub.textContent = 'Checking JET Servers...';
         if (isManual && btn) btn.disabled = true;
         if (hasAndroid() && window.JetAndroid.checkForAppUpdate) {
           window.JetAndroid.checkForAppUpdate(Boolean(isManual));
         } else if (isManual) {
           if (btn) btn.disabled = false;
-          showToast('GitHub app updates are available in the Android app only.');
+          showToast('JET updates are available in the Android app only.');
         }
       }
 

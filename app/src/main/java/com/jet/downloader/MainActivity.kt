@@ -15,6 +15,8 @@ import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
@@ -552,6 +554,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        mediaRefreshHandler.removeCallbacksAndMessages(null)
+        mediaStoreObserver?.let { runCatching { contentResolver.unregisterContentObserver(it) } }
+        mediaStoreObserver = null
         exoPlayer?.release()
         exoPlayer = null
         super.onDestroy()
