@@ -1241,6 +1241,13 @@
         if (!Array.isArray(chunk)) return;
         const mapped = chunk.map((item) => ({
           ...item,
+          // Every audio item must have visible artwork: keep a real embedded/download cover,
+          // otherwise use the bundled vinyl SVG instead of the generic media icon.
+          thumbnailUrl: item.type === 'audio'
+            ? (item.thumbnailUrl && item.thumbnailUrl.trim()
+                ? item.thumbnailUrl
+                : 'file:///android_asset/images/music-placeholder.svg')
+            : item.thumbnailUrl,
           color: item.type === 'audio'
             ? 'from-emerald-500 to-teal-700'
             : item.type === 'document'
