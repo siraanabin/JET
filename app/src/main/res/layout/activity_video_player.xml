@@ -107,7 +107,7 @@
                 android:layout_width="4dp" android:layout_height="112dp"
                 android:progressDrawable="@drawable/bg_player_vertical_progress" android:max="100" />
             <TextView android:id="@+id/player_hud_percent" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:gravity="center" android:singleLine="true" android:layout_marginTop="6dp" android:text="50%"/g android:textColor="#FFFFFF" android:textSize="10sp" />
+                android:gravity="center" android:singleLine="true" android:layout_marginTop="6dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="10sp" />
         </LinearLayout>
         <LinearLayout android:id="@+id/player_volume_hud" android:layout_width="48dp" android:layout_height="184dp"
             android:layout_gravity="center_vertical|start" android:layout_marginStart="16dp" android:gravity="center"
@@ -118,7 +118,7 @@
                 android:layout_width="4dp" android:layout_height="112dp"
                 android:progressDrawable="@drawable/bg_player_vertical_progress" android:max="100" />
             <TextView android:id="@+id/player_volume_percent" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:gravity="center" android:singleLine="true" android:layout_marginTop="6dp" android:text="50%"/g android:textColor="#FFFFFF" android:textSize="10sp" />
+                android:gravity="center" android:singleLine="true" android:layout_marginTop="6dp" android:text="50%" android:textColor="#FFFFFF" android:textSize="10sp" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/player_seek_hud" android:layout_width="wrap_content" android:layout_height="wrap_content"
