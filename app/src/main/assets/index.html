@@ -276,11 +276,11 @@
           <div id="storage-progress-bar" class="flex h-3 w-full overflow-hidden rounded-full bg-[#292D35]" role="img" aria-label="Storage usage by media type">
             <span id="storage-audio-segment" class="h-full bg-red-500" style="width:0%"></span><span id="storage-video-segment" class="h-full bg-orange-500" style="width:0%"></span><span id="storage-other-segment" class="h-full bg-green-500" style="width:0%"></span><span id="storage-free-segment" class="h-full bg-[#292D35]" style="width:100%"></span>
           </div>
-          <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] text-app-secondary">
-            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-red-500"></i>Audio <b id="storage-audio-label" class="ml-auto tabular-nums">0%</b></span>
-            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-orange-500"></i>Video <b id="storage-video-label" class="ml-auto tabular-nums">0%</b></span>
-            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-green-500"></i>Others <b id="storage-other-label" class="ml-auto tabular-nums">0%</b></span>
-            <span class="flex items-center gap-1.5"><i class="w-2 h-2 rounded-full bg-[#292D35]"></i>Free <b id="storage-free-label" class="ml-auto tabular-nums">0%</b></span>
+          <div class="flex flex-nowrap items-center justify-between gap-1 text-[9px] text-app-secondary whitespace-nowrap" style="display:flex; flex-wrap:nowrap; justify-content:space-between; font-size:smaller;">
+            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></i><span>Audio</span><b id="storage-audio-label" class="tabular-nums">0%</b></span>
+            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></i><span>Video</span><b id="storage-video-label" class="tabular-nums">0%</b></span>
+            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></i><span>Others</span><b id="storage-other-label" class="tabular-nums">0%</b></span>
+            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-[#292D35] shrink-0"></i><span>Free</span><b id="storage-free-label" class="tabular-nums">0%</b></span>
           </div>
         </div>
 
@@ -352,17 +352,26 @@
               <div class="flex items-center justify-between gap-3"><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
             </div>
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">NETWORK</p>
-              <label class="flex items-center justify-between gap-3"><span class="text-xs font-bold text-app-text">Max download tasks</span><select id="max-download-tasks" class="rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="1">1 task</option><option value="2">2 tasks</option><option value="3">3 tasks</option><option value="4">4 tasks</option><option value="5">5 tasks</option></select></label>
-              <label class="flex items-center justify-between gap-3"><span class="text-xs font-bold text-app-text">Download speed limit</span><select id="download-speed-limit" class="max-w-[150px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="0">Unlimited</option><option value="256">256 KB/s</option><option value="512">512 KB/s</option><option value="1024">1 MB/s</option><option value="2048">2 MB/s</option><option value="5120">5 MB/s</option><option value="10240">10 MB/s</option></select></label>
-              <div class="flex items-center justify-between gap-3"><span><span class="block text-xs font-bold text-app-text">Download via mobile data</span><span class="block text-[11px] text-app-secondary mt-0.5">Allow cellular downloads</span></span><button id="mobile-data-toggle" type="button" aria-checked="true" class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span></button></div>
+              <label class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="list-checks" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Max download tasks</span></span>
+                <select id="max-download-tasks" class="rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="1">1 task</option><option value="2">2 tasks</option><option value="3">3 tasks</option><option value="4">4 tasks</option><option value="5">5 tasks</option></select>
+              </label>
+              <label class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="gauge" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Download speed limit</span></span>
+                <select id="download-speed-limit" class="max-w-[150px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="0">Unlimited</option><option value="256">256 KB/s</option><option value="512">512 KB/s</option><option value="1024">1 MB/s</option><option value="2048">2 MB/s</option><option value="5120">5 MB/s</option><option value="10240">10 MB/s</option></select>
+              </label>
+              <div class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="wifi" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Download via mobile data</span><span class="block text-[11px] text-app-secondary mt-0.5">Allow cellular downloads</span></span></span>
+                <button id="mobile-data-toggle" type="button" aria-checked="true" class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span></button>
+              </div>
             </div>
           </div>
         </div>
         <div class="space-y-2"><p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">INFO</p><div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
-          <button id="feedback-setting" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">Feedback</span><i data-lucide="message-circle" class="w-4 h-4 text-app-muted"></i></button>
-          <button id="share-app-setting" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">Share App</span><i data-lucide="share-2" class="w-4 h-4 text-app-muted"></i></button>
-          <button id="check-app-update-info" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">Check for updates</span><i data-lucide="refresh-cw" class="w-4 h-4 text-app-muted"></i></button>
-          <button id="about-setting" type="button" class="w-full p-4 flex items-center justify-between text-left"><span class="text-xs font-bold text-app-text">About</span><i data-lucide="info" class="w-4 h-4 text-app-muted"></i></button>
+          <button id="feedback-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="message-circle" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Feedback</span></button>
+          <button id="share-app-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="share-2" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Share App</span></button>
+          <button id="check-app-update-info" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="refresh-cw" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Check for updates</span></button>
+          <button id="about-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="info" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">About</span></button>
         </div></div>
 
         <!-- Updates & Engine Section -->
@@ -1868,8 +1877,32 @@
 
       window.onNativeCompletedDownloads = function (items) {
         if (!Array.isArray(items)) return;
-        state.doneDownloads = items.map((item) => ({ ...item, date: item.date || "Saved" }));
+        const restored = new Map();
+        items.forEach((item) => {
+          if (!item || !item.filePath) return;
+          restored.set(item.filePath, {
+            id: String(item.id || item.filePath),
+            title: item.title || 'Saved file',
+            format: item.format || item.formatLabel || 'MEDIA',
+            size: item.size || item.fileSize || 'Saved',
+            filePath: item.filePath,
+            fileUri: item.fileUri || '',
+            thumbnailUrl: item.thumbnailUrl || '',
+            date: item.date || 'Saved'
+          });
+        });
+        state.doneDownloads.forEach((item) => {
+          if (item.filePath && !restored.has(item.filePath)) restored.set(item.filePath, item);
+        });
+        state.doneDownloads = Array.from(restored.values());
         renderDownloads();
+        const latest = state.doneDownloads[0];
+        if (latest) {
+          $('latest-title').textContent = latest.title;
+          $('latest-meta').textContent = `${latest.size} · ${latest.format}`;
+          $('latest-download-card').dataset.filePath = latest.filePath;
+          $('latest-download-card').dataset.fileUri = latest.fileUri;
+        }
       };
       window.onNativeNotificationOpen = function (tab) {
         switchScreen(tab === "library" ? "library" : "downloads");
