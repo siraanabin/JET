@@ -560,7 +560,18 @@ class MainActivity : AppCompatActivity() {
         callJs("onNativeMusicStateChanged",state.toString())
     }
     private fun pushMusicProgressToWeb(){val c=musicController?:return;callJs("onNativeMusicProgress","${c.currentPosition.coerceAtLeast(0L)}, ${c.duration.coerceAtLeast(0L)}")}
-    private fun buildMusicQueueJson():String{val c=musicController?:return "[]";return JSONArray().apply{c.mediaItems.forEachIndexed{i,item->put(JSONObject().put("path",item.mediaId).put("title",item.mediaMetadata.title?.toString().orEmpty()).put("current",i==c.currentMediaItemIndex))}}.toString()}
+    private fun buildMusicQueueJson():String {
+        val controller = musicController ?: return "[]"
+        return JSONArray().apply {
+            for (index in 0 until controller.mediaItemCount) {
+                val item = controller.getMediaItemAt(index)
+                put(JSONObject()
+                    .put("path", item.mediaId)
+                    .put("title", item.mediaMetadata.title?.toString().orEmpty())
+                    .put("current", index == controller.currentMediaItemIndex))
+            }
+        }.toString()
+    }
     private fun pushMusicQueueToWeb(){callJs("onNativeMusicQueueChanged",buildMusicQueueJson())}
     private fun applyMusicSleepTimer(minutes:Int){val i=Intent(this,PlayerPlaybackService::class.java).apply{action=PlayerPlaybackService.ACTION_SLEEP_TIMER;putExtra(PlayerPlaybackService.EXTRA_SLEEP_TIMER_MINUTES,minutes.coerceIn(0,240))};runCatching{ContextCompat.startForegroundService(this,i)}.onFailure{Log.w("JET-Music","Sleep timer update failed",it)}}
     override fun onDestroy() {
