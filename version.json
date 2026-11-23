@@ -1,10 +1,10 @@
 {
-  "versionCode": 375,
-  "versionName": "3.7.5",
+  "versionCode": 376,
+  "versionName": "3.7.6",
   "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.5/JET-debug.apk",
   "changelog": [
-    "Fix stale empty Library cache and WebView bridge initialization race",
-    "Support Android 14 selected media access and restore media scanning",
-    "Material 3 bottom navigation with filled active icons and pill highlight"
+    "Remove the bottom navigation top dash and use outline/filled bold icon states",
+    "Always rescan MediaStore so device videos appear after permission changes",
+    "Improve Library scan diagnostics"
   ]
 }
