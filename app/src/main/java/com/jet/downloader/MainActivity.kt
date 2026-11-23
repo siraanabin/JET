@@ -430,7 +430,6 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 syncDataStorePreferencesToWeb()
-                connectMusicController()
                 notifyEngineState()
                 pendingSharedUrl?.let { shared ->
                     callJs("onNativeSharedUrl", JSONObject.quote(shared))
@@ -506,25 +505,47 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectMusicController() {
-        if (musicController != null || musicControllerFuture != null || isFinishing || isDestroyed) return
-        val token = SessionToken(this, ComponentName(this, PlayerPlaybackService::class.java))
-        val future = MediaController.Builder(this, token).buildAsync()
-        musicControllerFuture = future
-        future.addListener({
-            try {
-                val controller = future.get()
-                if (isFinishing || isDestroyed) { MediaController.releaseFuture(future); return@addListener }
-                musicController = controller
-                controller.addListener(musicPlayerListener)
-                pushMusicStateToWeb()
-                pushMusicQueueToWeb()
-                pushMusicProgressToWeb()
-            } catch (error: Exception) {
-                Log.e("JET-Music", "MediaController connection failed", error)
-                callJs("onNativeMusicError", JSONObject.quote(error.message ?: "Music service connection failed"))
-                musicControllerFuture = null
+        try {
+            if (musicController != null || musicControllerFuture != null || isFinishing || isDestroyed) return
+            val token = SessionToken(this, ComponentName(this, PlayerPlaybackService::class.java))
+            val future = MediaController.Builder(this, token).buildAsync()
+            musicControllerFuture = future
+            future.addListener({
+                try {
+                    val controller = future.get()
+                    if (isFinishing || isDestroyed) {
+                        runCatching { MediaController.releaseFuture(future) }
+                        if (musicControllerFuture === future) musicControllerFuture = null
+                        return@addListener
+                    }
+                    musicController = controller
+                    controller.addListener(musicPlayerListener)
+                    pushMusicStateToWeb()
+                    pushMusicQueueToWeb()
+                    pushMusicProgressToWeb()
+                } catch (t: Throwable) {
+                    Log.e("JET-Music", "MediaController connection failed", t)
+                    runCatching { musicController?.removeListener(musicPlayerListener) }
+                    musicController = null
+                    if (musicControllerFuture === future) musicControllerFuture = null
+                    runCatching { MediaController.releaseFuture(future) }
+                    runCatching {
+                        if (::webView.isInitialized && !isFinishing && !isDestroyed) {
+                            callJs("onNativeMusicError", JSONObject.quote(t.message ?: "Music service connection failed"))
+                        }
+                    }
+                }
+            }, ContextCompat.getMainExecutor(this))
+        } catch (t: Throwable) {
+            Log.e("JET-Music", "MediaController setup failed", t)
+            musicControllerFuture?.let { runCatching { MediaController.releaseFuture(it) } }
+            musicControllerFuture = null
+            runCatching {
+                if (::webView.isInitialized && !isFinishing && !isDestroyed) {
+                    callJs("onNativeMusicError", JSONObject.quote(t.message ?: "Music service connection failed"))
+                }
             }
-        }, ContextCompat.getMainExecutor(this))
+        }
     }
     private fun isAudioFile(file: File): Boolean = file.extension.lowercase(Locale.US) in setOf("mp3","m4a","aac","wav","flac","ogg","oga","opus","wma")
     private fun buildAudioQueue(selected: File, selectedTitle: String): List<Pair<String,String>> {
@@ -664,7 +685,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        connectMusicController()
         if (::webView.isInitialized) {
             webView.postDelayed({
                 dispatchClipboardUrlToWebView()
@@ -1927,15 +1947,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface fun playAudio(filePath:String,title:String,source:String){startMusicPlayback(filePath,title,source)}
-        @JavascriptInterface fun musicPlayPause(){runOnUiThread{musicController?.let{if(it.isPlaying)it.pause() else it.play()}}}
-        @JavascriptInterface fun musicSeekTo(positionMs:Long){runOnUiThread{musicController?.seekTo(positionMs.coerceAtLeast(0L))}}
-        @JavascriptInterface fun musicNext(){runOnUiThread{musicController?.let{if(it.hasNextMediaItem())it.seekToNextMediaItem()}}}
-        @JavascriptInterface fun musicPrevious(){runOnUiThread{musicController?.let{if(it.hasPreviousMediaItem())it.seekToPreviousMediaItem() else it.seekTo(0L)}}}
-        @JavascriptInterface fun musicSetShuffle(enabled:Boolean){runOnUiThread{musicController?.shuffleModeEnabled=enabled}}
-        @JavascriptInterface fun musicSetRepeat(mode:String){runOnUiThread{musicController?.repeatMode=when(mode.lowercase(Locale.ROOT)){"one"->Player.REPEAT_MODE_ONE;"all"->Player.REPEAT_MODE_ALL;else->Player.REPEAT_MODE_OFF}}}
-        @JavascriptInterface fun musicSetVolume(volume:Double){runOnUiThread{val v=volume.toFloat().coerceIn(0f,1f);if(v>0f)lastMusicVolume=v;musicController?.volume=v}}
+        @JavascriptInterface fun musicPlayPause(){runOnUiThread{connectMusicController();musicController?.let{if(it.isPlaying)it.pause() else it.play()}}}
+        @JavascriptInterface fun musicSeekTo(positionMs:Long){runOnUiThread{connectMusicController();musicController?.seekTo(positionMs.coerceAtLeast(0L))}}
+        @JavascriptInterface fun musicNext(){runOnUiThread{connectMusicController();musicController?.let{if(it.hasNextMediaItem())it.seekToNextMediaItem()}}}
+        @JavascriptInterface fun musicPrevious(){runOnUiThread{connectMusicController();musicController?.let{if(it.hasPreviousMediaItem())it.seekToPreviousMediaItem() else it.seekTo(0L)}}}
+        @JavascriptInterface fun musicSetShuffle(enabled:Boolean){runOnUiThread{connectMusicController();musicController?.shuffleModeEnabled=enabled}}
+        @JavascriptInterface fun musicSetRepeat(mode:String){runOnUiThread{connectMusicController();musicController?.repeatMode=when(mode.lowercase(Locale.ROOT)){"one"->Player.REPEAT_MODE_ONE;"all"->Player.REPEAT_MODE_ALL;else->Player.REPEAT_MODE_OFF}}}
+        @JavascriptInterface fun musicSetVolume(volume:Double){runOnUiThread{connectMusicController();val v=volume.toFloat().coerceIn(0f,1f);if(v>0f)lastMusicVolume=v;musicController?.volume=v}}
         @JavascriptInterface fun musicGetQueue():String=runBlocking(Dispatchers.Main){buildMusicQueueJson()}
-        @JavascriptInterface fun musicPlayIndex(index:Int){runOnUiThread{musicController?.let{if(index in 0 until it.mediaItemCount){it.seekToDefaultPosition(index);it.play()}}}}
+        @JavascriptInterface fun musicPlayIndex(index:Int){runOnUiThread{connectMusicController();musicController?.let{if(index in 0 until it.mediaItemCount){it.seekToDefaultPosition(index);it.play()}}}}
         @JavascriptInterface fun musicSleepTimer(minutes:Int){applyMusicSleepTimer(minutes)}
         @JavascriptInterface fun musicMinimize()=Unit
 

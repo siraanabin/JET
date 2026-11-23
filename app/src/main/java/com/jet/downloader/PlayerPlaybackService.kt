@@ -25,15 +25,30 @@ class PlayerPlaybackService : MediaSessionService() {
     }
     private var player: ExoPlayer? = null
     private var session: MediaSession? = null
+    private var initializationFailed = false
     private val timerHandler = Handler(Looper.getMainLooper())
     private val sleepTimer = Runnable { player?.pause() }
     override fun onCreate() {
         super.onCreate()
-        val exo = ExoPlayer.Builder(this).build()
-        player = exo
-        session = MediaSession.Builder(this, exo).build()
+        try {
+            val exo = ExoPlayer.Builder(this).build()
+            player = exo
+            session = MediaSession.Builder(this, exo).build()
+        } catch (t: Throwable) {
+            initializationFailed = true
+            Log.e("JET-MusicService", "Playback service initialization failed", t)
+            runCatching { session?.release() }
+            session = null
+            runCatching { player?.release() }
+            player = null
+            stopSelf()
+        }
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (initializationFailed || player == null || session == null) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         when (intent?.action) {
             ACTION_SLEEP_TIMER -> {
                 timerHandler.removeCallbacks(sleepTimer)
@@ -83,8 +98,10 @@ class PlayerPlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
     override fun onDestroy() {
         timerHandler.removeCallbacksAndMessages(null)
-        session?.release(); session = null
-        player?.release(); player = null
+        runCatching { session?.release() }
+        session = null
+        runCatching { player?.release() }
+        player = null
         super.onDestroy()
     }
 }
