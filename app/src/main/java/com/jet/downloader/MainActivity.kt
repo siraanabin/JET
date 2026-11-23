@@ -45,6 +45,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
+import android.provider.OpenableColumns
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -341,6 +346,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val feedbackMediaPicker = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(9)) { uris ->
+        val items = org.json.JSONArray()
+        uris.take(9).forEach { uri ->
+            val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "attachment"
+            items.put(JSONObject().put("uri", uri.toString()).put("name", name).put("mime", contentResolver.getType(uri) ?: "application/octet-stream"))
+        }
+        callJs("onNativeFeedbackMediaPicked", items.toString())
+    }
     @SuppressLint("SetJavaScriptEnabled", "AllowFileAccessFromFileURLs")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1261,12 +1274,46 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun sendFeedback() {
-            runOnUiThread {
-                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
-                    .putExtra(Intent.EXTRA_SUBJECT, "JET Android Feedback")
-                runCatching { startActivity(Intent.createChooser(intent, "Send feedback")) }
-                    .onFailure { Toast.makeText(this@MainActivity, "No email app available", Toast.LENGTH_SHORT).show() }
+        fun pickFeedbackMedia(maxItems: Int) {
+            runOnUiThread { feedbackMediaPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
+        }
+
+        @JavascriptInterface
+        fun submitFeedback(payload: String) {
+            val helperUrl = BuildConfig.JET_FEEDBACK_HELPER_URL.trim()
+            if (helperUrl.isBlank()) {
+                callJs("onNativeFeedbackResult", "false,${JSONObject.quote("Feedback service is not configured yet.")}")
+                return
+            }
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val input = JSONObject(payload)
+                    val details = input.optString("details").trim().take(1000)
+                    if (details.isBlank()) throw IllegalArgumentException("Please enter feedback details.")
+                    val attachments = org.json.JSONArray()
+                    val selected = input.optJSONArray("attachments") ?: org.json.JSONArray()
+                    for (i in 0 until minOf(selected.length(), 9)) {
+                        val uri = Uri.parse(selected.getString(i))
+                        val bytes = contentResolver.openInputStream(uri)?.use { stream ->
+                            val out = ByteArrayOutputStream(); val buffer = ByteArray(8192); var total = 0
+                            while (true) { val n = stream.read(buffer); if (n <= 0) break; total += n
+                                if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Each attachment must be 5 MB or smaller.")
+                                out.write(buffer, 0, n) }
+                            out.toByteArray()
+                        } ?: continue
+                        val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "attachment-$i"
+                        attachments.put(JSONObject().put("name", name).put("mime", contentResolver.getType(uri) ?: "application/octet-stream").put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP)))
+                    }
+                    val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
+                    val body = JSONObject().put("details", details).put("contact", input.optString("contact").take(160)).put("attachments", attachments)
+                        .put("diagnostics", JSONObject().put("appVersion", version).put("androidVersion", Build.VERSION.RELEASE ?: "unknown").put("deviceModel", Build.MODEL ?: "unknown"))
+                    val request = Request.Builder().url(helperUrl).post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
+                    okHttpClient.newCall(request).execute().use { if (!it.isSuccessful) throw IllegalStateException("Feedback service returned HTTP ${it.code}.") }
+                    callJs("onNativeFeedbackResult", "true,${JSONObject.quote("")}")
+                } catch (error: Exception) {
+                    Log.e("JET-Feedback", "Feedback submission failed", error)
+                    callJs("onNativeFeedbackResult", "false,${JSONObject.quote(error.message ?: "Could not send feedback.")}")
+                }
             }
         }
 
