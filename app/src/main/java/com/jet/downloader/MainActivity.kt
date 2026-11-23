@@ -3,6 +3,7 @@ package com.jet.downloader
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.res.Configuration
 import android.content.Intent
@@ -59,9 +60,9 @@ import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import com.jet.downloader.data.DownloadDao
 import com.jet.downloader.data.DownloadEntity
 import com.jet.downloader.data.PreferencesManager
@@ -86,6 +87,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import org.json.JSONArray
 import org.koin.android.ext.android.inject
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.stream.StreamInfo
@@ -144,14 +146,29 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootContainer: FrameLayout
     private lateinit var webView: WebView
-    private lateinit var media3Overlay: LinearLayout
-    private lateinit var media3TitleView: TextView
-    private lateinit var media3PlayerView: PlayerView
-    private var exoPlayer: ExoPlayer? = null
-
     private var pendingSharedUrl: String? = null
     private var lastDeliveredClipboardUrl: String? = null
-    private var currentPlayingPath: String = ""
+    private var musicController: MediaController? = null
+    private var musicControllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
+    private var musicSourceLabel = "Library"
+    private var lastMusicVolume = 1f
+    private val musicProgressHandler = Handler(Looper.getMainLooper())
+    private val musicProgressRunnable = object : Runnable {
+        override fun run() {
+            val c = musicController ?: return
+            pushMusicProgressToWeb()
+            if (c.isPlaying) musicProgressHandler.postDelayed(this, 500L)
+        }
+    }
+    private val musicPlayerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            pushMusicStateToWeb()
+            if (events.contains(Player.EVENT_TIMELINE_CHANGED) || events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) pushMusicQueueToWeb()
+            musicProgressHandler.removeCallbacks(musicProgressRunnable)
+            pushMusicProgressToWeb()
+            if (player.isPlaying) musicProgressHandler.postDelayed(musicProgressRunnable, 500L)
+        }
+    }
 
     @Volatile
     private var ytDlpReady: Boolean = false
@@ -363,7 +380,7 @@ class MainActivity : AppCompatActivity() {
         val initialThemeMode = runBlocking { preferencesManager.migrateLegacyThemePreference() }
         AppCompatDelegate.setDefaultNightMode(appCompatNightMode(initialThemeMode))
         applySystemBarTheme(isDarkTheme(initialThemeMode))
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(if (isDarkTheme(initialThemeMode)) "#090C14" else "#F4F6FB")))
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(if (isDarkTheme(initialThemeMode)) "#080B12" else "#F4F6FB")))
         requestRuntimePermissions()
         initializeFallbackEngine()
 
@@ -381,7 +398,6 @@ class MainActivity : AppCompatActivity() {
             )
         }
         rootContainer.addView(webView)
-        setupNativeMedia3PlayerOverlay()
         setContentView(rootContainer)
 
         val settings: WebSettings = webView.settings
@@ -414,6 +430,7 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 syncDataStorePreferencesToWeb()
+                connectMusicController()
                 notifyEngineState()
                 pendingSharedUrl?.let { shared ->
                     callJs("onNativeSharedUrl", JSONObject.quote(shared))
@@ -442,16 +459,12 @@ class MainActivity : AppCompatActivity() {
         handleIncomingIntent(intent)
         webView.clearCache(true)
         val html = assets.open("index.html").bufferedReader().use { it.readText() }
-        val bootstrap = "<script>(function(){var m=" + JSONObject.quote(initialThemeMode) + ";var d=m==='dark'||(m==='system'&&" + isSystemDarkMode().toString() + ");document.documentElement.classList.toggle('dark',d);document.documentElement.style.backgroundColor=d?'#090C14':'#F4F6FB';try{localStorage.setItem('jet-theme-mode',m)}catch(e){}})();</script>"
+        val bootstrap = "<script>(function(){var m=" + JSONObject.quote(initialThemeMode) + ";var d=m==='dark'||(m==='system'&&" + isSystemDarkMode().toString() + ");document.documentElement.classList.toggle('dark',d);document.documentElement.style.backgroundColor=d?'#080B12':'#F4F6FB';try{localStorage.setItem('jet-theme-mode',m)}catch(e){}})();</script>"
         webView.loadDataWithBaseURL("file:///android_asset/", html.replaceFirst("<head>", "<head>$bootstrap"), "text/html", "UTF-8", null)
         registerMediaStoreObserver()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (media3Overlay.visibility == View.VISIBLE) {
-                    closeMedia3Player()
-                    return
-                }
                 webView.evaluateJavascript(
                     "(function(){ return window.handleAndroidBack ? window.handleAndroidBack() : false; })()"
                 ) { result ->
@@ -492,100 +505,73 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
-    private fun setupNativeMedia3PlayerOverlay() {
-        media3Overlay = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#F5050811"))
-            visibility = View.GONE
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-
-        val topBar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(32, 48, 32, 24)
-        }
-
-        val closeBtn = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            setBackgroundColor(Color.TRANSPARENT)
-            setColorFilter(Color.WHITE)
-            setOnClickListener { closeMedia3Player() }
-        }
-
-        media3TitleView = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            maxLines = 1
-            setPadding(24, 0, 24, 0)
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        }
-
-        val extBtn = TextView(this).apply {
-            text = "External"
-            setTextColor(Color.parseColor("#60A5FA"))
-            textSize = 13f
-            setPadding(16, 12, 16, 12)
-            setOnClickListener {
-                if (currentPlayingPath.isNotEmpty()) {
-                    openFileInExternalApp(currentPlayingPath)
-                }
+    private fun connectMusicController() {
+        if (musicController != null || musicControllerFuture != null || isFinishing || isDestroyed) return
+        val token = SessionToken(this, ComponentName(this, PlayerPlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        musicControllerFuture = future
+        future.addListener({
+            try {
+                val controller = future.get()
+                if (isFinishing || isDestroyed) { MediaController.releaseFuture(future); return@addListener }
+                musicController = controller
+                controller.addListener(musicPlayerListener)
+                pushMusicStateToWeb()
+                pushMusicQueueToWeb()
+                pushMusicProgressToWeb()
+            } catch (error: Exception) {
+                Log.e("JET-Music", "MediaController connection failed", error)
+                callJs("onNativeMusicError", JSONObject.quote(error.message ?: "Music service connection failed"))
+                musicControllerFuture = null
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+    private fun isAudioFile(file: File): Boolean = file.extension.lowercase(Locale.US) in setOf("mp3","m4a","aac","wav","flac","ogg","oga","opus","wma")
+    private fun buildAudioQueue(selected: File, selectedTitle: String): List<Pair<String,String>> {
+        val queue = LinkedHashMap<String,String>()
+        if (selected.isFile && isAudioFile(selected)) queue[selected.absolutePath] = selectedTitle.ifBlank { selected.nameWithoutExtension }
+        if (hasAudioReadPermission()) runCatching {
+            val projection = arrayOf(MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.DISPLAY_NAME)
+            contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, null, null, MediaStore.Audio.Media.DATE_ADDED + " DESC")?.use { cursor ->
+                val pi=cursor.getColumnIndex(MediaStore.Audio.Media.DATA);val ti=cursor.getColumnIndex(MediaStore.Audio.Media.TITLE);val ni=cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
+                while(cursor.moveToNext()&&queue.size<500){if(pi<0)continue;val path=cursor.getString(pi).orEmpty();if(path.isBlank())continue;val file=File(path);if(!file.isFile||!isAudioFile(file))continue;val title=if(ti>=0)cursor.getString(ti).orEmpty() else "";val name=if(ni>=0)cursor.getString(ni).orEmpty() else "";queue.putIfAbsent(file.absolutePath,title.ifBlank{name.ifBlank{file.nameWithoutExtension}})}
+            }
+        }.onFailure{Log.w("JET-Music","MediaStore queue query failed",it)}
+        getJetDownloadDir().listFiles()?.filter{it.isFile&&isAudioFile(it)}?.sortedByDescending{it.lastModified()}?.forEach{if(queue.size<500)queue.putIfAbsent(it.absolutePath,it.nameWithoutExtension)}
+        return queue.entries.map{it.key to it.value}
+    }
+    private fun startMusicPlayback(path:String,title:String,source:String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val selected=File(path)
+            if(!selected.isFile||!isAudioFile(selected)){withContext(Dispatchers.Main){callJs("onNativeMusicError",JSONObject.quote("Audio file not found or unsupported"))};return@launch}
+            val rows=buildAudioQueue(selected,title)
+            val payload=JSONArray().apply{rows.forEach{(p,t)->put(JSONObject().put("path",p).put("title",t))}}.toString()
+            withContext(Dispatchers.Main) {
+                musicSourceLabel=source.ifBlank{"Library"}
+                val intent=Intent(this@MainActivity,PlayerPlaybackService::class.java).apply{action=PlayerPlaybackService.ACTION_SET_QUEUE;putExtra(PlayerPlaybackService.EXTRA_QUEUE_JSON,payload);putExtra(PlayerPlaybackService.EXTRA_SELECTED_PATH,selected.absolutePath);putExtra(PlayerPlaybackService.EXTRA_SOURCE,musicSourceLabel)}
+                try{ContextCompat.startForegroundService(this@MainActivity,intent);connectMusicController()}
+                catch(e:Exception){Log.e("JET-Music","Service start failed",e);callJs("onNativeMusicError",JSONObject.quote(e.message?:"Unable to start audio playback"))}
             }
         }
-
-        topBar.addView(closeBtn)
-        topBar.addView(media3TitleView)
-        topBar.addView(extBtn)
-
-        media3PlayerView = PlayerView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-            useController = true
-        }
-
-        media3Overlay.addView(topBar)
-        media3Overlay.addView(media3PlayerView)
-        rootContainer.addView(media3Overlay)
     }
-
-    private fun playWithMedia3(title: String, filePath: String) {
-        runOnUiThread {
-            val file = File(filePath)
-            if (!file.exists()) {
-                Toast.makeText(this, "File not found on storage", Toast.LENGTH_SHORT).show()
-                return@runOnUiThread
-            }
-            currentPlayingPath = filePath
-            media3TitleView.text = title
-            media3Overlay.visibility = View.VISIBLE
-
-            val player = exoPlayer ?: ExoPlayer.Builder(this).build().also {
-                exoPlayer = it
-                media3PlayerView.player = it
-            }
-            player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
-            player.prepare()
-            player.playWhenReady = true
-        }
+    private fun pushMusicStateToWeb() {
+        val c=musicController?:return;val item=c.currentMediaItem;val meta=item?.mediaMetadata
+        val state=JSONObject().apply{put("isPlaying",c.isPlaying);put("title",meta?.title?.toString().orEmpty());put("subtitle",meta?.artist?.toString().orEmpty());put("filePath",item?.mediaId.orEmpty());put("source",musicSourceLabel);put("currentIndex",c.currentMediaItemIndex.coerceAtLeast(0));put("shuffleEnabled",c.shuffleModeEnabled);put("repeatMode",when(c.repeatMode){Player.REPEAT_MODE_ONE->"one";Player.REPEAT_MODE_ALL->"all";else->"off"});put("volume",c.volume.toDouble());put("durationMs",c.duration.coerceAtLeast(0L));put("positionMs",c.currentPosition.coerceAtLeast(0L));put("playbackState",c.playbackState)}
+        callJs("onNativeMusicStateChanged",state.toString())
     }
-
-    private fun closeMedia3Player() {
-        exoPlayer?.stop()
-        media3Overlay.visibility = View.GONE
-    }
-
+    private fun pushMusicProgressToWeb(){val c=musicController?:return;callJs("onNativeMusicProgress","${c.currentPosition.coerceAtLeast(0L)}, ${c.duration.coerceAtLeast(0L)}")}
+    private fun buildMusicQueueJson():String{val c=musicController?:return "[]";return JSONArray().apply{c.mediaItems.forEachIndexed{i,item->put(JSONObject().put("path",item.mediaId).put("title",item.mediaMetadata.title?.toString().orEmpty()).put("current",i==c.currentMediaItemIndex))}}.toString()}
+    private fun pushMusicQueueToWeb(){callJs("onNativeMusicQueueChanged",buildMusicQueueJson())}
+    private fun applyMusicSleepTimer(minutes:Int){val i=Intent(this,PlayerPlaybackService::class.java).apply{action=PlayerPlaybackService.ACTION_SLEEP_TIMER;putExtra(PlayerPlaybackService.EXTRA_SLEEP_TIMER_MINUTES,minutes.coerceIn(0,240))};runCatching{ContextCompat.startForegroundService(this,i)}.onFailure{Log.w("JET-Music","Sleep timer update failed",it)}}
     override fun onDestroy() {
         mediaRefreshHandler.removeCallbacksAndMessages(null)
+        musicProgressHandler.removeCallbacksAndMessages(null)
         mediaStoreObserver?.let { runCatching { contentResolver.unregisterContentObserver(it) } }
         mediaStoreObserver = null
-        exoPlayer?.release()
-        exoPlayer = null
+        musicController?.removeListener(musicPlayerListener)
+        musicController = null
+        musicControllerFuture?.let { runCatching { MediaController.releaseFuture(it) } }
+        musicControllerFuture = null
         super.onDestroy()
     }
 
@@ -612,8 +598,8 @@ class MainActivity : AppCompatActivity() {
 
         // Match the system status bar to --bg-canvas and navigation bar to --bg-nav.
         // Keep system bars separate from app content to preserve the three-part layout.
-        window.statusBarColor = Color.parseColor(if (isDarkMode) "#090C14" else "#F4F6FB")
-        window.navigationBarColor = Color.parseColor(if (isDarkMode) "#0D121F" else "#FFFFFF")
+        window.statusBarColor = Color.parseColor(if (isDarkMode) "#080B12" else "#F4F6FB")
+        window.navigationBarColor = Color.parseColor(if (isDarkMode) "#121826" else "#FFFFFF")
 
         controller.isAppearanceLightStatusBars = !isDarkMode
         controller.isAppearanceLightNavigationBars = !isDarkMode
@@ -667,6 +653,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        connectMusicController()
         if (::webView.isInitialized) {
             webView.postDelayed({
                 dispatchClipboardUrlToWebView()
@@ -674,6 +661,20 @@ class MainActivity : AppCompatActivity() {
                     webView.evaluateJavascript("if (window.onNativeAppResumed) window.onNativeAppResumed();", null)
                 }
             }, 350)
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        lifecycleScope.launch {
+            val mode = preferencesManager.themeModeFlow.first()
+            val dark = isDarkTheme(mode)
+            applySystemBarTheme(dark)
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(if (dark) "#080B12" else "#F4F6FB")))
+            if (::webView.isInitialized) {
+                syncDataStorePreferencesToWeb()
+                webView.evaluateJavascript("if (window.onNativeSystemThemeChanged) window.onNativeSystemThemeChanged($dark);", null)
+            }
         }
     }
 
@@ -926,15 +927,12 @@ class MainActivity : AppCompatActivity() {
         savedDownloads
             .filter { it.filePath.isNotBlank() && File(it.filePath).isFile }
             .forEach { item ->
+                val mediaFile = File(item.filePath)
+                val isVideo = mediaFile.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")
+                val resolvedThumbnail = item.thumbnailUrl.takeIf { it.isNotBlank() } ?: if (isVideo) thumbnailFromDiskCache(mediaFile) else ""
                 historyByPath[item.filePath] = DownloadHistoryPayload(
-                    item.id,
-                    item.title,
-                    item.formatLabel,
-                    item.fileSize,
-                    item.filePath,
-                    Uri.fromFile(File(item.filePath)).toString(),
-                    item.thumbnailUrl,
-                    "Saved"
+                    item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
+                    Uri.fromFile(mediaFile).toString(), resolvedThumbnail, "Saved"
                 )
             }
 
@@ -950,7 +948,8 @@ class MainActivity : AppCompatActivity() {
                     saved?.fileSize ?: formatBytes(file.length()),
                     file.absolutePath,
                     Uri.fromFile(file).toString(),
-                    saved?.thumbnailUrl.orEmpty(),
+                    saved?.thumbnailUrl?.takeIf { it.isNotBlank() }
+                        ?: if (file.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) thumbnailFromDiskCache(file) else "",
                     "Saved"
                 )
             }
@@ -1916,6 +1915,19 @@ class MainActivity : AppCompatActivity() {
             else requestLibraryMediaPermissions()
         }
 
+        @JavascriptInterface fun playAudio(filePath:String,title:String,source:String){startMusicPlayback(filePath,title,source)}
+        @JavascriptInterface fun musicPlayPause(){runOnUiThread{musicController?.let{if(it.isPlaying)it.pause() else it.play()}}}
+        @JavascriptInterface fun musicSeekTo(positionMs:Long){runOnUiThread{musicController?.seekTo(positionMs.coerceAtLeast(0L))}}
+        @JavascriptInterface fun musicNext(){runOnUiThread{musicController?.let{if(it.hasNextMediaItem())it.seekToNextMediaItem()}}}
+        @JavascriptInterface fun musicPrevious(){runOnUiThread{musicController?.let{if(it.hasPreviousMediaItem())it.seekToPreviousMediaItem() else it.seekTo(0L)}}}
+        @JavascriptInterface fun musicSetShuffle(enabled:Boolean){runOnUiThread{musicController?.shuffleModeEnabled=enabled}}
+        @JavascriptInterface fun musicSetRepeat(mode:String){runOnUiThread{musicController?.repeatMode=when(mode.lowercase(Locale.ROOT)){"one"->Player.REPEAT_MODE_ONE;"all"->Player.REPEAT_MODE_ALL;else->Player.REPEAT_MODE_OFF}}}
+        @JavascriptInterface fun musicSetVolume(volume:Double){runOnUiThread{val v=volume.toFloat().coerceIn(0f,1f);if(v>0f)lastMusicVolume=v;musicController?.volume=v}}
+        @JavascriptInterface fun musicGetQueue():String=runBlocking(Dispatchers.Main){buildMusicQueueJson()}
+        @JavascriptInterface fun musicPlayIndex(index:Int){runOnUiThread{musicController?.let{if(index in 0 until it.mediaItemCount){it.seekToDefaultPosition(index);it.play()}}}}
+        @JavascriptInterface fun musicSleepTimer(minutes:Int){applyMusicSleepTimer(minutes)}
+        @JavascriptInterface fun musicMinimize()=Unit
+
         @JavascriptInterface
         fun playInNativeMedia3(title: String, filePath: String) {
             runOnUiThread {
@@ -1924,6 +1936,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, "File not found on storage", Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
                 }
+                if (isAudioFile(file)) { startMusicPlayback(file.absolutePath, title, "Library"); return@runOnUiThread }
                 startActivity(Intent(this@MainActivity, VideoPlayerActivity::class.java).apply {
                     putExtra(VideoPlayerActivity.EXTRA_TITLE, title)
                     putExtra(VideoPlayerActivity.EXTRA_FILE_PATH, file.absolutePath)

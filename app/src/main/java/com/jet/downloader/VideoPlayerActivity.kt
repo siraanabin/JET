@@ -6,12 +6,17 @@ import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.os.*
+import android.provider.MediaStore
 import android.graphics.drawable.GradientDrawable
 import android.view.*
 import android.view.animation.OvershootInterpolator
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.core.content.ContextCompat
 import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.WindowCompat
@@ -153,7 +158,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         seekPill = findViewById(R.id.player_seek_pill)
         bottomIcons = findViewById(R.id.player_bottom_icons)
         titleView.isSelected = true
-        seek.post { titleView.maxWidth = (seek.width * 0.8f).roundToInt().coerceAtLeast(dp(80)) }
+        seek.post { titleView.maxWidth = (seek.width * 0.62f).roundToInt().coerceAtLeast(dp(80)) }
 
         val path = intent.getStringExtra(EXTRA_FILE_PATH).orEmpty()
         if (path.isBlank() || !File(path).isFile) {
@@ -590,11 +595,43 @@ class VideoPlayerActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.player_speed_label).text = labels[which]
         }.show()
     }
+    private var playlistLoadGeneration = 0
     private fun populatePlaylist(folder: File?) {
+        val generation = ++playlistLoadGeneration
+        lifecycleScope.launch {
+            val files = withContext(Dispatchers.IO) {
+                val supported = setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "avi")
+                val discovered = LinkedHashMap<String, File>()
+                val permission = if (Build.VERSION.SDK_INT >= 33) {
+                    ContextCompat.checkSelfPermission(this@VideoPlayerActivity, android.Manifest.permission.READ_MEDIA_VIDEO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                } else {
+                    ContextCompat.checkSelfPermission(this@VideoPlayerActivity, android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
+                if (permission) runCatching {
+                    val projection = arrayOf(MediaStore.Video.Media.DATA, MediaStore.Video.Media.DISPLAY_NAME)
+                    contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, null, null, MediaStore.Video.Media.DATE_ADDED + " DESC")?.use { cursor ->
+                        val dataIndex = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
+                        while (cursor.moveToNext()) {
+                            if (dataIndex >= 0) {
+                                val path = cursor.getString(dataIndex).orEmpty()
+                                if (path.isNotBlank()) {
+                                    val file = File(path)
+                                    if (file.isFile && file.extension.lowercase(Locale.US) in supported) discovered[file.absolutePath] = file
+                                }
+                            }
+                        }
+                    }
+                }.onFailure { android.util.Log.w("JET-VideoPlayer", "MediaStore playlist query failed", it) }
+                folder?.listFiles()?.filter { it.isFile && it.extension.lowercase(Locale.US) in supported }?.forEach { discovered[it.absolutePath] = it }
+                val current = File(currentPath)
+                if (current.isFile && current.extension.lowercase(Locale.US) in supported) discovered[current.absolutePath] = current
+                discovered.values.sortedByDescending { it.lastModified() }
+            }
+            if (!isFinishing && !isDestroyed && generation == playlistLoadGeneration) renderPlaylistFiles(files)
+        }
+    }
+    private fun renderPlaylistFiles(files: List<File>) {
         playlist.removeAllViews()
-        val files = folder?.listFiles()?.filter { it.isFile && it.extension.lowercase(Locale.US) in
-            setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "avi") }
-            ?.sortedByDescending { it.lastModified() }.orEmpty()
         files.forEach { file ->
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL

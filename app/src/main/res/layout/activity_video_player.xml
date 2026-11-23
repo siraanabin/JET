@@ -17,7 +17,7 @@
                 android:background="@drawable/bg_player_glass_circle" android:contentDescription="Back"
                 android:src="@drawable/ic_player_back" android:tint="#FFFFFF" />
             <TextView android:id="@+id/player_title" android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_marginStart="18dp" android:layout_weight="1" android:ellipsize="marquee" android:singleLine="true"
+                android:layout_marginStart="18dp" android:layout_marginEnd="36dp" android:layout_weight="1" android:ellipsize="marquee" android:singleLine="true"
                 android:marqueeRepeatLimit="marquee_forever" android:focusable="true" android:focusableInTouchMode="true"
                 android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
             <TextView android:id="@+id/player_cc" android:layout_width="40dp" android:layout_height="40dp"

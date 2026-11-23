@@ -1,11 +1,11 @@
 {
-  "versionCode": 380,
-  "versionName": "3.8.0",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.0/JET-debug.apk",
+  "versionCode": 381,
+  "versionName": "3.8.1",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.1/JET-debug.apk",
   "changelog": [
-    "Tactile compact bottom navigation",
-    "In-app feedback form and About screen",
-    "Minimalist player controls and playlist drawer",
-    "Apple News-style bottom navigation with solid icons and active pill","Feedback media click delegation"
+    "Instant bottom navigation and stronger dark-mode contrast",
+    "Larger Library vinyl artwork and legacy download thumbnail recovery",
+    "MediaStore video playlist and improved player title spacing",
+    "Full-screen vinyl music player with background MediaSession controls"
   ]
 }
