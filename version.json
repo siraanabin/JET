@@ -1,11 +1,11 @@
 {
-  "versionCode": 378,
-  "versionName": "3.7.8",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.8/JET-debug.apk",
+  "versionCode": 379,
+  "versionName": "3.7.9",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.9/JET-debug.apk",
   "changelog": [
     "Tactile compact bottom navigation",
     "In-app feedback form and About screen",
     "Minimalist player controls and playlist drawer",
-    "Apple News-style bottom navigation"
+    "Apple News-style bottom navigation with solid icons and active pill","Feedback media click delegation"
   ]
 }

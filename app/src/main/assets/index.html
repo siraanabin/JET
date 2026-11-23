@@ -87,21 +87,21 @@
 
     .toggle-track { transition: background-color 200ms ease, border-color 200ms ease; }
     .toggle-thumb { transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
-    nav[aria-label="Main navigation"] { padding: 4px 0 !important; }
+    nav[aria-label="Main navigation"] { padding: 6px 0 !important; }
     .nav-btn { position: relative; min-height: 54px; background: transparent; -webkit-tap-highlight-color: transparent; }
-    .nav-btn:active .nav-pill { transform: scale(0.92); transition: transform 0.2s; }
-
-    /* Inactive State (Default) */
-    .nav-btn .nav-pill-bg { opacity: 0; transition: opacity 0.2s; }
+    .nav-btn:active .nav-pill { transform: scale(0.92); transition: transform 0.18s ease; }
+    .nav-btn .nav-pill { width: 60px; height: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; position: relative; transition: background-color 0.2s ease, transform 0.2s ease; }
     .nav-btn .icon-solid { display: none; }
-    .nav-btn .icon-outline { display: block; }
-    .nav-btn .nav-label { font-weight: 500; }
-
-    /* Active State (Apple News Style) */
-    .nav-btn.active-nav .nav-pill-bg { opacity: 0.15; }
-    .nav-btn.active-nav .icon-outline { display: none; }
-    .nav-btn.active-nav .icon-solid { display: block; transform: scale(1.08); }
-    .nav-btn.active-nav .nav-label { font-weight: 700; }
+    .nav-btn .icon-outline { display: block; width: 20px; height: 20px; }
+    .nav-btn .nav-label { font-weight: 500; font-size: 11px; }
+    .nav-btn.active-nav .nav-pill,
+    .nav-btn[aria-current="page"] .nav-pill { background-color: rgba(59, 130, 246, 0.22); }
+    .nav-btn.active-nav .icon-outline,
+    .nav-btn[aria-current="page"] .icon-outline { display: none; }
+    .nav-btn.active-nav .icon-solid,
+    .nav-btn[aria-current="page"] .icon-solid { display: block; width: 22px; height: 22px; transform: scale(1.06); }
+    .nav-btn.active-nav .nav-label,
+    .nav-btn[aria-current="page"] .nav-label { font-weight: 700; }
     .feedback-field{width:100%;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-primary);border-radius:16px;padding:13px 14px;outline:none;font:inherit;font-size:13px}
     .feedback-field:focus{border-color:var(--accent-primary)}.feedback-send:disabled{opacity:.42}
     .feedback-media-tile{border:1px dashed var(--border-subtle);border-radius:14px;min-height:78px;background:var(--bg-elevated)}
@@ -468,47 +468,32 @@
 
     <!-- Bottom Navigation Bar -->
     <nav aria-label="Main navigation" class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-0 grid grid-cols-4 shrink-0">
-      <button type="button" data-nav-target="home"
-        class="nav-btn active-nav text-app-primary flex flex-col items-center justify-center gap-1 rounded-2xl transition-colors" aria-current="page">
-        <div class="nav-pill relative flex items-center justify-center w-[58px] h-[32px] rounded-full">
-          <div class="nav-pill-bg absolute inset-0 rounded-full opacity-0 transition-opacity duration-200 bg-current"></div>
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline relative z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-solid absolute z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path d="M11.47 2.47a.75.75 0 0 1 1.06 0l8.95 8.95a.75.75 0 1 1-1.06 1.06l-4.67-4.67V21a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1-.75-.75v-5.25a.75.75 0 0 0-.75-.75h-2a.75.75 0 0 0-.75.75V21a.75.75 0 0 1-.75.75H5.625a.75.75 0 0 1-.75-.75v-13.1l-4.67 4.67a.75.75 0 1 1-1.06-1.06l8.95-8.95Z"/></svg>
-        </div>
-        <span class="nav-label text-[11px] pointer-events-none transition-all duration-200">Home</span>
-      </button>
-
-      <button type="button" data-nav-target="downloads"
-        class="nav-btn relative flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary transition-colors">
-        <div class="nav-pill relative flex items-center justify-center w-[58px] h-[32px] rounded-full">
-          <div class="nav-pill-bg absolute inset-0 rounded-full opacity-0 transition-opacity duration-200 bg-current"></div>
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline relative z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-solid absolute z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path d="M12 1.5a.75.75 0 0 1 .75.75v10.19l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V2.25A.75.75 0 0 1 12 1.5Z"/><path d="M2.25 15a.75.75 0 0 0 0 1.5h19.5a.75.75 0 0 0 0-1.5H2.25Z"/></svg>
-          <span id="nav-dl-badge" class="hidden absolute -top-1 -right-1 z-20 min-w-[16px] h-4 px-1 rounded-full bg-app-primary text-white text-[9px] font-extrabold flex items-center justify-center tabular-nums">0</span>
-        </div>
-        <span class="nav-label text-[11px] pointer-events-none transition-all duration-200">Downloads</span>
-      </button>
-
-      <button type="button" data-nav-target="library"
-        class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary transition-colors">
-        <div class="nav-pill relative flex items-center justify-center w-[58px] h-[32px] rounded-full">
-          <div class="nav-pill-bg absolute inset-0 rounded-full opacity-0 transition-opacity duration-200 bg-current"></div>
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline relative z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path d="M20 20a2 2 0 0 0-2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-solid absolute z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path d="M2 5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l2.414 2.414a.5.5 0 0 0 .353.146H20a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/></svg>
-        </div>
-        <span class="nav-label text-[11px] pointer-events-none transition-all duration-200">Library</span>
-      </button>
-
-      <button type="button" data-nav-target="settings"
-        class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary transition-colors">
-        <div class="nav-pill relative flex items-center justify-center w-[58px] h-[32px] rounded-full">
-          <div class="nav-pill-bg absolute inset-0 rounded-full opacity-0 transition-opacity duration-200 bg-current"></div>
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline relative z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-solid absolute z-10 w-5 h-5 pointer-events-none transition-all duration-200" aria-hidden="true"><path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.49 7.49 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.925 1.925 0 0 0-2.207.76l-1.018 1.763a1.925 1.925 0 0 0 .385 2.302l1.016.92c.11.1.18.232.18.385a7.51 7.51 0 0 0 0 1.155c0 .153-.07.285-.18.384l-1.016.92a1.925 1.925 0 0 0-.385 2.303l1.018 1.763a1.925 1.925 0 0 0 2.207.759l1.018-.38c.115-.043.283-.031.45.082.32.215.65.399.986.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h2.036c.917 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.336-.17.666-.354.986-.57.167-.114.335-.125.45-.082l1.018.38a1.925 1.925 0 0 0 2.207-.76l1.018-1.763a1.925 1.925 0 0 0-.385-2.302l-1.016-.92c-.11-.1-.18-.232-.18-.385a7.51 7.51 0 0 0 0-1.155c0-.153.07-.285.18-.384l1.016-.92a1.925 1.925 0 0 0 .385-2.303l-1.018-1.763a1.925 1.925 0 0 0-2.207-.759l-1.018.38c-.115.043-.283.031-.45-.082a7.49 7.49 0 0 0-.986-.57c-.182-.088-.277-.228-.297-.35l-.178-1.071a1.875 1.875 0 0 0-1.85-1.567h-2.036Zm.922 5.25a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" clip-rule="evenodd"/></svg>
-        </div>
-        <span class="nav-label text-[11px] pointer-events-none transition-all duration-200">Settings</span>
-      </button>
-    </nav>
+  <button type="button" data-nav-target="home" class="nav-btn active-nav flex flex-col items-center justify-center gap-1 rounded-2xl text-app-primary transition-colors" aria-current="page">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path d="M13.29 2.47a2 2 0 0 0-2.58 0l-7 6A2 2 0 0 0 3 10v9a2 2 0 0 0 2 2h4a1 1 0 0 0 1-1v-6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v6a1 1 0 0 0 1 1h4a2 2 0 0 0 2-2v-9a2 2 0 0 0-.71-1.53l-7-6Z"/></svg>
+    </div><span class="nav-label pointer-events-none">Home</span>
+  </button>
+  <button type="button" data-nav-target="downloads" class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary transition-colors">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path d="M13 3a1 1 0 1 0-2 0v8.59l-2.3-2.3a1 1 0 1 0-1.4 1.42l4 4a1 1 0 0 0 1.4 0l4-4a1 1 0 0 0-1.4-1.42L13 11.59V3Z"/><path d="M3 15a1 1 0 0 1 1 1v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2a1 1 0 1 1 2 0v2a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-2a1 1 0 0 1 1-1Z"/></svg>
+      <span id="nav-dl-badge" class="hidden absolute -top-1 -right-1 z-20 min-w-[16px] h-4 px-1 rounded-full bg-app-primary text-white text-[9px] font-extrabold flex items-center justify-center tabular-nums">0</span>
+    </div><span class="nav-label pointer-events-none">Downloads</span>
+  </button>
+  <button type="button" data-nav-target="library" class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary transition-colors">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path d="M2 5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/></svg>
+    </div><span class="nav-label pointer-events-none">Library</span>
+  </button>
+  <button type="button" data-nav-target="settings" class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary transition-colors">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.49 7.49 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.925 1.925 0 0 0-2.207.76l-1.018 1.763a1.925 1.925 0 0 0 .385 2.302l1.016.92c.11.1.18.232.18.385a7.51 7.51 0 0 0 0 1.155c0 .153-.07.285-.18.384l-1.016.92a1.925 1.925 0 0 0-.385 2.303l1.018 1.763a1.925 1.925 0 0 0 2.207.759l1.018-.38c.115-.043.283-.031.45.082.32.215.65.399.986.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h2.036c.917 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.336-.17.666-.354.986-.57.167-.114.335-.125.45-.082l1.018.38a1.925 1.925 0 0 0 2.207-.76l1.018-1.763a1.925 1.925 0 0 0-.385-2.302l-1.016-.92c-.11-.1-.18-.232-.18-.385a7.51 7.51 0 0 0 0-1.155c0-.153.07-.285.18-.384l1.016-.92a1.925 1.925 0 0 0 .385-2.303l-1.018-1.763a1.925 1.925 0 0 0-2.207-.759l-1.018.38c-.115.043-.283-.031-.45-.082a7.49 7.49 0 0 0-.986-.57c-.182-.088-.277-.228-.297-.35l-.178-1.071a1.875 1.875 0 0 0-1.85-1.567h-2.036Zm.922 5.25a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" clip-rule="evenodd"/></svg>
+    </div><span class="nav-label pointer-events-none">Settings</span>
+  </button>
+</nav>
 
     <!-- ==================== OVERLAYS & MODALS ==================== -->
 
@@ -2229,10 +2214,10 @@
         let feedbackMedia = [];
       function openFeedbackScreen(){feedbackMedia=[];$('feedback-details').value='';$('feedback-contact').value='';$('feedback-count').textContent='0';$('feedback-send').disabled=true;renderFeedbackMedia();$('feedback-screen').classList.remove('hidden');refreshIcons()}
       function closeFeedbackScreen(){$('feedback-screen').classList.add('hidden')}
-      function renderFeedbackMedia(){const grid=$('feedback-media-grid');$('feedback-media-count').textContent=feedbackMedia.length+'/9';grid.innerHTML='';feedbackMedia.forEach((item,i)=>{const tile=document.createElement('div');tile.className='relative rounded-xl overflow-hidden bg-app-elevated aspect-square flex flex-col items-center justify-center text-app-secondary';const label=document.createElement('span');label.className='px-1 text-[9px] truncate max-w-full';label.textContent=item.name||'Attachment';const glyph=document.createElement('span');glyph.textContent=(item.mime||'').startsWith('video/')?'Video':'Image';glyph.className='text-xs';tile.append(glyph,label);const remove=document.createElement('button');remove.textContent='×';remove.className='absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white';remove.onclick=()=>{feedbackMedia.splice(i,1);renderFeedbackMedia()};tile.append(remove);grid.append(tile)});if(feedbackMedia.length<9){const add=document.createElement('button');add.id='feedback-add-media';add.className='feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary';add.innerHTML='<span class="text-2xl">+</span><span class="text-[10px]">Add media</span>';add.onclick=pickFeedbackMedia;grid.append(add)}}
+      function renderFeedbackMedia(){const grid=$('feedback-media-grid');$('feedback-media-count').textContent=feedbackMedia.length+'/9';grid.innerHTML='';feedbackMedia.forEach((item,i)=>{const tile=document.createElement('div');tile.className='relative rounded-xl overflow-hidden bg-app-elevated aspect-square flex flex-col items-center justify-center text-app-secondary';const label=document.createElement('span');label.className='px-1 text-[9px] truncate max-w-full';label.textContent=item.name||'Attachment';const glyph=document.createElement('span');glyph.textContent=(item.mime||'').startsWith('video/')?'Video':'Image';glyph.className='text-xs';tile.append(glyph,label);const remove=document.createElement('button');remove.textContent='×';remove.className='absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white';remove.onclick=()=>{feedbackMedia.splice(i,1);renderFeedbackMedia()};tile.append(remove);grid.append(tile)});if(feedbackMedia.length<9){const add=document.createElement('button');add.id='feedback-add-media';add.className='feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary';add.innerHTML='<span class="text-2xl">+</span><span class="text-[10px]">Add media</span>';grid.append(add)}}
       function pickFeedbackMedia(){if(hasAndroid()&&window.JetAndroid.pickFeedbackMedia)window.JetAndroid.pickFeedbackMedia(9-feedbackMedia.length);else showToast('Media picker is available in the Android app.')}
       $('feedback-back').addEventListener('click',closeFeedbackScreen);$('about-close').addEventListener('click',()=>$('about-modal').classList.add('hidden'));$('about-modal').addEventListener('click',e=>{if(e.target===$('about-modal'))$('about-modal').classList.add('hidden')});
-      $('feedback-details').addEventListener('input',e=>{$('feedback-count').textContent=String(e.target.value.length);$('feedback-send').disabled=!e.target.value.trim()});$('feedback-add-media').addEventListener('click',pickFeedbackMedia);
+      $('feedback-details').addEventListener('input',e=>{$('feedback-count').textContent=String(e.target.value.length);$('feedback-send').disabled=!e.target.value.trim()});document.addEventListener('click',e=>{const addMedia=e.target.closest('#feedback-add-media');if(addMedia){e.preventDefault();pickFeedbackMedia()}});
       window.onNativeFeedbackMediaPicked=function(items){try{feedbackMedia=feedbackMedia.concat(typeof items==='string'?JSON.parse(items):items||[]).slice(0,9);renderFeedbackMedia()}catch(e){showToast('Could not load selected media.')}};
       window.onNativeFeedbackResult=function(ok,message){$('feedback-send').disabled=!$('feedback-details').value.trim();$('feedback-send').textContent='Send';if(ok){closeFeedbackScreen();showToast('Feedback sent! Thank you.')}else showToast(message||'Could not send feedback.')};
       $('feedback-send').addEventListener('click',()=>{const details=$('feedback-details').value.trim();if(!details)return;if(!hasAndroid()||!window.JetAndroid.submitFeedback){showToast('Feedback service is unavailable.');return}$('feedback-send').disabled=true;$('feedback-send').textContent='Sending…';window.JetAndroid.submitFeedback(JSON.stringify({details:details,contact:$('feedback-contact').value.trim(),attachments:feedbackMedia.map(x=>x.uri)}))});
