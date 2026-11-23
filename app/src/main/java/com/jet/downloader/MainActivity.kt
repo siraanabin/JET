@@ -942,21 +942,39 @@ class MainActivity : AppCompatActivity() {
 
                 val dir = getJetDownloadDir()
                 val files = dir.listFiles()
-                    ?.asSequence()
                     ?.filter { it.isFile && !it.name.startsWith(".") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
                     ?.sortedByDescending { it.lastModified() }
-                    ?: emptySequence()
+                    ?: emptyList()
                 val savedDownloads = downloadDao.getAll()
                 val savedByPath = savedDownloads.associateBy { it.filePath }
-                val history = savedDownloads
+                val historyByPath = LinkedHashMap<String, DownloadHistoryPayload>()
+                savedDownloads
                     .filter { it.filePath.isNotBlank() && File(it.filePath).isFile }
-                    .map { item ->
-                        DownloadHistoryPayload(
+                    .forEach { item ->
+                        historyByPath[item.filePath] = DownloadHistoryPayload(
                             item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
                             Uri.fromFile(File(item.filePath)).toString(), item.thumbnailUrl, "Saved"
                         )
                     }
-                callJs("onNativeCompletedDownloads", json.encodeToString(history))
+                // Room is the primary history store; also recover files already present
+                // in Downloads/JET so older or missing database rows remain visible.
+                files.forEach { file ->
+                    if (!historyByPath.containsKey(file.absolutePath)) {
+                        val saved = savedByPath[file.absolutePath]
+                        val ext = file.extension.uppercase(Locale.US).ifEmpty { "FILE" }
+                        historyByPath[file.absolutePath] = DownloadHistoryPayload(
+                            saved?.id ?: "file-${file.absolutePath.hashCode()}",
+                            saved?.title ?: file.nameWithoutExtension,
+                            saved?.formatLabel ?: ext,
+                            saved?.fileSize ?: formatBytes(file.length()),
+                            file.absolutePath,
+                            Uri.fromFile(file).toString(),
+                            saved?.thumbnailUrl.orEmpty(),
+                            "Saved"
+                        )
+                    }
+                }
+                callJs("onNativeCompletedDownloads", json.encodeToString(historyByPath.values.toList()))
 
                 for (file in files) {
                     val lower = file.name.lowercase(Locale.US)
