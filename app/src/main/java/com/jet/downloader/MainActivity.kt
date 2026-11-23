@@ -32,6 +32,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
+import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -398,7 +399,17 @@ class MainActivity : AppCompatActivity() {
 
         webView.addJavascriptInterface(JetNativeBridge(), "JetAndroid")
         webView.addJavascriptInterface(JetNetworkBridge(), "JetNetwork")
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                if (consoleMessage?.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    Log.e(
+                        "JET-WebView",
+                        "${consoleMessage.message()} -- ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}"
+                    )
+                }
+                return super.onConsoleMessage(consoleMessage)
+            }
+        }
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)

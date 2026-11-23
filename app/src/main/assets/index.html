@@ -1014,7 +1014,8 @@
         state.downloadSettings.allowMobileData = enabled;
         applyDownloadToggle('mobile-data-toggle', enabled, 'allowMobileData');
       });
-      $('feedback-setting').addEventListener('click', openFeedbackScreen);
+      window.$ = $; window.hasAndroid = hasAndroid; window.showToast = showToast; window.refreshIcons = refreshIcons;
+      $('feedback-setting')?.addEventListener('click', (e) => window.openFeedbackScreen?.(e));
       $('about-setting').addEventListener('click', () => $('about-modal').classList.remove('hidden'));
       $('share-app-setting').addEventListener('click', () => {
         if (hasAndroid() && window.JetAndroid.shareApp) window.JetAndroid.shareApp();
@@ -2211,8 +2212,13 @@
         }
       };
     })();
+        const $ = window.$ || ((id) => document.getElementById(id));
+        const hasAndroid = window.hasAndroid || (() => typeof window.JetAndroid === 'object' && window.JetAndroid !== null);
+        const showToast = window.showToast || (() => {});
+        const refreshIcons = window.refreshIcons || (() => {});
         let feedbackMedia = [];
       function openFeedbackScreen(){feedbackMedia=[];$('feedback-details').value='';$('feedback-contact').value='';$('feedback-count').textContent='0';$('feedback-send').disabled=true;renderFeedbackMedia();$('feedback-screen').classList.remove('hidden');refreshIcons()}
+      window.openFeedbackScreen = openFeedbackScreen;
       function closeFeedbackScreen(){$('feedback-screen').classList.add('hidden')}
       function renderFeedbackMedia(){const grid=$('feedback-media-grid');$('feedback-media-count').textContent=feedbackMedia.length+'/9';grid.innerHTML='';feedbackMedia.forEach((item,i)=>{const tile=document.createElement('div');tile.className='relative rounded-xl overflow-hidden bg-app-elevated aspect-square flex flex-col items-center justify-center text-app-secondary';const label=document.createElement('span');label.className='px-1 text-[9px] truncate max-w-full';label.textContent=item.name||'Attachment';const glyph=document.createElement('span');glyph.textContent=(item.mime||'').startsWith('video/')?'Video':'Image';glyph.className='text-xs';tile.append(glyph,label);const remove=document.createElement('button');remove.textContent='×';remove.className='absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white';remove.onclick=()=>{feedbackMedia.splice(i,1);renderFeedbackMedia()};tile.append(remove);grid.append(tile)});if(feedbackMedia.length<9){const add=document.createElement('button');add.id='feedback-add-media';add.className='feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary';add.innerHTML='<span class="text-2xl">+</span><span class="text-[10px]">Add media</span>';grid.append(add)}}
       function pickFeedbackMedia(){if(hasAndroid()&&window.JetAndroid.pickFeedbackMedia)window.JetAndroid.pickFeedbackMedia(9-feedbackMedia.length);else showToast('Media picker is available in the Android app.')}
