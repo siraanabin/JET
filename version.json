@@ -1,6 +1,10 @@
 {
-  "versionCode": 372,
-  "versionName": "3.7.2",
+  "versionCode": 373,
+  "versionName": "3.7.3",
   "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.2/JET-debug.apk",
-  "changelog": "• Prevent startup theme flash and compact Device storage UI\n• Update Library cache immediately after file deletion\n• Refine player title alignment, scrubbing and lock controls\n• Use supplied JET record artwork when audio has no embedded cover"
+  "changelog": [
+    "Tactile compact bottom navigation",
+    "In-app feedback form and About screen",
+    "Minimalist player controls and playlist drawer"
+  ]
 }
