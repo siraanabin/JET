@@ -72,6 +72,8 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var aspect = 0
     private var controlsVisible = true
     private var scrubbing = false
+    private var seekCommitPending = false
+    private val hideLockIndicator = Runnable { findViewById<View>(R.id.player_unlock)?.visibility = View.GONE }
     private lateinit var scaleDetector: ScaleGestureDetector
     private var zoomScale = 1f
     private var panX = 0f
@@ -144,6 +146,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         seekPill = findViewById(R.id.player_seek_pill)
         bottomIcons = findViewById(R.id.player_bottom_icons)
         titleView.isSelected = true
+        seek.post { titleView.maxWidth = (seek.width * 0.8f).roundToInt().coerceAtLeast(dp(80)) }
 
         val path = intent.getStringExtra(EXTRA_FILE_PATH).orEmpty()
         if (path.isBlank() || !File(path).isFile) {
@@ -176,6 +179,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.player_speed_label).text = speedLabel(playerPrefs.savedPlaybackSpeed)
         exo.prepare(); exo.play()
         exo.addListener(object : Player.Listener {
+            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) { seekCommitPending = false; updateProgress() }
+            }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 findViewById<ImageButton>(R.id.player_play).setImageResource(
                     if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play
@@ -223,13 +229,13 @@ class VideoPlayerActivity : AppCompatActivity() {
             player?.let { if (it.isPlaying) it.pause() else it.play() }
         }
         findViewById<ImageButton>(R.id.player_forward).setOnClickListener { seekBy(10_000L) }
-        val unlock = findViewById<Button>(R.id.player_unlock)
+        val unlock = findViewById<ImageButton>(R.id.player_unlock)
         findViewById<ImageButton>(R.id.player_lock).setOnClickListener {
-            locked = true; showControls(false); unlock.visibility = View.VISIBLE
+            locked = true; showControls(false); showLockIndicator()
             Toast.makeText(this, "Screen locked", Toast.LENGTH_SHORT).show()
         }
         unlock.setOnClickListener {
-            locked = false; unlock.visibility = View.GONE; showControls(true)
+            locked = false; handler.removeCallbacks(hideLockIndicator); unlock.visibility = View.GONE; showControls(true)
             Toast.makeText(this, "Unlocked", Toast.LENGTH_SHORT).show()
         }
         findViewById<ImageButton>(R.id.player_mute).setOnClickListener {
@@ -262,7 +268,11 @@ class VideoPlayerActivity : AppCompatActivity() {
             override fun onScrubMove(timeBar: TimeBar, position: Long) { currentTime.text = time(position) }
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
                 scrubbing = false
-                if (!canceled) player?.seekTo(position)
+                if (!canceled) {
+                    seekCommitPending = true
+                    player?.seekTo(position)
+                    handler.postDelayed({ seekCommitPending = false; updateProgress() }, 180L)
+                } else seekCommitPending = false
                 handler.postDelayed(hideControls, 3000L)
             }
         })
@@ -355,7 +365,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
 
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if (!locked) showControls(!controlsVisible)
+                if (locked) showLockIndicator() else showControls(!controlsVisible)
                 return true
             }
         })
@@ -364,6 +374,10 @@ class VideoPlayerActivity : AppCompatActivity() {
         // It receives the very first DOWN event, even while ExoPlayer controls are fully hidden.
         gestureOverlay.setOnTouchListener { _, event ->
             scaleDetector.onTouchEvent(event)
+            if (locked) {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) showLockIndicator()
+                return@setOnTouchListener true
+            }
             if (event.pointerCount > 1 || scaleDetector.isInProgress) {
                 if (event.actionMasked == MotionEvent.ACTION_POINTER_UP || event.actionMasked == MotionEvent.ACTION_UP) gestureMode = 0
                 return@setOnTouchListener true
@@ -424,6 +438,14 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
             true
         }
+    }
+
+    private fun showLockIndicator() {
+        val icon = findViewById<View>(R.id.player_unlock)
+        handler.removeCallbacks(hideLockIndicator)
+        icon.visibility = View.VISIBLE
+        icon.alpha = 1f
+        handler.postDelayed(hideLockIndicator, 2500L)
     }
 
     private fun showGestureControls() {
@@ -673,7 +695,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         val p = player ?: return
         val duration = p.duration.takeIf { it > 0 } ?: C.TIME_UNSET
         seek.setDuration(duration)
-        if (!scrubbing) {
+        if (!scrubbing && !seekCommitPending) {
             seek.setPosition(p.currentPosition.coerceAtLeast(0L))
             seek.setBufferedPosition(p.bufferedPosition.coerceAtLeast(0L))
             currentTime.text = time(p.currentPosition)

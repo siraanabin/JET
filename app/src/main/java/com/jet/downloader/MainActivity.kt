@@ -349,6 +349,7 @@ class MainActivity : AppCompatActivity() {
         val initialThemeMode = runBlocking { preferencesManager.migrateLegacyThemePreference() }
         AppCompatDelegate.setDefaultNightMode(appCompatNightMode(initialThemeMode))
         applySystemBarTheme(isDarkTheme(initialThemeMode))
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(if (isDarkTheme(initialThemeMode)) "#090C14" else "#F4F6FB")))
         requestRuntimePermissions()
         initializeFallbackEngine()
 
@@ -416,7 +417,9 @@ class MainActivity : AppCompatActivity() {
         }
         handleIncomingIntent(intent)
         webView.clearCache(true)
-        webView.loadUrl("file:///android_asset/index.html")
+        val html = assets.open("index.html").bufferedReader().use { it.readText() }
+        val bootstrap = "<script>(function(){var m=" + JSONObject.quote(initialThemeMode) + ";var d=m==='dark'||(m==='system'&&" + isSystemDarkMode().toString() + ");document.documentElement.classList.toggle('dark',d);document.documentElement.style.backgroundColor=d?'#090C14':'#F4F6FB';try{localStorage.setItem('jet-theme-mode',m)}catch(e){}})();</script>"
+        webView.loadDataWithBaseURL("file:///android_asset/", html.replaceFirst("<head>", "<head>$bootstrap"), "text/html", "UTF-8", null)
         registerMediaStoreObserver()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -797,7 +800,7 @@ class MainActivity : AppCompatActivity() {
                     retriever.getFrameAtTime(durationUs / 2, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                         ?: firstFrame
                 } else firstFrame
-            } ?: return ""
+            } ?: return if (isAudio) "file:///android_asset/images/music-placeholder.svg" else ""
             val scale = minOf(1.0, 320.0 / bitmap.width, 180.0 / bitmap.height)
             val width = (bitmap.width * scale).toInt().coerceAtLeast(1)
             val height = (bitmap.height * scale).toInt().coerceAtLeast(1)
@@ -1072,7 +1075,7 @@ class MainActivity : AppCompatActivity() {
                             filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
                             thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl
                                 ?.takeIf { it.isNotBlank() }
-                                ?: if (type == "video") thumbnailFromDiskCache(file) else "",
+                                ?: if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") "file:///android_asset/images/music-placeholder.svg" else "",
                             size = formatBytes(size), format = ext, dominantColor = "#20242E"
                         )
                     )
@@ -1983,9 +1986,15 @@ class MainActivity : AppCompatActivity() {
                     val file = File(filePath).canonicalFile
                     val allowedDir = getJetDownloadDir().canonicalFile
                     require(file.parentFile == allowedDir && file.isFile) { "File is outside the JET Library" }
+                    val thumbnailKey = (file.absolutePath + "|" + file.length() + "|" + file.lastModified()).hashCode().toUInt().toString(16)
                     check(file.delete()) { "Unable to delete file" }
                     downloadDao.getAll().firstOrNull { it.filePath == file.absolutePath }?.let { downloadDao.deleteById(it.id) }
-                    pushScannedLibraryToWeb()
+                    val updatedItems = (cachedLibraryItems ?: runCatching { if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else emptyList() }.getOrDefault(emptyList()))
+                        .filterNot { it.filePath == file.absolutePath }
+                    cachedLibraryItems = updatedItems
+                    runCatching { libraryCacheFile.writeText(json.encodeToString(updatedItems)) }
+                    runCatching { File(libraryThumbnailCacheDir, "$thumbnailKey.txt").delete() }
+                    callJs("onNativeLibraryItemDeleted", JSONObject.quote(file.absolutePath))
                     withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File deleted", Toast.LENGTH_SHORT).show() }
                 } catch (error: Exception) {
                     withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, error.message ?: "Delete failed", Toast.LENGTH_LONG).show() }
