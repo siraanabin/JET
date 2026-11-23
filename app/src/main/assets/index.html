@@ -87,6 +87,15 @@
 
     .toggle-track { transition: background-color 200ms ease, border-color 200ms ease; }
     .toggle-thumb { transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+      nav[aria-label="Main navigation"]{padding-top:3px!important;padding-bottom:0!important}
+    .nav-btn{position:relative;min-height:54px;padding-top:5px!important;padding-bottom:4px!important;transition:transform 260ms cubic-bezier(.2,1.4,.35,1),color 180ms ease}
+    .nav-btn:active{transform:scale(.92)}.nav-btn svg{transition:transform 260ms cubic-bezier(.2,1.4,.35,1)}
+    .nav-btn[aria-current="page"] svg{transform:translateY(-2px) scale(1.06)}
+    .nav-btn[aria-current="page"]::after{content:"";position:absolute;top:1px;left:50%;width:22px;height:3px;border-radius:99px;background:var(--accent-primary);transform:translateX(-50%);animation:navPillIn 220ms cubic-bezier(.2,1.4,.35,1)}
+    @keyframes navPillIn{from{opacity:0;width:4px}to{opacity:1;width:22px}}
+    .feedback-field{width:100%;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-primary);border-radius:16px;padding:13px 14px;outline:none;font:inherit;font-size:13px}
+    .feedback-field:focus{border-color:var(--accent-primary)}.feedback-send:disabled{opacity:.42}
+    .feedback-media-tile{border:1px dashed var(--border-subtle);border-radius:14px;min-height:78px;background:var(--bg-elevated)}
   </style>
 </head>
 <body>
@@ -381,7 +390,6 @@
         <div class="space-y-2"><p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">INFO</p><div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
           <button id="feedback-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="help-circle" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Feedback</span></button>
           <button id="share-app-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="share-2" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Share App</span></button>
-          <button id="check-app-update-info" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="refresh-cw" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Check for updates</span></button>
           <button id="about-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="info" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">About</span></button>
         </div></div>
 
@@ -450,15 +458,15 @@
     </main>
 
     <!-- Bottom Navigation Bar -->
-    <nav class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-2 grid grid-cols-4 shrink-0">
+    <nav aria-label="Main navigation" class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-0 grid grid-cols-4 shrink-0">
       <button type="button" data-nav-target="home"
-        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-primary font-bold transition">
+        class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-primary font-bold transition" aria-current="page"">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
         <span class="text-[11px] pointer-events-none">Home</span>
       </button>
 
       <button type="button" data-nav-target="downloads"
-        class="nav-btn relative flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
+        class="nav-btn relative flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary font-semibold transition">
         <div class="relative pointer-events-none">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download w-5 h-5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           <span id="nav-dl-badge" class="hidden absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-app-primary text-white text-[9px] font-extrabold flex items-center justify-center tabular-nums">0</span>
@@ -467,13 +475,13 @@
       </button>
 
       <button type="button" data-nav-target="library"
-        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
+        class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary font-semibold transition">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
         <span class="text-[11px] pointer-events-none">Library</span>
       </button>
 
       <button type="button" data-nav-target="settings"
-        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
+        class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary font-semibold transition">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
         <span class="text-[11px] pointer-events-none">Settings</span>
       </button>
@@ -481,6 +489,20 @@
 
     <!-- ==================== OVERLAYS & MODALS ==================== -->
 
+    <section id="feedback-screen" class="hidden fixed inset-0 z-[85] bg-app-bg flex flex-col">
+      <header class="h-14 shrink-0 flex items-center gap-3 px-4 border-b border-app-border"><button id="feedback-back" type="button" aria-label="Back" class="w-10 h-10 rounded-full flex items-center justify-center text-app-text"><i data-lucide="arrow-left" class="w-5 h-5"></i></button><h2 class="text-base font-extrabold text-app-text">Send feedback</h2></header>
+      <div class="flex-1 overflow-y-auto no-scrollbar px-4 py-5 pb-28 space-y-5">
+        <div class="space-y-2"><label for="feedback-details" class="block text-xs font-bold text-app-text">Details <span class="text-app-danger">*</span></label><textarea id="feedback-details" maxlength="1000" rows="6" class="feedback-field resize-none" placeholder="Tell us a bit more about your questions or suggestions."></textarea><div class="text-right text-[11px] text-app-muted"><span id="feedback-count">0</span>/1000</div></div>
+        <div class="space-y-2"><label for="feedback-contact" class="block text-xs font-bold text-app-text">Contact details <span class="font-normal text-app-muted">(Optional)</span></label><input id="feedback-contact" class="feedback-field" type="text" maxlength="160" placeholder="WhatsApp number or email" autocomplete="off"></div>
+        <div class="space-y-2"><div class="flex items-center justify-between"><label class="text-xs font-bold text-app-text">Photos and videos</label><span id="feedback-media-count" class="text-[11px] text-app-muted">0/9</span></div><div id="feedback-media-grid" class="grid grid-cols-3 gap-2"><button id="feedback-add-media" type="button" class="feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary"><i data-lucide="plus" class="w-6 h-6"></i><span class="text-[10px] font-semibold">Add media</span></button></div></div>
+      </div><div class="shrink-0 p-4 border-t border-app-border bg-app-bg"><button id="feedback-send" type="button" disabled class="feedback-send w-full h-12 rounded-full bg-app-primary text-white text-sm font-extrabold">Send</button></div>
+    </section>
+    <section id="about-modal" class="hidden fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm items-center justify-center p-5"><div class="surface-card w-full max-w-sm rounded-3xl p-5 space-y-4">
+      <div class="flex items-center justify-between"><h3 class="text-base font-extrabold text-app-text">About JET</h3><button id="about-close" class="w-9 h-9 rounded-full flex items-center justify-center text-app-secondary"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+      <div class="flex items-center gap-3"><img src="./images/jet-logo.svg" class="w-12 h-12 rounded-xl" alt="JET"><div><p class="font-extrabold text-app-text">JET</p><p class="text-xs text-app-secondary">Version v3.7.3</p></div></div>
+      <p class="text-sm leading-6 text-app-secondary">A lightweight, ad-free, stroke-minimalist media player engineered for ultra-fluid playback, precise gestures, and effortless local and offline media management.</p>
+      <div class="pt-3 border-t border-app-border flex items-center justify-between text-xs"><span class="text-app-muted">Developed by</span><span class="font-bold text-app-text">JET Developer</span></div>
+    </div></section>
     <!-- Theme Selection Sheet -->
     <div id="theme-modal" class="hidden fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex flex-col justify-end">
       <div class="sheet-up bg-app-surface border-t border-app-border rounded-t-3xl p-5 space-y-3">
@@ -963,16 +985,12 @@
         state.downloadSettings.allowMobileData = enabled;
         applyDownloadToggle('mobile-data-toggle', enabled, 'allowMobileData');
       });
-      $('feedback-setting').addEventListener('click', () => {
-        if (hasAndroid() && window.JetAndroid.sendFeedback) window.JetAndroid.sendFeedback();
-        else showToast('Feedback is available in the Android app.');
-      });
+      $('feedback-setting').addEventListener('click', openFeedbackScreen);
+      $('about-setting').addEventListener('click', () => $('about-modal').classList.remove('hidden'));
       $('share-app-setting').addEventListener('click', () => {
         if (hasAndroid() && window.JetAndroid.shareApp) window.JetAndroid.shareApp();
       });
-      $('about-setting').addEventListener('click', () => {
-        alert('JET Android\\nVideo and audio downloader with an integrated media library.');
-      });
+
 
       // Open-source software modal
       function renderOssList() {
@@ -2165,7 +2183,17 @@
         }
       };
     })();
-  </script>
+        let feedbackMedia = [];
+      function openFeedbackScreen(){feedbackMedia=[];$('feedback-details').value='';$('feedback-contact').value='';$('feedback-count').textContent='0';$('feedback-send').disabled=true;renderFeedbackMedia();$('feedback-screen').classList.remove('hidden');refreshIcons()}
+      function closeFeedbackScreen(){$('feedback-screen').classList.add('hidden')}
+      function renderFeedbackMedia(){const grid=$('feedback-media-grid');$('feedback-media-count').textContent=feedbackMedia.length+'/9';grid.innerHTML='';feedbackMedia.forEach((item,i)=>{const tile=document.createElement('div');tile.className='relative rounded-xl overflow-hidden bg-app-elevated aspect-square flex flex-col items-center justify-center text-app-secondary';const label=document.createElement('span');label.className='px-1 text-[9px] truncate max-w-full';label.textContent=item.name||'Attachment';const glyph=document.createElement('span');glyph.textContent=(item.mime||'').startsWith('video/')?'Video':'Image';glyph.className='text-xs';tile.append(glyph,label);const remove=document.createElement('button');remove.textContent='×';remove.className='absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white';remove.onclick=()=>{feedbackMedia.splice(i,1);renderFeedbackMedia()};tile.append(remove);grid.append(tile)});if(feedbackMedia.length<9){const add=document.createElement('button');add.id='feedback-add-media';add.className='feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary';add.innerHTML='<span class="text-2xl">+</span><span class="text-[10px]">Add media</span>';add.onclick=pickFeedbackMedia;grid.append(add)}}
+      function pickFeedbackMedia(){if(hasAndroid()&&window.JetAndroid.pickFeedbackMedia)window.JetAndroid.pickFeedbackMedia(9-feedbackMedia.length);else showToast('Media picker is available in the Android app.')}
+      $('feedback-back').addEventListener('click',closeFeedbackScreen);$('about-close').addEventListener('click',()=>$('about-modal').classList.add('hidden'));$('about-modal').addEventListener('click',e=>{if(e.target===$('about-modal'))$('about-modal').classList.add('hidden')});
+      $('feedback-details').addEventListener('input',e=>{$('feedback-count').textContent=String(e.target.value.length);$('feedback-send').disabled=!e.target.value.trim()});$('feedback-add-media').addEventListener('click',pickFeedbackMedia);
+      window.onNativeFeedbackMediaPicked=function(items){try{feedbackMedia=feedbackMedia.concat(typeof items==='string'?JSON.parse(items):items||[]).slice(0,9);renderFeedbackMedia()}catch(e){showToast('Could not load selected media.')}};
+      window.onNativeFeedbackResult=function(ok,message){$('feedback-send').disabled=!$('feedback-details').value.trim();$('feedback-send').textContent='Send';if(ok){closeFeedbackScreen();showToast('Feedback sent! Thank you.')}else showToast(message||'Could not send feedback.')};
+      $('feedback-send').addEventListener('click',()=>{const details=$('feedback-details').value.trim();if(!details)return;if(!hasAndroid()||!window.JetAndroid.submitFeedback){showToast('Feedback service is unavailable.');return}$('feedback-send').disabled=true;$('feedback-send').textContent='Sending…';window.JetAndroid.submitFeedback(JSON.stringify({details:details,contact:$('feedback-contact').value.trim(),attachments:feedbackMedia.map(x=>x.uri)}))});
+</script>
 
 </body>
 </html>
