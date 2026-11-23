@@ -154,7 +154,7 @@
         android:background="@drawable/shape_pill" android:text="00:00/00:00"
         android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold"
         android:visibility="gone" />
-    <View android:id="@+id/player_playlist_scrim" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#99000000" android:visibility="gone" />
+    <View android:id="@+id/player_playlist_scrim" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#99000000" android:clickable="true" android:focusable="true" android:visibility="gone" />
     <LinearLayout android:id="@+id/player_playlist_drawer" android:layout_width="320dp" android:layout_height="match_parent" android:layout_gravity="end" android:orientation="vertical" android:background="#10131B" android:elevation="18dp" android:paddingTop="20dp" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingBottom="14dp" android:visibility="gone">
         <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:gravity="center_vertical" android:orientation="horizontal">
             <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Playlist" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" />
