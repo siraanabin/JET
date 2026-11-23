@@ -1057,9 +1057,15 @@ class MainActivity : AppCompatActivity() {
                         val sizeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
                         val durationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DURATION)
                         val mimeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+                        var scannedRows = 0
+                        var rowsWithoutFilePath = 0
                         while (cursor.moveToNext()) {
+                            scannedRows++
                             val path = if (dataIndex >= 0) cursor.getString(dataIndex).orEmpty() else ""
-                            if (path.isBlank()) continue
+                            if (path.isBlank()) {
+                                rowsWithoutFilePath++
+                                continue
+                            }
                             val file = File(path)
                             if (!file.isFile || file.name.startsWith(".")) continue
                             val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else 0L
@@ -1086,6 +1092,7 @@ class MainActivity : AppCompatActivity() {
                                 )
                             )
                         }
+                        Log.i("JET-Library", "$type MediaStore rows=$scannedRows, missingDataPath=$rowsWithoutFilePath")
                     }
                 }
 
