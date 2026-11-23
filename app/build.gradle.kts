@@ -11,7 +11,10 @@ val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 
+val feedbackHelperUrl = providers.gradleProperty("JET_FEEDBACK_HELPER_URL").orElse(providers.environmentVariable("JET_FEEDBACK_HELPER_URL").orElse("")).get().replace("\\", "\\\\").replace("\"", "\\\"")
+
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.jet.downloader"
     compileSdk = 34
 
@@ -19,8 +22,9 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 24
         targetSdk = 34
-        versionCode = 372
-        versionName = "3.7.2"
+        versionCode = 373
+        versionName = "3.7.3"
+        buildConfigField("String", "JET_FEEDBACK_HELPER_URL", "\"$feedbackHelperUrl\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
