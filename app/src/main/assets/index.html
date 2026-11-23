@@ -276,11 +276,11 @@
           <div id="storage-progress-bar" class="flex h-3 w-full overflow-hidden rounded-full bg-[#292D35]" role="img" aria-label="Storage usage by media type">
             <span id="storage-audio-segment" class="h-full bg-red-500" style="width:0%"></span><span id="storage-video-segment" class="h-full bg-orange-500" style="width:0%"></span><span id="storage-other-segment" class="h-full bg-green-500" style="width:0%"></span><span id="storage-free-segment" class="h-full bg-[#292D35]" style="width:100%"></span>
           </div>
-          <div class="flex flex-nowrap items-center justify-between gap-1 text-[9px] text-app-secondary whitespace-nowrap" style="display:flex; flex-wrap:nowrap; justify-content:space-between; font-size:smaller;">
-            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></i><span>Audio</span><b id="storage-audio-label" class="tabular-nums">0%</b></span>
-            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></i><span>Video</span><b id="storage-video-label" class="tabular-nums">0%</b></span>
-            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></i><span>Others</span><b id="storage-other-label" class="tabular-nums">0%</b></span>
-            <span class="flex items-center gap-1 min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-[#292D35] shrink-0"></i><span>Free</span><b id="storage-free-label" class="tabular-nums">0%</b></span>
+          <div class="flex flex-nowrap items-center justify-between gap-1 text-[9px] text-app-secondary whitespace-nowrap overflow-hidden" style="display:flex; flex-wrap:nowrap; justify-content:space-between; font-size:smaller; width:100%;">
+            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></i><span>Audio</span><b id="storage-audio-label" class="tabular-nums shrink-0">0%</b></span>
+            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></i><span>Video</span><b id="storage-video-label" class="tabular-nums shrink-0">0%</b></span>
+            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></i><span>Others</span><b id="storage-other-label" class="tabular-nums shrink-0">0%</b></span>
+            <span class="flex flex-1 items-center justify-center gap-[3px] min-w-0 whitespace-nowrap"><i class="w-1.5 h-1.5 rounded-full bg-[#292D35] shrink-0"></i><span>Free</span><b id="storage-free-label" class="tabular-nums shrink-0">0%</b></span>
           </div>
         </div>
 
@@ -777,6 +777,9 @@
           btn.classList.toggle('text-app-secondary', !active);
           btn.classList.toggle('font-semibold', !active);
         });
+        if (target === 'downloads' && hasAndroid() && window.JetAndroid.refreshDownloadHistory) {
+          window.JetAndroid.refreshDownloadHistory();
+        }
         if (target === 'library' && hasAndroid() && window.JetAndroid.refreshLibrary) {
           window.JetAndroid.refreshLibrary();
         }
