@@ -2,5 +2,5 @@
   "versionCode": 372,
   "versionName": "3.7.2",
   "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.7.2/JET-debug.apk",
-  "changelog": "• Cache Library metadata and video thumbnails for faster repeat visits\n• Add persistent 2/3/4-column Library grid and refined storage card\n• Improve player pinch zoom, pan, seeking and gesture isolation\n• Refresh in-app update messaging"
+  "changelog": "• Prevent startup theme flash and compact Device storage UI\n• Update Library cache immediately after file deletion\n• Refine player title alignment, scrubbing and lock controls\n• Use supplied JET record artwork when audio has no embedded cover"
 }
