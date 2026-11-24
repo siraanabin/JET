@@ -109,6 +109,7 @@ import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 private data class RealDownloadSpec(
     val id: String, val url: String, val title: String, val isAudio: Boolean,
@@ -1795,9 +1796,12 @@ class MainActivity : AppCompatActivity() {
                     streamSizes[id] = StreamSizePayload(sizeText = formatBytes(bytes), sizeBytes = bytes, available = true)
                 }
 
-            val bestAudioBytes = estimateBytesFromBitrateKbps(
-                bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0, durationSec
-            )
+            fun exactStreamContentLength(streamUrl: String?): Long {
+                if (streamUrl.isNullOrBlank()) return 0L
+                return runCatching { Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L }.getOrDefault(0L)
+            }
+            val bestAudioBytes = exactStreamContentLength(bestAudio?.url).takeIf { it > 0L }
+                ?: estimateBytesFromBitrateKbps(bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0, durationSec)
             streamSizes["aud-fast"] = StreamSizePayload(
                 sizeText = formatBytes(bestAudioBytes), sizeBytes = bestAudioBytes, available = bestAudioBytes > 0L
             )
@@ -1814,11 +1818,9 @@ class MainActivity : AppCompatActivity() {
                         )
                     ) ?: return@forEach
                     val short = shortSide(video.width, video.height)
-                    val videoBytes = if (video.bitrate > 0) {
-                        estimateBytesFromBitrateBps(video.bitrate.toDouble(), durationSec)
-                    } else {
-                        estimateBytesFromBitrateKbps(fallbackVideoBitrateKbps(short), durationSec)
-                    }
+                    val videoBytes = exactStreamContentLength(video.url).takeIf { it > 0L }
+                        ?: if (video.bitrate > 0) estimateBytesFromBitrateBps(video.bitrate.toDouble(), durationSec)
+                        else estimateBytesFromBitrateKbps(fallbackVideoBitrateKbps(short), durationSec)
                     val totalBytes = videoBytes + if (video.isVideoOnly || video.bitrate <= 0) bestAudioBytes else 0L
                     streamSizes[id] = StreamSizePayload(
                         sizeText = formatBytes(totalBytes), sizeBytes = totalBytes, available = true,
@@ -2251,47 +2253,56 @@ class MainActivity : AppCompatActivity() {
                 val selectedUrl = selected.url ?: return null
                 val audioUrl = if (audio != null) audio.url ?: return null else null
                 val combined = audio != null
-                var videoDownloadedBytes = 0L
-                var audioDownloadedBytes = 0L
-                var videoTotalBytes = 0L
-                var audioTotalBytes = 0L
+                val videoDownloadedBytes = AtomicLong(0L)
+                val audioDownloadedBytes = AtomicLong(0L)
+                val videoTotalBytes = AtomicLong(0L)
+                val audioTotalBytes = AtomicLong(0L)
+                val progressLock = Any()
                 var lastSpeedSampleAt = System.currentTimeMillis()
                 var lastSpeedSampleBytes = 0L
                 var smoothedSpeedBps = 0.0
                 var lastTransferPercent = 0
-                fun emitTransferProgress(label: String, stage: String, percent: Int) {
-                    val now = System.currentTimeMillis()
-                    val downloadedBytes = videoDownloadedBytes + audioDownloadedBytes
-                    val totalBytes = videoTotalBytes + audioTotalBytes
-                    val elapsedMs = (now - lastSpeedSampleAt).coerceAtLeast(1L)
-                    val deltaBytes = (downloadedBytes - lastSpeedSampleBytes).coerceAtLeast(0L)
-                    if (deltaBytes > 0L) {
-                        val instantSpeed = deltaBytes * 1000.0 / elapsedMs.toDouble()
-                        val alpha = 1.0 - kotlin.math.exp(-elapsedMs.toDouble() / 1800.0)
-                        smoothedSpeedBps = if (smoothedSpeedBps <= 0.0) instantSpeed else smoothedSpeedBps + alpha * (instantSpeed - smoothedSpeedBps)
-                        lastSpeedSampleAt = now
-                        lastSpeedSampleBytes = downloadedBytes
+                fun emitTransferProgress() {
+                    synchronized(progressLock) {
+                        val now = System.currentTimeMillis()
+                        val downloadedBytes = videoDownloadedBytes.get() + audioDownloadedBytes.get()
+                        val videoLength = videoTotalBytes.get()
+                        val audioLength = audioTotalBytes.get()
+                        val totalBytes = videoLength + audioLength
+                        val elapsedMs = (now - lastSpeedSampleAt).coerceAtLeast(1L)
+                        val deltaBytes = (downloadedBytes - lastSpeedSampleBytes).coerceAtLeast(0L)
+                        if (deltaBytes > 0L) {
+                            val instantSpeed = deltaBytes * 1000.0 / elapsedMs.toDouble()
+                            val alpha = 1.0 - kotlin.math.exp(-elapsedMs.toDouble() / 1800.0)
+                            smoothedSpeedBps = if (smoothedSpeedBps <= 0.0) instantSpeed else smoothedSpeedBps + alpha * (instantSpeed - smoothedSpeedBps)
+                            lastSpeedSampleAt = now; lastSpeedSampleBytes = downloadedBytes
+                        }
+                        val rawPercent = if (totalBytes > 0L) (downloadedBytes * 95L / totalBytes).toInt() else 1
+                        val safePercent = if (combined && (videoLength <= 0L || audioLength <= 0L)) minOf(47, rawPercent) else rawPercent
+                        lastTransferPercent = maxOf(lastTransferPercent, safePercent.coerceIn(1, 95))
+                        val etaSeconds = if (totalBytes > downloadedBytes && smoothedSpeedBps > 0.0) ((totalBytes - downloadedBytes) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else -1L
+                        callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastTransferPercent + ", " + JSONObject.quote("Downloading...") + ", " + JSONObject.quote("DOWNLOADING") + ", " + downloadedBytes + ", " + downloadedBytes + ", " + totalBytes + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", " + etaSeconds)
                     }
-                    lastTransferPercent = maxOf(lastTransferPercent, percent.coerceIn(1, 95))
-                    val etaSeconds = if (totalBytes > downloadedBytes && smoothedSpeedBps > 0.0) ((totalBytes - downloadedBytes) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else -1L
-                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastTransferPercent + ", " + JSONObject.quote(label) + ", " + JSONObject.quote(stage) + ", " + downloadedBytes + ", " + downloadedBytes + ", " + totalBytes + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", " + etaSeconds)
                 }
-                downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart) { bytes, total ->
-                    videoDownloadedBytes = bytes
-                    videoTotalBytes = total
-                    val streamPercent = if (combined) (bytes * 47L / total.coerceAtLeast(1L)).toInt() else (bytes * 95L / total.coerceAtLeast(1L)).toInt()
-                    emitTransferProgress("Downloading...", "DOWNLOADING", streamPercent)
-                }
-                if (audio != null) downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: return null, audioPart) { bytes, total ->
-                    audioDownloadedBytes = bytes
-                    audioTotalBytes = total
-                    val streamPercent = 47 + (bytes * 48L / total.coerceAtLeast(1L)).toInt()
-                    emitTransferProgress("Downloading...", "DOWNLOADING", streamPercent)
+                runBlocking(Dispatchers.IO) {
+                    kotlinx.coroutines.coroutineScope {
+                        val videoJob = kotlinx.coroutines.async(Dispatchers.IO) {
+                            downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart) { bytes, total ->
+                                videoDownloadedBytes.set(bytes); videoTotalBytes.set(total); emitTransferProgress()
+                            }
+                        }
+                        val audioJob = if (audio != null) kotlinx.coroutines.async(Dispatchers.IO) {
+                            downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: throw IllegalStateException("Audio stream URL is missing"), audioPart) { bytes, total ->
+                                audioDownloadedBytes.set(bytes); audioTotalBytes.set(total); emitTransferProgress()
+                            }
+                        } else null
+                        videoJob.await(); audioJob?.await()
+                    }
                 }
                 ensureYtDlpInitialized()
                 val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                 check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
-                callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 96, " + JSONObject.quote("Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
+                callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 96, " + JSONObject.quote("Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoTotalBytes.get() + audioTotalBytes.get()) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
                 val args = mutableListOf(ffmpeg.absolutePath, "-y", "-hide_banner", "-i", videoPart.absolutePath)
                 if (audio != null) args += listOf("-i", audioPart.absolutePath, "-map", "0:v:0", "-map", "1:a:0")
                 else args += listOf("-map", "0:v:0", "-map", "0:a?")
@@ -2313,14 +2324,14 @@ class MainActivity : AppCompatActivity() {
                             val finished = line.substringAfter("=") == "end"
                             val pct = if (finished) 100 else if (durationMicros > 0L) (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99) else 96
                             lastPercent = maxOf(lastPercent, pct)
-                            callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastPercent + ", " + JSONObject.quote(if (finished) "Finalizing..." else "Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
+                            callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastPercent + ", " + JSONObject.quote(if (finished) "Finalizing..." else "Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoTotalBytes.get() + audioTotalBytes.get()) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
                         }
                     }
                 }
                 val exitCode = runningProcess.waitFor()
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
-                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 100, " + JSONObject.quote("Complete") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", 0")
+                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 100, " + JSONObject.quote("Complete") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoTotalBytes.get() + audioTotalBytes.get()) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", 0")
                     return output
                 }
                 output.delete()
