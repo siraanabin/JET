@@ -125,6 +125,13 @@ class MainActivity : AppCompatActivity() {
     private val preferencesManager: PreferencesManager by inject()
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
+    private data class PrefetchedStreamChunk(val bytes: ByteArray, val totalBytes: Long, val cachedAtMs: Long)
+    private val prefetchedStreamChunks = object : LruCache<String, PrefetchedStreamChunk>(1024) {
+        override fun sizeOf(key: String, value: PrefetchedStreamChunk): Int = ((value.bytes.size + 1023) / 1024).coerceAtLeast(1)
+    }
+    private val prefetchedStreamChunkTtlMs = 15L * 60L * 1000L
+    private val firstStreamChunkBytes = 256 * 1024
+    private val downloadRangeChunkBytes = 5L * 1024L * 1024L
     private val activeNewPipeProcesses = ConcurrentHashMap<String, Process>()
     @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
     private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
@@ -1740,15 +1747,16 @@ class MainActivity : AppCompatActivity() {
             return json.encodeToString(list)
         }
 
-        private fun prewarmGoogleVideoUrls(streamUrls: List<String>) {
-            streamUrls.filter { it.isNotBlank() }.distinct().forEach { streamUrl ->
+        private fun prewarmGoogleVideoUrls(videoId: String, streams: List<Pair<Int, String>>) {
+            streams.distinctBy { it.first }.forEach { (itag, streamUrl) ->
+                if (itag <= 0 || streamUrl.isBlank()) return@forEach
                 val host = runCatching { Uri.parse(streamUrl).host?.lowercase(Locale.ROOT) }.getOrNull().orEmpty()
                 if (host != "googlevideo.com" && !host.endsWith(".googlevideo.com")) return@forEach
+                val cacheKey = videoId + ":" + itag
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val request = Request.Builder()
-                        .url(streamUrl)
-                        .head()
-                        .header("Range", "bytes=0-")
+                    if (prefetchedStreamChunks.get(cacheKey)?.let { System.currentTimeMillis() - it.cachedAtMs in 0..prefetchedStreamChunkTtlMs } == true) return@launch
+                    val request = Request.Builder().url(streamUrl).get()
+                        .header("Range", "bytes=0-262143")
                         .header("Accept-Encoding", "identity")
                         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
                         .header("Origin", "https://www.youtube.com")
@@ -1756,24 +1764,19 @@ class MainActivity : AppCompatActivity() {
                         .build()
                     runCatching {
                         okHttpClient.newCall(request).execute().use { response ->
-                            if (!response.isSuccessful) {
-                                val rangeRequest = Request.Builder()
-                                    .url(streamUrl)
-                                    .get()
-                                    .header("Range", "bytes=0-")
-                                    .header("Accept-Encoding", "identity")
-                                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                                    .header("Origin", "https://www.youtube.com")
-                                    .header("Referer", "https://www.youtube.com/")
-                                    .build()
-                                okHttpClient.newCall(rangeRequest).execute().use { }
+                            if (response.code != 206) return@use
+                            val range = response.header("Content-Range") ?: return@use
+                            val match = Regex("bytes 0-(\\d+)/(\\d+)").find(range) ?: return@use
+                            val total = match.groupValues[2].toLongOrNull() ?: return@use
+                            val bytes = response.body?.bytes() ?: return@use
+                            if (bytes.isNotEmpty() && bytes.size <= firstStreamChunkBytes && bytes.size.toLong() <= total) {
+                                prefetchedStreamChunks.put(cacheKey, PrefetchedStreamChunk(bytes, total, System.currentTimeMillis()))
                             }
                         }
-                    }.onFailure { Log.d("JET-Prewarm", "Googlevideo prewarm skipped: ${it.message}") }
+                    }.onFailure { Log.d("JET-Prewarm", "Googlevideo prebuffer skipped: " + (it.message ?: "network error")) }
                 }
             }
         }
-
         private fun buildNewPipeMediaInfoPayload(info: StreamInfo): MediaInfoPayload {
             val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
             val durationSec = info.duration.toLong()
@@ -1825,11 +1828,14 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-            val topVideoUrl = (info.videoOnlyStreams + info.videoStreams)
-                .filter { it.isUrl }
-                .maxWithOrNull(compareBy<org.schabi.newpipe.extractor.stream.VideoStream>({ it.getHeight() }, { it.bitrate }))?.url
-            val topAudioUrl = info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate }?.url
-            prewarmGoogleVideoUrls(listOfNotNull(topVideoUrl, topAudioUrl))
+            val topVideo = (info.videoOnlyStreams + info.videoStreams)
+                .filter { it.isUrl && it.getHeight() <= 1080 }
+                .maxWithOrNull(compareBy<org.schabi.newpipe.extractor.stream.VideoStream>({ it.getHeight() }, { it.bitrate }))
+                ?: (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
+                    .maxWithOrNull(compareBy<org.schabi.newpipe.extractor.stream.VideoStream>({ it.getHeight() }, { it.bitrate }))
+            val topAudio = info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate }
+            val prewarmStreams = listOfNotNull(topVideo?.let { it.getItag() to it.url }, topAudio?.let { it.getItag() to it.url })
+            prewarmGoogleVideoUrls(info.id, prewarmStreams)
 
             val payload = MediaInfoPayload(
                 ok = true,
@@ -2213,8 +2219,11 @@ class MainActivity : AppCompatActivity() {
         private fun downloadWithNewPipe(
             downloadId: String, url: String, outDir: File, selectedItag: Int, maxHeight: Int
         ): File? {
-            val output = File(outDir, "jet-newpipe-$downloadId.mp4")
-            return try {
+            val output = File(outDir, "jet-newpipe-" + downloadId + ".mp4")
+            val videoPart = File(cacheDir, "jet-" + downloadId + "-video.part")
+            val audioPart = File(cacheDir, "jet-" + downloadId + "-audio.part")
+            var process: Process? = null
+            try {
                 val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
                 val candidates = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
                 val selected = candidates.firstOrNull { selectedItag > 0 && it.getItag() == selectedItag }
@@ -2223,64 +2232,122 @@ class MainActivity : AppCompatActivity() {
                 val audio = if (selected.isVideoOnly) {
                     info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate } ?: return null
                 } else null
+                if (output.exists()) output.delete()
+                if (videoPart.exists()) videoPart.delete()
+                if (audioPart.exists()) audioPart.delete()
+                val combined = audio != null
+                downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selected.url, videoPart, 1, if (combined) 47 else 95)
+                if (audio != null) downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audio.url, audioPart, 48, 95)
                 ensureYtDlpInitialized()
                 val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                 check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
-                if (output.exists()) output.delete()
-                val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
-                val args = mutableListOf(ffmpeg.absolutePath, "-y", "-hide_banner", "-rw_timeout", "20000000", "-user_agent", userAgent, "-i", selected.url)
-                if (audio != null) {
-                    args += listOf("-rw_timeout", "20000000", "-user_agent", userAgent, "-i", audio.url, "-map", "0:v:0", "-map", "1:a:0")
-                } else {
-                    args += listOf("-map", "0:v:0", "-map", "0:a?")
-                }
+                callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 96, " + JSONObject.quote("Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + videoPart.length())
+                val args = mutableListOf(ffmpeg.absolutePath, "-y", "-hide_banner", "-i", videoPart.absolutePath)
+                if (audio != null) args += listOf("-i", audioPart.absolutePath, "-map", "0:v:0", "-map", "1:a:0")
+                else args += listOf("-map", "0:v:0", "-map", "0:a?")
                 args += listOf("-c", "copy", "-movflags", "+faststart", "-progress", "pipe:1", "-nostats", output.absolutePath)
-                callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Connecting...")}, ${JSONObject.quote("CONNECTING")}, 0")
-                val process = ProcessBuilder(args).redirectErrorStream(true).start()
+                process = ProcessBuilder(args).redirectErrorStream(true).start()
                 activeNewPipeProcesses[downloadId] = process
                 val durationMicros = info.duration.coerceAtLeast(0L) * 1_000_000L
-                var bytesRead = 0L
                 var outTimeMicros = 0L
-                var lastPercent = 0
+                var lastPercent = 96
                 process.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
-                        when {
-                            line.startsWith("total_size=") -> line.substringAfter('=').toLongOrNull()?.let { bytesRead = maxOf(bytesRead, it) }
-                            line.startsWith("out_time_ms=") -> line.substringAfter('=').toLongOrNull()?.let { outTimeMicros = maxOf(outTimeMicros, it) }
-                            line.startsWith("progress=") -> {
-                                val finished = line.substringAfter('=') == "end"
-                                val merging = audio != null && (finished || (durationMicros > 0L && outTimeMicros >= durationMicros * 90L / 100L))
-                                val stage = when { merging -> "MERGING"; bytesRead > 0L -> "DOWNLOADING"; else -> "CONNECTING" }
-                                val pct = when {
-                                    finished -> 99
-                                    bytesRead <= 0L -> 0
-                                    durationMicros > 0L -> (outTimeMicros * 100L / durationMicros).toInt().coerceIn(1, 99)
-                                    else -> maxOf(1, lastPercent)
-                                }
-                                lastPercent = maxOf(lastPercent, pct)
-                                val label = when (stage) { "MERGING" -> "Merging..."; "DOWNLOADING" -> "Downloading..."; else -> "Connecting..." }
-                                callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $lastPercent, ${JSONObject.quote(label)}, ${JSONObject.quote(stage)}, $bytesRead")
-                                val spec = realDownloadSpecs[downloadId]
-                                runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, spec?.title ?: "Download", lastPercent, label, spec?.thumbnailUrl.orEmpty()) }
-                            }
+                        if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                            process?.destroyForcibly()
+                            throw CancellationException("Download paused or cancelled")
                         }
-                        if (!line.startsWith("total_size=") && !line.startsWith("out_time_ms=") && !line.startsWith("progress=")) Log.d("JET-NewPipe-FFmpeg", line.take(500))
+                        if (line.startsWith("out_time_ms=")) outTimeMicros = maxOf(outTimeMicros, line.substringAfter("=").toLongOrNull() ?: 0L)
+                        if (line.startsWith("progress=")) {
+                            val finished = line.substringAfter("=") == "end"
+                            val pct = if (finished) 100 else if (durationMicros > 0L) (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99) else 96
+                            lastPercent = maxOf(lastPercent, pct)
+                            callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastPercent + ", " + JSONObject.quote(if (finished) "Finalizing..." else "Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + videoPart.length())
+                        }
                     }
                 }
                 val exitCode = process.waitFor()
                 activeNewPipeProcesses.remove(downloadId, process)
-                if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) output else {
-                    output.delete()
-                    null
+                if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
+                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 100, " + JSONObject.quote("Complete") + ", " + JSONObject.quote("MERGING") + ", " + output.length())
+                    return output
                 }
+                output.delete()
+                return null
             } catch (error: Exception) {
                 activeNewPipeProcesses.remove(downloadId)?.let { runCatching { it.destroyForcibly() } }
                 output.delete()
-                Log.w("JET-NewPipe", "Direct NewPipe stream mux failed; falling back to yt-dlp", error)
-                null
+                Log.w("JET-NewPipe", "Local NewPipe download/remux failed; falling back to yt-dlp", error)
+                return null
+            } finally {
+                activeNewPipeProcesses.remove(downloadId)
+                runCatching { process?.destroy() }
+                runCatching { videoPart.delete() }
+                runCatching { audioPart.delete() }
             }
         }
 
+        private fun downloadGoogleVideoToPart(
+            downloadId: String, videoId: String, itag: Int, streamUrl: String, target: File, progressStart: Int, progressEnd: Int
+        ) {
+            val host = Uri.parse(streamUrl).host?.lowercase(Locale.ROOT).orEmpty()
+            check(host == "googlevideo.com" || host.endsWith(".googlevideo.com")) { "Unexpected media stream host" }
+            val cacheKey = videoId + ":" + itag
+            val now = System.currentTimeMillis()
+            val cached = prefetchedStreamChunks.get(cacheKey)
+            val validCache = cached?.takeIf { now - it.cachedAtMs in 0..prefetchedStreamChunkTtlMs && it.bytes.isNotEmpty() }
+            if (cached != null && validCache == null) prefetchedStreamChunks.remove(cacheKey)
+            var totalBytes = validCache?.totalBytes ?: -1L
+            var downloaded = 0L
+            target.parentFile?.mkdirs()
+            FileOutputStream(target, false).use { output ->
+                if (validCache != null) {
+                    output.write(validCache.bytes)
+                    downloaded = validCache.bytes.size.toLong()
+                    totalBytes = validCache.totalBytes
+                    val pct = (progressStart + ((progressEnd - progressStart).toLong() * downloaded / totalBytes.coerceAtLeast(1L)).toInt()).coerceIn(progressStart, progressEnd)
+                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + pct + ", " + JSONObject.quote("Downloading...") + ", " + JSONObject.quote("DOWNLOADING") + ", " + downloaded)
+                }
+                while (totalBytes < 0L || downloaded < totalBytes) {
+                    if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) throw CancellationException("Download paused or cancelled")
+                    val rangeStart = downloaded
+                    val rangeEnd = if (totalBytes > 0L) minOf(totalBytes - 1L, rangeStart + downloadRangeChunkBytes - 1L) else rangeStart + downloadRangeChunkBytes - 1L
+                    val request = Request.Builder().url(streamUrl).get()
+                        .header("Range", "bytes=" + rangeStart + "-" + rangeEnd)
+                        .header("Accept-Encoding", "identity")
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                        .header("Origin", "https://www.youtube.com")
+                        .header("Referer", "https://www.youtube.com/")
+                        .build()
+                    okHttpClient.newCall(request).execute().use { response ->
+                        check(response.code == 206) { "Googlevideo range request returned HTTP " + response.code }
+                        val contentRange = response.header("Content-Range") ?: throw IllegalStateException("Missing Content-Range")
+                        val match = Regex("bytes (\\d+)-(\\d+)/(\\d+)").find(contentRange) ?: throw IllegalStateException("Invalid Content-Range: " + contentRange)
+                        val actualStart = match.groupValues[1].toLong()
+                        val actualEnd = match.groupValues[2].toLong()
+                        val responseTotal = match.groupValues[3].toLong()
+                        check(actualStart == rangeStart && actualEnd <= rangeEnd && responseTotal > actualEnd) { "Unexpected Googlevideo byte range" }
+                        if (totalBytes < 0L) totalBytes = responseTotal else check(totalBytes == responseTotal) { "Stream length changed during download" }
+                        val input = response.body?.byteStream() ?: throw IllegalStateException("Empty Googlevideo response")
+                        input.use { stream ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) throw CancellationException("Download paused or cancelled")
+                                val count = stream.read(buffer)
+                                if (count < 0) break
+                                if (count == 0) continue
+                                output.write(buffer, 0, count)
+                                downloaded += count.toLong()
+                                val pct = (progressStart + ((progressEnd - progressStart).toLong() * downloaded / totalBytes.coerceAtLeast(1L)).toInt()).coerceIn(progressStart, progressEnd)
+                                callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + pct + ", " + JSONObject.quote("Downloading...") + ", " + JSONObject.quote("DOWNLOADING") + ", " + downloaded)
+                            }
+                        }
+                        check(downloaded == actualEnd + 1L) { "Incomplete Googlevideo range response" }
+                    }
+                }
+            }
+            check(target.isFile && target.length() == totalBytes) { "Downloaded stream size mismatch" }
+        }
         private fun containsVideoTrack(file: File): Boolean {
             val extractor = MediaExtractor()
             return try {
