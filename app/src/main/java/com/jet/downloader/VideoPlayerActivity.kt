@@ -315,7 +315,10 @@ class VideoPlayerActivity : AppCompatActivity() {
                 bottomPanel.visibility = View.VISIBLE
                 bottomPanel.alpha = 1f
             }
-            override fun onScrubMove(timeBar: TimeBar, position: Long) { currentTime.text = time(position) }
+            override fun onScrubMove(timeBar: TimeBar, position: Long) {
+                cancelAutoHideCallbacks()
+                currentTime.text = time(position)
+            }
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
                 isScrubbing = false
                 if (!canceled) {
@@ -444,6 +447,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         // This transparent layer sits above PlayerView but below the clickable player controls.
         // It receives the very first DOWN event, even while ExoPlayer controls are fully hidden.
         gestureOverlay.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_MOVE && isTouchDown) cancelAutoHideCallbacks()
             scaleDetector.onTouchEvent(event)
             if (locked) {
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) showLockIndicator()
