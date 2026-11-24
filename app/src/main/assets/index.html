@@ -1417,6 +1417,7 @@
       };
 
       window.onNativeLibraryScanStarted = function () {
+        state.libraryScanBuffer = [];
         $('library-location-label').textContent = state.library.length ? 'Updating device media…' : 'Scanning device media…';
         if (!state.library.length) $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
       };
@@ -1425,25 +1426,22 @@
         if (!Array.isArray(chunk)) return;
         const mapped = chunk.map((item) => ({
           ...item,
-          // Every audio item must have visible artwork: keep a real embedded/download cover,
-          // otherwise use the bundled vinyl SVG instead of the generic media icon.
           thumbnailUrl: item.type === 'audio'
-            ? (item.thumbnailUrl && item.thumbnailUrl.trim()
-                ? item.thumbnailUrl
-                : 'file:///android_asset/images/music-placeholder.svg')
+            ? (item.thumbnailUrl && item.thumbnailUrl.trim() ? item.thumbnailUrl : 'file:///android_asset/images/music-placeholder.svg')
             : item.thumbnailUrl,
-          color: item.type === 'audio'
-            ? 'from-emerald-500 to-teal-700'
-            : item.type === 'document'
-              ? 'from-amber-500 to-orange-700'
-              : 'from-blue-500 to-indigo-700'
+          color: item.type === 'audio' ? 'from-emerald-500 to-teal-700'
+            : item.type === 'document' ? 'from-amber-500 to-orange-700'
+            : 'from-blue-500 to-indigo-700'
         }));
         const wasEmpty = state.library.length === 0;
-        const byPath = new Map(state.library.map(item => [item.filePath, item]));
-        mapped.forEach(item => byPath.set(item.filePath, item));
-        state.library = Array.from(byPath.values());
-        $('library-location-label').textContent = (isFinal ? 'All device audio and video · ' : 'Scanning device media · ')
-          + state.library.length + ' files';
+        if (!Array.isArray(state.libraryScanBuffer)) state.libraryScanBuffer = [];
+        state.libraryScanBuffer.push(...mapped);
+        const scanCount = state.libraryScanBuffer.length;
+        $('library-location-label').textContent = (isFinal ? 'All device audio and video · ' : 'Scanning device media · ') + scanCount + ' files';
+        if (!isFinal) return;
+
+        state.library = state.libraryScanBuffer;
+        delete state.libraryScanBuffer;
         if (wasEmpty && state.library.length > 0) {
           const first = state.library[0];
           $('latest-title').textContent = first.title;
@@ -1453,17 +1451,13 @@
           const preview = $('latest-download-card').querySelector('.relative');
           if (preview) {
             preview.className = 'relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden';
-            if (first.type === 'audio' && first.thumbnailUrl) {
-              preview.innerHTML = vinylDiscMarkup(first.thumbnailUrl, 'w-12 h-12');
-            } else if (first.thumbnailUrl) {
-              preview.innerHTML = `<img src="${first.thumbnailUrl}" alt="" class="absolute inset-0 w-full h-full object-cover">`;
-            } else {
-              preview.innerHTML = '<div class="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white"><i data-lucide="play" class="w-3.5 h-3.5"></i></div>';
-            }
+            if (first.type === 'audio' && first.thumbnailUrl) preview.innerHTML = vinylDiscMarkup(first.thumbnailUrl, 'w-12 h-12');
+            else if (first.thumbnailUrl) preview.innerHTML = `<img src="${first.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover">`;
+            else preview.innerHTML = '<div class="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white"><i data-lucide="play" class="w-3.5 h-3.5"></i></div>';
             refreshIcons();
           }
         }
-        if (isFinal) renderLibrary();
+        renderLibrary();
       };
 
       window.onNativeLibraryItemDeleted = function (filePath) {
@@ -1478,9 +1472,12 @@
       };
 
       window.onNativeLibraryScanFailed = function (message) {
-        $('library-location-label').textContent = 'Media scan failed';
-        $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full"></div>';
-        $('library-items-container').firstElementChild.textContent = String(message || 'Unable to scan device media');
+        delete state.libraryScanBuffer;
+        $('library-location-label').textContent = state.library.length ? 'Library refresh failed · showing cached files' : 'Media scan failed';
+        if (!state.library.length) {
+          $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full"></div>';
+          $('library-items-container').firstElementChild.textContent = String(message || 'Unable to scan device media');
+        }
       };
 
       window.onNativeEngineUpdated = function (res) {
