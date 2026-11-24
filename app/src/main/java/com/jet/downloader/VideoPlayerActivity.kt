@@ -471,7 +471,6 @@ class VideoPlayerActivity : AppCompatActivity() {
         bottomIcons.visibility = View.GONE
         bottomPanel.alpha = 1f
         bottomPanel.translationY = 0f
-        (playlist.parent as? View)?.visibility = View.GONE
         volumeHud.visibility = View.GONE
         brightnessHud.visibility = View.GONE
         seekHud.visibility = View.GONE
@@ -676,15 +675,23 @@ class VideoPlayerActivity : AppCompatActivity() {
         refreshSelection()
     }
 
-    private fun togglePlaylistDrawer(show: Boolean) {
-        if (show) {
-            playlistScrim.visibility = View.VISIBLE; playlistDrawer.visibility = View.VISIBLE
-            playlistDrawer.translationX = dp(320).toFloat(); playlistScrim.alpha = 0f
+    private fun togglePlaylistDrawer(open: Boolean) {
+        if (open) {
+            (playlist.parent as? View)?.visibility = View.VISIBLE
+            playlist.visibility = View.VISIBLE
+            if (playlist.childCount == 0) populatePlaylist(File(currentPath).parentFile)
+            playlistScrim.visibility = View.VISIBLE
+            playlistDrawer.visibility = View.VISIBLE
+            playlistDrawer.translationX = dp(320).toFloat()
+            playlistScrim.alpha = 0f
             playlistScrim.animate().alpha(1f).setDuration(180L).start()
-            playlistDrawer.animate().translationX(0f).setDuration(240L).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+            playlistDrawer.animate().translationX(0f).setDuration(240L)
+                .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
         } else {
-            playlistScrim.animate().alpha(0f).setDuration(160L).withEndAction { playlistScrim.visibility = View.GONE }.start()
-            playlistDrawer.animate().translationX(dp(320).toFloat()).setDuration(200L).withEndAction { playlistDrawer.visibility = View.GONE }.start()
+            playlistScrim.animate().alpha(0f).setDuration(160L)
+                .withEndAction { playlistScrim.visibility = View.GONE }.start()
+            playlistDrawer.animate().translationX(dp(320).toFloat()).setDuration(200L)
+                .withEndAction { playlistDrawer.visibility = View.GONE }.start()
         }
     }
     private fun refreshSelection() {
