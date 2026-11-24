@@ -1913,23 +1913,21 @@
       }
 
       function bindLibraryMenuButtons() {
-        $('library-items-container').querySelectorAll('[data-lib-menu]').forEach((menuButton) => {
-          menuButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const filePath = menuButton.dataset.libMenu;
-            if (!filePath || !window.JetAndroid || !window.JetAndroid.showLibraryMenu) {
-              showToast('Library menu is unavailable for this file');
-              return;
-            }
-            const rect = menuButton.getBoundingClientRect();
-            // Pass CSS pixels; the native bridge converts them to screen pixels.
-            window.JetAndroid.showLibraryMenu(
-              filePath,
-              Math.round(rect.right),
-              Math.round(rect.bottom)
-            );
-          });
+        const container = $('library-items-container');
+        if (container.dataset.menuBound === 'true') return;
+        container.dataset.menuBound = 'true';
+        container.addEventListener('click', (e) => {
+          const menuButton = e.target.closest('[data-lib-menu]');
+          if (!menuButton || !container.contains(menuButton)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const filePath = menuButton.dataset.libMenu;
+          if (!filePath || !window.JetAndroid || !window.JetAndroid.showLibraryMenu) {
+            showToast('Library menu is unavailable for this file');
+            return;
+          }
+          const rect = menuButton.getBoundingClientRect();
+          window.JetAndroid.showLibraryMenu(filePath, Math.round(rect.right), Math.round(rect.bottom));
         });
       }
 
