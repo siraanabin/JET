@@ -1587,6 +1587,12 @@
         const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
         const existing = idx >= 0 ? state.activeDownloads[idx] : null;
         if (idx >= 0) state.activeDownloads.splice(idx, 1);
+        try {
+          const cachedActive = JSON.parse(localStorage.getItem('jet-active-download-progress-v1') || '[]');
+          localStorage.setItem('jet-active-download-progress-v1', JSON.stringify(
+            cachedActive.filter((active) => active.id !== data.id)
+          ));
+        } catch (_) {}
 
         const title = data.title || (existing ? existing.title : 'JET Download');
         const thumbnailUrl = data.thumbnailUrl || data.thumbnail || (existing && existing.thumbnailUrl) || '';
