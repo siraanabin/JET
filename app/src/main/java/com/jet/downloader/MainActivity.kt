@@ -626,6 +626,7 @@ class MainActivity : AppCompatActivity() {
                 put(JSONObject()
                     .put("path", item.mediaId)
                     .put("title", item.mediaMetadata.title?.toString().orEmpty())
+                    .put("artworkUri", musicArtworkMemoryCache[item.mediaId].orEmpty())
                     .put("current", index == controller.currentMediaItemIndex))
             }
         }.toString()
@@ -1027,10 +1028,11 @@ class MainActivity : AppCompatActivity() {
         return savedByPath
     }
 
+    private val musicArtworkMemoryCache = java.util.concurrent.ConcurrentHashMap<String, String>()
     private fun audioThumbnailFromDiskCache(file: File): String {
         val key = (file.absolutePath + "|" + file.length() + "|" + file.lastModified()).hashCode().toUInt().toString(16)
         val cached = File(libraryThumbnailCacheDir, "audio-$key.txt")
-        if (cached.isFile) return runCatching { cached.readText() }.getOrDefault("")
+        if (cached.isFile) return runCatching { cached.readText().also { musicArtworkMemoryCache[file.absolutePath] = it } }.getOrDefault("")
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(file.absolutePath)
@@ -1049,6 +1051,7 @@ class MainActivity : AppCompatActivity() {
             if (!scaled.isRecycled) scaled.recycle()
             val data = "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
             runCatching { cached.writeText(data) }
+            musicArtworkMemoryCache[file.absolutePath] = data
             data
         } catch (error: Exception) {
             Log.d("JET-Music", "No embedded artwork for " + file.name, error)
