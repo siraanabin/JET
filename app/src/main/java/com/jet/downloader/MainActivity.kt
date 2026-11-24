@@ -292,7 +292,9 @@ class MainActivity : AppCompatActivity() {
             else {
                 val authority=parsed.encodedAuthority?.replace(parsed.host.orEmpty(),host,ignoreCase=true)
                 val builder=parsed.buildUpon().scheme(scheme).encodedAuthority(authority).fragment(null)
-                if((scheme=="http"&&parsed.port==80)||(scheme=="https"&&parsed.port==443))builder.port(-1)
+                val defaultPort=(scheme=="http"&&parsed.port==80)||(scheme=="https"&&parsed.port==443)
+                val normalizedAuthority=if(defaultPort)authority?.removeSuffix(":${parsed.port}") else authority
+                val builder=parsed.buildUpon().scheme(scheme).encodedAuthority(normalizedAuthority).fragment(null)
                 builder.build().toString()
             }
         } catch(_:Exception) { "" }
