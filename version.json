@@ -1,7 +1,7 @@
 {
-  "versionCode": 383,
-  "versionName": "3.8.3",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.3/JET-debug.apk",
+  "versionCode": 384,
+  "versionName": "3.8.4",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.4/JET-debug.apk",
   "changelog": [
     "Improved video library header spacing and player controls",
     "Fixed music seeking and smooth playback progress updates",
