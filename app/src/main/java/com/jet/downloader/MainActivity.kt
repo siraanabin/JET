@@ -997,7 +997,7 @@ class MainActivity : AppCompatActivity() {
                 } else firstFrame
             }
             if (bitmap == null && !isAudio && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                bitmap = runCatching { ThumbnailUtils.createVideoThumbnail(file, android.util.Size(320, 180)) }.getOrNull()
+                bitmap = runCatching { ThumbnailUtils.createVideoThumbnail(file, android.util.Size(320, 180), null) }.getOrNull()
             }
             val frame = bitmap ?: return if (isAudio) "file:///android_asset/images/music-placeholder.svg" else ""
             val scale = minOf(1.0, 320.0 / frame.width, 180.0 / frame.height)
