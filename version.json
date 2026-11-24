@@ -1,8 +1,9 @@
 {
-  "versionCode": 410,
-  "versionName": "3.9.20",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.20/JET-debug.apk",
+  "versionCode": 411,
+  "versionName": "3.9.21",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.21/JET-debug.apk",
   "changelog": [
+    "Enabled the 8-connection custom audio-only engine, direct M4A saving, local FFmpeg MP3 conversion, and separate download/convert/mux telemetry",
     "Fixed custom FFmpeg runtime library search path and preserved full FFmpeg stderr diagnostics",
     "Added detailed custom download, FFmpeg, timing, connection, chunk and temporary-file cleanup telemetry",
     "Added ENGINE_DEBUG fallback-reason logging and copyable fallbackReason telemetry for Debug download engine diagnosis",
