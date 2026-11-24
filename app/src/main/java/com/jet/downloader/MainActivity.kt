@@ -5,6 +5,9 @@ import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContentUris
+import android.content.ContentValues
+import android.content.IntentSender
 import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -51,6 +54,7 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
 import android.provider.OpenableColumns
@@ -141,6 +145,19 @@ class MainActivity : AppCompatActivity() {
     private val mediaRefreshHandler = Handler(Looper.getMainLooper())
     private var mediaStoreObserver: android.database.ContentObserver? = null
     private val mediaRefreshRunnable = Runnable { if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb(force = true) }
+    private data class PendingLibraryMutation(val action: String, val filePath: String, val newName: String? = null, val mediaUri: Uri? = null)
+    @Volatile private var pendingLibraryMutation: PendingLibraryMutation? = null
+    private val libraryMutationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        val pending = pendingLibraryMutation ?: return@registerForActivityResult
+        if (hasLibraryMutationReadPermission(pending.filePath)) continuePendingLibraryMutation()
+        else { pendingLibraryMutation = null; Toast.makeText(this, "Media permission is required to modify this file.", Toast.LENGTH_LONG).show() }
+    }
+    private val libraryMutationConsentLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val pending = pendingLibraryMutation ?: return@registerForActivityResult
+        if (result.resultCode == RESULT_OK) continuePendingLibraryMutation(skipConsentRequest = true)
+        else { pendingLibraryMutation = null; Toast.makeText(this, "Permission was not granted. File unchanged.", Toast.LENGTH_SHORT).show() }
+    }
+
     private val pauseRequestedDownloads = ConcurrentHashMap.newKeySet<String>()
     private val downloadAdmissionMutex = kotlinx.coroutines.sync.Mutex()
     private var activeDownloadCount = 0
@@ -1576,6 +1593,141 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun hasLibraryMutationReadPermission(filePath: String): Boolean {
+        val ext = File(filePath).extension.lowercase(Locale.ROOT)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when {
+                ext in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v") -> hasVideoReadPermission()
+                ext in setOf("mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "wma") -> hasAudioReadPermission()
+                else -> hasVideoReadPermission() || hasAudioReadPermission()
+            }
+        } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun beginLibraryMutation(action: String, filePath: String, requestedName: String? = null) {
+        if (filePath.isBlank()) { Toast.makeText(this, "File path unavailable", Toast.LENGTH_SHORT).show(); return }
+        pendingLibraryMutation = PendingLibraryMutation(action, filePath, requestedName)
+        val missing = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val ext = File(filePath).extension.lowercase(Locale.ROOT)
+            if (ext in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) {
+                if (!hasVideoReadPermission()) missing.add(Manifest.permission.READ_MEDIA_VIDEO)
+            } else if (ext in setOf("mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "wma")) {
+                if (!hasAudioReadPermission()) missing.add(Manifest.permission.READ_MEDIA_AUDIO)
+            } else {
+                if (!hasVideoReadPermission()) missing.add(Manifest.permission.READ_MEDIA_VIDEO)
+                if (!hasAudioReadPermission()) missing.add(Manifest.permission.READ_MEDIA_AUDIO)
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+        if (missing.isNotEmpty()) libraryMutationPermissionLauncher.launch(missing.distinct().toTypedArray())
+        else continuePendingLibraryMutation()
+    }
+
+    private fun continuePendingLibraryMutation(skipConsentRequest: Boolean = false) {
+        val pending = pendingLibraryMutation ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            try { performLibraryMutation(pending, skipConsentRequest) }
+            catch (error: Exception) {
+                pendingLibraryMutation = null
+                withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, error.message ?: "File operation failed", Toast.LENGTH_LONG).show() }
+            }
+        }
+    }
+
+    private fun findLibraryMediaUri(file: File): Uri? {
+        val collections = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) add(MediaStore.Downloads.EXTERNAL_CONTENT_URI)
+            add(MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+            add(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+        }
+        val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.DISPLAY_NAME)
+        val path = file.canonicalPath
+        for (collection in collections) {
+            val exact = runCatching {
+                contentResolver.query(collection, projection, MediaStore.MediaColumns.DATA + " = ?", arrayOf(path), null)?.use { cursor ->
+                    if (cursor.moveToFirst()) ContentUris.withAppendedId(collection, cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))) else null
+                }
+            }.getOrNull()
+            if (exact != null) return exact
+            val byName = runCatching {
+                contentResolver.query(collection, projection, MediaStore.MediaColumns.DISPLAY_NAME + " = ?", arrayOf(file.name), null)?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val index = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                        val rowPath = if (index >= 0) cursor.getString(index) else null
+                        if (rowPath != null && runCatching { File(rowPath).canonicalPath == path }.getOrDefault(false)) {
+                            return@use ContentUris.withAppendedId(collection, cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)))
+                        }
+                    }
+                    null
+                }
+            }.getOrNull()
+            if (byName != null) return byName
+        }
+        return null
+    }
+
+    private suspend fun performLibraryMutation(pending: PendingLibraryMutation, skipConsentRequest: Boolean) {
+        val source = File(pending.filePath).canonicalFile
+        val allowedDir = getJetDownloadDir().canonicalFile
+        require(source.parentFile == allowedDir && source.isFile) { "File is outside the JET Library" }
+        val uri = pending.mediaUri ?: findLibraryMediaUri(source) ?: throw IllegalStateException("File is not indexed in MediaStore. Refresh Library and try again.")
+        val newName = if (pending.action == "rename") {
+            val clean = (pending.newName ?: "").trim().replace(Regex("""[\\\\/:*?"<>|]"""), "_").trim('.').take(100)
+            require(clean.isNotBlank()) { "Enter a valid file name" }
+            val name = if (clean.contains('.')) clean else clean + "." + source.extension
+            val target = File(allowedDir, name).canonicalFile
+            require(target.parentFile == allowedDir) { "Invalid file name" }
+            require(!target.exists() || target.canonicalPath == source.canonicalPath) { "A file with that name already exists" }
+            name
+        } else null
+        try {
+            if (pending.action == "rename") {
+                val values = ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, newName) }
+                check(contentResolver.update(uri, values, null, null) > 0) { "MediaStore could not rename this file" }
+                val target = File(allowedDir, newName!!).canonicalFile
+                downloadDao.getAll().firstOrNull { it.filePath == source.absolutePath }?.let { downloadDao.upsert(it.copy(filePath = target.absolutePath)) }
+                MediaScannerConnection.scanFile(applicationContext, arrayOf(target.absolutePath), null, null)
+                val items = (cachedLibraryItems ?: emptyList()).map { if (it.filePath == source.absolutePath) it.copy(filePath = target.absolutePath, title = target.nameWithoutExtension) else it }
+                cachedLibraryItems = items
+                runCatching { libraryCacheFile.writeText(json.encodeToString(items)) }
+                callJs("onNativeLibraryItemRenamed", listOf(source.absolutePath, target.absolutePath, target.name).joinToString(",") { JSONObject.quote(it) })
+                pendingLibraryMutation = null
+                pushScannedLibraryToWeb(force = true)
+                withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File renamed", Toast.LENGTH_SHORT).show() }
+            } else {
+                val thumbnailKey = (source.absolutePath + "|" + source.length() + "|" + source.lastModified()).hashCode().toUInt().toString(16)
+                check(contentResolver.delete(uri, null, null) > 0) { "MediaStore could not delete this file" }
+                downloadDao.getAll().firstOrNull { it.filePath == source.absolutePath }?.let { downloadDao.deleteById(it.id) }
+                val items = (cachedLibraryItems ?: emptyList()).filterNot { it.filePath == source.absolutePath }
+                cachedLibraryItems = items
+                runCatching { libraryCacheFile.writeText(json.encodeToString(items)) }
+                runCatching { File(libraryThumbnailCacheDir, "$thumbnailKey.txt").delete() }
+                callJs("onNativeLibraryItemDeleted", JSONObject.quote(source.absolutePath))
+                pendingLibraryMutation = null
+                withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File deleted", Toast.LENGTH_SHORT).show() }
+            }
+        } catch (error: android.app.RecoverableSecurityException) {
+            if (skipConsentRequest) throw error
+            withContext(Dispatchers.Main) { launchLibraryConsent(error.userAction.actionIntent.intentSender, pending.copy(mediaUri = uri)) }
+        } catch (error: SecurityException) {
+            if (skipConsentRequest || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) throw error
+            withContext(Dispatchers.Main) {
+                val consent = if (pending.action == "rename") MediaStore.createWriteRequest(contentResolver, listOf(uri))
+                else MediaStore.createDeleteRequest(contentResolver, listOf(uri))
+                pendingLibraryMutation = pending.copy(mediaUri = uri)
+                libraryMutationConsentLauncher.launch(IntentSenderRequest.Builder(consent.intentSender).build())
+            }
+        }
+    }
+
+    private fun launchLibraryConsent(sender: IntentSender, pending: PendingLibraryMutation) {
+        pendingLibraryMutation = pending
+        libraryMutationConsentLauncher.launch(IntentSenderRequest.Builder(sender).build())
+    }
+
     inner class JetNativeBridge {
 
         @JavascriptInterface
@@ -2663,27 +2815,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 addAction("Open With", "↗") { openFileInExternalApp(filePath) }
-                addAction("Rename", "✎") {
-                    val input = EditText(this@MainActivity).apply {
-                        setText(file.nameWithoutExtension)
-                        setSelection(text.length)
-                        setSingleLine(true)
-                    }
-                    androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
-                        .setTitle("Rename file")
-                        .setView(input)
-                        .setNegativeButton("Cancel", null)
-                        .setPositiveButton("Rename") { _, _ -> renameLibraryFile(filePath, input.text.toString()) }
-                        .show()
-                }
-                addAction("Delete", "⌫") {
-                    androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
-                        .setTitle("Delete file?")
-                        .setMessage("This permanently deletes the file from Downloads/JET.")
-                        .setNegativeButton("Cancel", null)
-                        .setPositiveButton("Delete") { _, _ -> deleteLibraryFile(filePath) }
-                        .show()
-                }
+                addAction("Rename", "✎") { callJs("openLibraryRenameModal", JSONObject.quote(filePath) + ", " + JSONObject.quote(file.name)) }
+                addAction("Delete", "⌫") { callJs("openLibraryDeleteModal", JSONObject.quote(filePath) + ", " + JSONObject.quote(file.name)) }
                 dialog.setContentView(sheet)
                 dialog.show()
                 dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -2693,56 +2826,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun renameLibraryFile(filePath: String, requestedName: String) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val source = File(filePath).canonicalFile
-                    val allowedDir = getJetDownloadDir().canonicalFile
-                    require(source.parentFile == allowedDir && source.isFile) { "File is outside the JET Library" }
-                    val cleanName = requestedName.trim()
-                        .replace(Regex("""[\\/:*?"<>|]"""), "_")
-                        .trim('.')
-                        .take(100)
-                    require(cleanName.isNotBlank()) { "Enter a valid file name" }
-                    val targetName = if (cleanName.contains('.')) cleanName else "$cleanName.${source.extension}"
-                    val target = File(allowedDir, targetName).canonicalFile
-                    require(target.parentFile == allowedDir) { "Invalid file name" }
-                    require(!target.exists()) { "A file with that name already exists" }
-                    check(source.renameTo(target)) { "Unable to rename file" }
-                    downloadDao.getAll().firstOrNull { it.filePath == source.absolutePath }?.let { saved ->
-                        downloadDao.upsert(saved.copy(filePath = target.absolutePath))
-                    }
-                    MediaScannerConnection.scanFile(applicationContext, arrayOf(target.absolutePath), null, null)
-                    pushScannedLibraryToWeb()
-                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File renamed", Toast.LENGTH_SHORT).show() }
-                } catch (error: Exception) {
-                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, error.message ?: "Rename failed", Toast.LENGTH_LONG).show() }
-                }
-            }
-        }
+        fun renameLibraryFile(filePath: String, requestedName: String) { this@MainActivity.beginLibraryMutation("rename", filePath, requestedName) }
 
         @JavascriptInterface
-        fun deleteLibraryFile(filePath: String) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val file = File(filePath).canonicalFile
-                    val allowedDir = getJetDownloadDir().canonicalFile
-                    require(file.parentFile == allowedDir && file.isFile) { "File is outside the JET Library" }
-                    val thumbnailKey = (file.absolutePath + "|" + file.length() + "|" + file.lastModified()).hashCode().toUInt().toString(16)
-                    check(file.delete()) { "Unable to delete file" }
-                    downloadDao.getAll().firstOrNull { it.filePath == file.absolutePath }?.let { downloadDao.deleteById(it.id) }
-                    val updatedItems = (cachedLibraryItems ?: runCatching { if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else emptyList() }.getOrDefault(emptyList()))
-                        .filterNot { it.filePath == file.absolutePath }
-                    cachedLibraryItems = updatedItems
-                    runCatching { libraryCacheFile.writeText(json.encodeToString(updatedItems)) }
-                    runCatching { File(libraryThumbnailCacheDir, "$thumbnailKey.txt").delete() }
-                    callJs("onNativeLibraryItemDeleted", JSONObject.quote(file.absolutePath))
-                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File deleted", Toast.LENGTH_SHORT).show() }
-                } catch (error: Exception) {
-                    withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, error.message ?: "Delete failed", Toast.LENGTH_LONG).show() }
-                }
-            }
-        }
+        fun deleteLibraryFile(filePath: String) { this@MainActivity.beginLibraryMutation("delete", filePath) }
 
         @JavascriptInterface
         fun shareFile(filePath: String) {

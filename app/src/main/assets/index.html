@@ -635,6 +635,9 @@
       </div>
     </div>
 
+    <section id="library-rename-modal" class="hidden fixed inset-0 z-[95] bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="library-rename-title"><div class="w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-3xl border border-app-border bg-app-surface p-5 shadow-2xl space-y-4"><div class="flex items-center justify-between gap-3"><h3 id="library-rename-title" class="text-base font-extrabold text-app-text">Rename file</h3><button type="button" id="library-rename-close" class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center" aria-label="Close rename dialog"><i data-lucide="x" class="w-4 h-4"></i></button></div><label for="library-rename-input" class="block text-xs font-bold text-app-secondary">File name</label><input id="library-rename-input" type="text" maxlength="100" autocomplete="off" class="w-full h-12 rounded-2xl border border-app-border bg-app-elevated px-3.5 text-sm font-semibold text-app-text outline-none focus:border-app-primary" placeholder="Enter file name"><p id="library-rename-extension" class="text-[11px] text-app-muted">File extension will be preserved.</p><div class="flex gap-2 pt-1"><button type="button" id="library-rename-cancel" class="h-11 px-4 rounded-2xl bg-app-elevated text-app-secondary text-xs font-bold">Cancel</button><button type="button" id="library-rename-save" class="flex-1 h-11 rounded-2xl bg-app-primary text-white text-xs font-extrabold">Save</button></div></div></section>
+    <section id="library-delete-modal" class="hidden fixed inset-0 z-[95] bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="library-delete-title"><div class="w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-3xl border border-app-border bg-app-surface p-5 shadow-2xl space-y-4"><div class="flex items-center justify-between gap-3"><h3 id="library-delete-title" class="text-base font-extrabold text-app-text">Delete file?</h3><button type="button" id="library-delete-close" class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center" aria-label="Close delete dialog"><i data-lucide="x" class="w-4 h-4"></i></button></div><div class="rounded-2xl border border-app-border bg-app-elevated p-3"><p id="library-delete-filename" class="text-sm font-bold text-app-text break-words"></p></div><p class="text-xs leading-5 text-app-secondary">This file will be permanently deleted from your device. This action cannot be undone.</p><div class="flex gap-2 pt-1"><button type="button" id="library-delete-cancel" class="h-11 px-4 rounded-2xl bg-app-elevated text-app-secondary text-xs font-bold">Cancel</button><button type="button" id="library-delete-confirm" class="flex-1 h-11 rounded-2xl bg-app-danger text-white text-xs font-extrabold">Delete</button></div></div></section>
+
     <!-- 1. Format Selection Sheet -->
     <div id="format-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end">
       <div id="format-sheet-compact" class="sheet-up bg-app-surface border-t border-app-border rounded-t-3xl p-5 space-y-4 max-h-[88dvh] overflow-y-auto">
@@ -1675,6 +1678,8 @@
       };
 
       window.onNativeLibraryItemDeleted = function (filePath) {
+        state.doneDownloads = state.doneDownloads.filter((item) => item.filePath !== filePath);
+        renderDownloads();
         const container = $('library-items-container');
         const card = Array.from(container.querySelectorAll('[data-file-path]')).find((node) => node.dataset.filePath === filePath);
         if (card) { card.style.transition = 'opacity 170ms ease, transform 170ms ease'; card.style.opacity = '0'; card.style.transform = 'scale(.96)'; }
@@ -2020,24 +2025,60 @@
       });
 
       // Library Screen
+      let pendingLibraryRename = null, pendingLibraryDelete = null;
+      function closeLibraryModal(id) { $(id).classList.add('hidden'); }
+      function openLibraryRenameModal(filePath, displayName) {
+        if (!filePath || !hasAndroid()) return;
+        const fullName = String(displayName || filePath.split('/').pop() || 'file');
+        const dot = fullName.lastIndexOf('.'), extension = dot > 0 ? fullName.slice(dot) : '';
+        pendingLibraryRename = { filePath, extension };
+        $('library-rename-input').value = extension ? fullName.slice(0, dot) : fullName;
+        $('library-rename-extension').textContent = extension ? 'Extension ' + extension + ' will be kept.' : 'No file extension.';
+        $('library-rename-modal').classList.remove('hidden'); $('library-rename-input').focus(); $('library-rename-input').select();
+      }
+      function openLibraryDeleteModal(filePath, displayName) {
+        if (!filePath || !hasAndroid()) return;
+        pendingLibraryDelete = { filePath };
+        $('library-delete-filename').textContent = String(displayName || filePath.split('/').pop() || 'Selected file');
+        $('library-delete-modal').classList.remove('hidden');
+      }
       function handleLibraryAction(action, filePath) {
         if (!filePath || !hasAndroid()) return;
-        if (action === 'open') {
-          if (window.JetAndroid.openFileExternal) window.JetAndroid.openFileExternal(filePath);
-          return;
-        }
-        if (action === 'rename') {
-          const item = state.library.find((entry) => entry.filePath === filePath);
-          const nextName = window.prompt('Rename file', item ? item.title : '');
-          if (nextName && nextName.trim() && window.JetAndroid.renameLibraryFile) {
-            window.JetAndroid.renameLibraryFile(filePath, nextName.trim());
-          }
-          return;
-        }
-        if (action === 'delete' && window.confirm('Delete this file permanently?')) {
-          if (window.JetAndroid.deleteLibraryFile) window.JetAndroid.deleteLibraryFile(filePath);
-        }
+        const item = state.library.find((entry) => entry.filePath === filePath);
+        if (action === 'open') { if (window.JetAndroid.openFileExternal) window.JetAndroid.openFileExternal(filePath); return; }
+        if (action === 'rename') openLibraryRenameModal(filePath, item ? item.fileName || item.title : '');
+        if (action === 'delete') openLibraryDeleteModal(filePath, item ? item.fileName || item.title : '');
       }
+      function submitLibraryRename() {
+        if (!pendingLibraryRename || !window.JetAndroid || !window.JetAndroid.renameLibraryFile) return;
+        const baseName = $('library-rename-input').value.trim(), extension = pendingLibraryRename.extension || '';
+        const cleanBase = extension && baseName.toLowerCase().endsWith(extension.toLowerCase()) ? baseName.slice(0, -extension.length).trim() : baseName;
+        if (!cleanBase) { showToast('Enter a valid file name'); return; }
+        const path = pendingLibraryRename.filePath; closeLibraryModal('library-rename-modal'); pendingLibraryRename = null;
+        window.JetAndroid.renameLibraryFile(path, cleanBase + extension);
+      }
+      function submitLibraryDelete() {
+        if (!pendingLibraryDelete || !window.JetAndroid || !window.JetAndroid.deleteLibraryFile) return;
+        const path = pendingLibraryDelete.filePath; closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null;
+        window.JetAndroid.deleteLibraryFile(path);
+      }
+      $('library-rename-close').addEventListener('click', () => { closeLibraryModal('library-rename-modal'); pendingLibraryRename = null; });
+      $('library-rename-cancel').addEventListener('click', () => { closeLibraryModal('library-rename-modal'); pendingLibraryRename = null; });
+      $('library-rename-save').addEventListener('click', submitLibraryRename);
+      $('library-rename-input').addEventListener('keydown', (event) => { if (event.key === 'Enter') submitLibraryRename(); });
+      $('library-rename-modal').addEventListener('click', (event) => { if (event.target.id === 'library-rename-modal') { closeLibraryModal('library-rename-modal'); pendingLibraryRename = null; } });
+      $('library-delete-close').addEventListener('click', () => { closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null; });
+      $('library-delete-cancel').addEventListener('click', () => { closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null; });
+      $('library-delete-confirm').addEventListener('click', submitLibraryDelete);
+      $('library-delete-modal').addEventListener('click', (event) => { if (event.target.id === 'library-delete-modal') { closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null; } });
+      window.openLibraryRenameModal = openLibraryRenameModal; window.openLibraryDeleteModal = openLibraryDeleteModal;
+      window.onNativeLibraryItemRenamed = function (oldPath, newPath, newName) {
+        const title = String(newName || '').replace(/\\.[^.]+$/, '');
+        state.library = state.library.map((item) => item.filePath === oldPath ? { ...item, filePath: newPath, title } : item);
+        state.doneDownloads = state.doneDownloads.map((item) => item.filePath === oldPath ? { ...item, filePath: newPath, title } : item);
+        try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
+        renderLibrary(); renderDownloads(); showToast('File renamed');
+      };
 
       function vinylDiscMarkup(artUrl, sizeClass = 'w-20 h-20') {
         const art = artUrl
