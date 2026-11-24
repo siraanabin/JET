@@ -2358,7 +2358,6 @@ class MainActivity : AppCompatActivity() {
                                 )
                             }
                         }
-                        }
                     }
 
                     val afterFiles = outDir.listFiles()
