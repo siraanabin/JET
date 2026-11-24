@@ -2464,6 +2464,14 @@ class MainActivity : AppCompatActivity() {
                 val audioUrl = if (audio != null) audio.url ?: return null else null
                 var videoTotalBytes = resolveExactStreamContentLength(selectedUrl)
                 var audioTotalBytes = if (audio != null) resolveExactStreamContentLength(audioUrl) else 0L
+                if (checkpointFile.exists() && (
+                    !videoPart.isFile || videoPart.length() != videoTotalBytes ||
+                    (audio != null && (!audioPart.isFile || audioPart.length() != audioTotalBytes))
+                )) checkpointFile.delete()
+                if (!checkpointFile.exists()) {
+                    videoPart.delete()
+                    audioPart.delete()
+                }
                 var totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
 
                 fun supportsRanges(streamUrl: String): Boolean {
@@ -2591,6 +2599,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                             } catch (rangeError: RangeUnsupportedException) {
                                 File(cacheDir, "jet-" + downloadId + ".chunks.ckpt").delete()
+                                activeConnectionLimit.set(1)
                                 totalDownloadedBytes.set(0L)
                                 videoAccess.close()
                                 audioAccess?.close()
@@ -2600,6 +2609,7 @@ class MainActivity : AppCompatActivity() {
                             }
                         } else {
                             checkpointFile.delete()
+                            activeConnectionLimit.set(1)
                             videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId, totalDownloadedBytes)
                             audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId, totalDownloadedBytes) else 0L
                             totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
