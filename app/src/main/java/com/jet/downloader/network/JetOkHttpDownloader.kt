@@ -79,10 +79,14 @@ class JetOkHttpDownloader(
         if (headCode != 403 && headCode != 405) return 0L to "estimate"
 
         val rangeLength = runCatching {
-            val call = client.newCall(
+            // Clone the injected shared client so only this metadata probe gets a 3s total timeout.
+            // The shared client's normal timeout policy remains unchanged for chunk downloads.
+            val rangeClient = client.newBuilder()
+                .callTimeout(3, TimeUnit.SECONDS)
+                .build()
+            val call = rangeClient.newCall(
                 requestBuilder().get().header("Range", "bytes=0-0").build()
             )
-            call.timeout().timeout(3, TimeUnit.SECONDS)
             call.execute().use { response ->
                 response.header("Content-Range")
                     ?.substringAfterLast("/")
