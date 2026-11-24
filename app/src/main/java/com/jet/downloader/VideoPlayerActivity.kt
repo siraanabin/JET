@@ -80,6 +80,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private val thumbCache = object : android.util.LruCache<String, Bitmap>(12 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
+    private val thumbLoading = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private var currentPath = ""
     private var locked = false
     private var muted = false
@@ -744,7 +745,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             val cached = thumbCache.get(file.absolutePath)
             if (cached != null) holder.image.setImageBitmap(cached) else {
                 holder.image.setImageDrawable(null)
-                thumbExecutor.execute {
+                if (thumbLoading.add(file.absolutePath)) thumbExecutor.execute {
                     var bitmap: Bitmap? = null
                     var durationMs = 0L
                     val retriever = MediaMetadataRetriever()
@@ -769,6 +770,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (!isDestroyed && holder.row.tag == file.absolutePath) holder.duration.text = if (durationMs > 0L) time(durationMs) else "--:--"
                     }
+                    thumbLoading.remove(file.absolutePath)
                 }
             }
         }
