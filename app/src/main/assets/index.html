@@ -1458,6 +1458,11 @@
         const suffix = unit === 1024 ** 3 ? 'GB' : unit === 1024 ** 2 ? 'MB' : unit === 1024 ? 'KB' : 'B';
         return (downloaded / unit).toFixed(1) + ' / ' + (total / unit).toFixed(1) + ' ' + suffix;
       };
+      const formatDownloadMegabytes = (item) => {
+        const downloaded = Math.max(0, Number(item.downloadedBytes ?? item.bytesRead) || 0);
+        const total = Math.max(0, Number(item.totalBytes) || 0);
+        return (downloaded / 1048576).toFixed(1) + ' / ' + (total / 1048576).toFixed(1) + ' MB';
+      };
       const downloadTelemetry = (item) => {
         const transferred = formatTransferred(item);
         const speed = String(item.speedText || '--');
@@ -1466,10 +1471,10 @@
         const stage = String(item.stage || '').toUpperCase();
         if (status === 'paused') return { left: transferred + ' · Paused', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
         if (isPreByteDownload(item)) return { left: 'Connecting...', right: '<b>0%</b>' };
-        if (stage === 'MERGING' || status === 'merging') return { left: transferred + ' · Merging...', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
+        if (stage === 'MERGING' || status === 'merging') return { left: 'Merging audio & video...', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
         return {
-          left: transferred + (speed !== '--' ? ' · ' + speed : ''),
-          right: (eta !== '--' ? eta + ' · ' : '') + '<b>' + shownDownloadPercent(item) + '%</b>'
+          left: formatDownloadMegabytes(item) + (speed !== '--' ? ' · ' + speed : ''),
+          right: (eta !== '--' ? eta + ' left · ' : '') + '<b>' + shownDownloadPercent(item) + '%</b>'
         };
       };
       window.onNativeDownloadProgress = function (
@@ -1499,11 +1504,15 @@
             : (['PREPARING', 'CONNECTING', 'DOWNLOADING', 'MERGING'].includes(normalizedStage)
               ? normalizedStage
               : (Number(progress) > 0 ? 'DOWNLOADING' : 'PREPARING')));
+        const enteredMerging = item.stage === 'MERGING' && previousStage !== 'MERGING';
         item.speedBps = Math.max(0, Number(speedBps) || 0);
         item.speedText = String(speedText || '--');
         item.etaSec = Number.isFinite(Number(etaSec)) ? Number(etaSec) : -1;
         item.etaText = String(etaText || '--');
-        const safePercent = verifiedCompletion === true && Number(progress) === 100
+        const isVerifiedComplete = verifiedCompletion === true && Number(progress) === 100;
+        const safePercent = isVerifiedComplete || (item.stage === 'DOWNLOADING' &&
+          exactTotalBytes === true && incomingTotalBytes > 0 && item.downloadedBytes >= incomingTotalBytes &&
+          Number(progress) === 100)
           ? 100
           : Math.min(99, clampDownloadPercent(progress));
         if (item.bytesRead > 0 && (item.stage === 'PREPARING' || item.stage === 'CONNECTING')) item.stage = 'DOWNLOADING';
@@ -1516,8 +1525,12 @@
         }
         if (item.stage === 'MERGING') {
           item.status = 'merging';
-          item.speed = 'Merging...';
-          item.progress = Math.max(clampDownloadPercent(item.progress), safePercent);
+          item.speed = 'Merging audio & video...';
+          item.speedBps = 0;
+          item.speedText = '--';
+          item.etaSec = -1;
+          item.etaText = '--';
+          item.progress = enteredMerging ? safePercent : Math.max(clampDownloadPercent(item.progress), safePercent);
         } else if (item.stage === 'DOWNLOADING' && (item.bytesRead > 0 || incomingTotalBytes > 0)) {
           item.status = 'downloading';
           item.speed = speedLabel || 'Downloading...';
@@ -1527,6 +1540,13 @@
           item.speed = speedLabel || 'Connecting...';
           item.progress = Math.max(clampDownloadPercent(item.progress), safePercent);
         }
+        try {
+          localStorage.setItem('jet-active-download-progress-v1', JSON.stringify(state.activeDownloads.map((active) => ({
+            id: active.id, progress: active.progress, status: active.status, stage: active.stage,
+            downloadedBytes: active.downloadedBytes || 0, totalBytes: active.totalBytes || 0,
+            speedText: active.speedText || '--', etaText: active.etaText || '--'
+          }))));
+        } catch (_) {}
         renderDownloads();
       };      window.onNativeDownloadPaused = function (id) {
         const item = state.activeDownloads.find((d) => d.id === id);
@@ -1936,7 +1956,7 @@
                 <div class="h-full rounded-full ${isPreByteDownload(item) ? 'jet-download-prebyte-shimmer' : 'bg-app-primary transition-all duration-300'}" style="width:${downloadBarWidth(item)}%"></div>
               </div>
               <div class="flex items-center justify-between gap-2 text-[10px] leading-4 font-semibold tabular-nums min-w-0 whitespace-nowrap">
-                <span class="text-app-primary shrink-0">${downloadTelemetry(item).left}</span>
+                <span class="${item.status === 'merging' ? 'text-amber-500' : 'text-app-primary'} shrink-0">${downloadTelemetry(item).left}</span>
                 <span class="text-app-secondary shrink-0 text-right">${downloadTelemetry(item).right}</span>
               </div>
             </div>
