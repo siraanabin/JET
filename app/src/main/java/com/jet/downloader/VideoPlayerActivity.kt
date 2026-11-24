@@ -1,5 +1,6 @@
 package com.jet.downloader
 
+import android.Manifest
 import android.app.PictureInPictureParams
 import android.content.*
 import android.content.pm.ActivityInfo
@@ -14,6 +15,7 @@ import android.view.animation.OvershootInterpolator
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import android.graphics.Bitmap
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +81,11 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var pendingSeekPosition = 0L
     private var player: ExoPlayer? = null
     private var bgAudioEnabled = false
+    private var isStartingBackgroundService = false
+    private val backgroundNotificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            startBackgroundAudioNow()
+        }
     private val thumbDispatcher = Dispatchers.IO.limitedParallelism(4)
     private val thumbCache = object : android.util.LruCache<String, Bitmap>(12 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -982,8 +989,31 @@ class VideoPlayerActivity : AppCompatActivity() {
         if (::playlistAdapter.isInitialized) playlistAdapter.notifyDataSetChanged()
     }
     private fun backgroundAudio() {
-        if (currentPath.isBlank() || !File(currentPath).isFile) return
-        val activePlayer = player ?: return
+        if (isStartingBackgroundService || currentPath.isBlank() || !File(currentPath).isFile) return
+        if (player == null) return
+        isStartingBackgroundService = true
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                backgroundNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } catch (error: Exception) {
+                android.util.Log.w("JET-Video", "Notification permission prompt unavailable; continuing background playback", error)
+                startBackgroundAudioNow()
+            }
+        } else {
+            startBackgroundAudioNow()
+        }
+    }
+
+    private fun startBackgroundAudioNow() {
+        val activePlayer = player
+        if (activePlayer == null || currentPath.isBlank() || !File(currentPath).isFile) {
+            isStartingBackgroundService = false
+            return
+        }
         val resumePositionMs = activePlayer.currentPosition.coerceAtLeast(0L)
         val playWhenReady = activePlayer.playWhenReady
         PlaybackStateTracker.save(
@@ -1005,6 +1035,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             finish()
         } catch (error: Exception) {
             bgAudioEnabled = false
+            isStartingBackgroundService = false
             if (playWhenReady) activePlayer.play()
             android.util.Log.e("JET-Video", "Background audio handoff failed", error)
             Toast.makeText(this, "Could not start background audio", Toast.LENGTH_SHORT).show()
