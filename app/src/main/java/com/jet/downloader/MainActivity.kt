@@ -138,6 +138,8 @@ private data class RealDownloadSpec(
     val includeSubtitles: Boolean, val thumbnailUrl: String, val selectedResolution: String
 )
 
+private class RangeUnsupportedException(message: String) : IOException(message)
+
 class MainActivity : AppCompatActivity() {
 
     private val okHttpClient: OkHttpClient by inject()
@@ -2752,8 +2754,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        private class RangeUnsupportedException(message: String) : IOException(message)
-
         private fun downloadSequentialStream(streamUrl: String, target: File, downloadId: String, downloaded: AtomicLong): Long {
             val request = Request.Builder().url(streamUrl).get()
                 .header("Accept-Encoding", "identity")
@@ -2815,11 +2815,18 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 checkpoint.delete()
-                videoFile.setLength(0L)
-                videoFile.setLength(videoSize)
+                videoChannel.truncate(0L)
+                if (videoSize > 0L) {
+                    videoChannel.position(videoSize - 1L)
+                    videoChannel.write(ByteBuffer.wrap(byteArrayOf(0)))
+                }
                 if (audioUrl != null) {
-                    audioFile.setLength(0L)
-                    audioFile.setLength(audioSize)
+                    val channel = audioChannel ?: throw IOException("Audio output channel is unavailable")
+                    channel.truncate(0L)
+                    if (audioSize > 0L) {
+                        channel.position(audioSize - 1L)
+                        channel.write(ByteBuffer.wrap(byteArrayOf(0)))
+                    }
                 }
             }
             fun saveCheckpoint() {
