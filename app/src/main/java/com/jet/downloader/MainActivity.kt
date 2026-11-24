@@ -3114,9 +3114,11 @@ class MainActivity : AppCompatActivity() {
             val avgSpeedText = speed(avgSpeed)
             val netSpeedText = speed(netSpeed)
             val container = file.extension.lowercase(Locale.US).ifBlank { "unknown" }
-            val rawLog = "title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
+            val engine = if (previousSummary.contains("engine=yt-dlp-managed", ignoreCase = true)) "yt-dlp-managed" else "newpipe-okhttp-ffmpeg"
+            val rawLog = "engine=${engine} title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
             Log.d("DL_DEBUG", rawLog)
             val telemetryJson = JSONObject().apply {
+                put("engine", engine)
                 put("title", displayTitle)
                 put("resolution", resolution.ifBlank { "audio" })
                 put("container", container)
