@@ -38,6 +38,7 @@ import com.jet.downloader.player.RoundedTimeBar
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TimeBar
 import com.jet.downloader.player.PlayerPrefsManager
+import com.jet.downloader.player.PlaybackStateTracker
 import com.jet.downloader.player.applyGranularVolumePercent
 import java.io.File
 import java.text.SimpleDateFormat
@@ -135,7 +136,11 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
     }
     private val progress = object : Runnable {
-        override fun run() { updateProgress(); handler.postDelayed(this, 300L) }
+        override fun run() {
+            updateProgress()
+            recordPlaybackPosition()
+            handler.postDelayed(this, 300L)
+        }
     }
     private val hideHud = Runnable {
         if (isTouchDown || isSwipeSeeking || isAdjustingVolume || isAdjustingBrightness || isUserScrubbing) return@Runnable
@@ -187,7 +192,11 @@ class VideoPlayerActivity : AppCompatActivity() {
             finish(); return
         }
         currentPath = path
-        stopBackgroundAudioForVideo()
+        val backgroundHandoff = PlayerPlaybackService.handoffToVideo(this, path)
+        sendBroadcast(Intent("com.jet.downloader.action.VIDEO_PLAYBACK_STARTED").setPackage(packageName))
+        val savedPlayback = PlaybackStateTracker.restore(this, path)
+        val resumePositionMs = backgroundHandoff?.positionMs ?: savedPlayback?.positionMs ?: 0L
+        val resumeWasPlaying = backgroundHandoff?.wasPlaying ?: savedPlayback?.isPlaying ?: true
         updatePlayerTitle(intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension })
         playerPrefs = PlayerPrefsManager(this)
         volumePercent = playerPrefs.savedVolumePercent
@@ -214,22 +223,32 @@ class VideoPlayerActivity : AppCompatActivity() {
         playerView.player = exo
         playerView.useController = false
         exo.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(File(path))))
+        exo.seekTo(resumePositionMs)
+        exo.playWhenReady = resumeWasPlaying
         exo.setPlaybackSpeed(playerPrefs.savedPlaybackSpeed)
         applyGranularVolumePercent(this, exo, volumePercent)
         updateVolumeIcon(volumePercent)
         findViewById<TextView>(R.id.player_speed_label).text = speedLabel(playerPrefs.savedPlaybackSpeed)
-        exo.prepare(); exo.play()
         exo.addListener(object : Player.Listener {
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
-                if (reason == Player.DISCONTINUITY_REASON_SEEK) { seekCommitPending = false; updateProgress() }
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    recordPlaybackPosition()
+                    seekCommitPending = false
+                    updateProgress()
+                }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                recordPlaybackPosition(isPlaying)
                 findViewById<ImageButton>(R.id.player_play).setImageResource(
                     if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play
                 )
                 if (isPlaying) handler.postDelayed(hideControls, 3000L)
             }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) recordPlaybackPosition(false)
+            }
         })
+        exo.prepare()
         setupControls()
         setupGestures()
         showControls(false)
@@ -963,21 +982,38 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
     private fun backgroundAudio() {
         if (currentPath.isBlank() || !File(currentPath).isFile) return
+        val activePlayer = player ?: return
+        val resumePositionMs = activePlayer.currentPosition.coerceAtLeast(0L)
+        val playWhenReady = activePlayer.playWhenReady
+        PlaybackStateTracker.save(
+            this, currentPath, resumePositionMs,
+            activePlayer.duration.takeIf { it > 0L } ?: 0L,
+            playWhenReady, true
+        )
         bgAudioEnabled = true
         findViewById<ImageButton>(R.id.player_background).isSelected = true
-        ContextCompat.startForegroundService(this, Intent(this, PlayerPlaybackService::class.java).apply {
-            putExtra(PlayerPlaybackService.EXTRA_PATH, currentPath)
-            putExtra(PlayerPlaybackService.EXTRA_TITLE, titleView.text.toString())
-        })
-        Toast.makeText(this, "Background audio ON", Toast.LENGTH_SHORT).show()
-        finish()
+        try {
+            ContextCompat.startForegroundService(this, Intent(this, PlayerPlaybackService::class.java).apply {
+                putExtra(PlayerPlaybackService.EXTRA_PATH, currentPath)
+                putExtra(PlayerPlaybackService.EXTRA_TITLE, titleView.text.toString())
+                putExtra(PlayerPlaybackService.EXTRA_START_POSITION, resumePositionMs)
+                putExtra(PlayerPlaybackService.EXTRA_PLAY_WHEN_READY, playWhenReady)
+            })
+            activePlayer.pause()
+            Toast.makeText(this, "Background audio ON", Toast.LENGTH_SHORT).show()
+            finish()
+        } catch (error: Exception) {
+            bgAudioEnabled = false
+            if (playWhenReady) activePlayer.play()
+            android.util.Log.e("JET-Video", "Background audio handoff failed", error)
+            Toast.makeText(this, "Could not start background audio", Toast.LENGTH_SHORT).show()
+        }
     }
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); stopBackgroundAudioForVideo(); recreate() }
-
-    private fun stopBackgroundAudioForVideo() {
-        runCatching { startService(Intent(this, PlayerPlaybackService::class.java).apply { action = PlayerPlaybackService.ACTION_STOP_FOR_VIDEO }) }
-            .onFailure { android.util.Log.w("JET-Video", "Unable to stop background audio before video playback", it) }
-        sendBroadcast(Intent("com.jet.downloader.action.VIDEO_PLAYBACK_STARTED").setPackage(packageName))
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        recordPlaybackPosition()
+        recreate()
     }
 
     private fun enterPip() {
@@ -1018,10 +1054,27 @@ class VideoPlayerActivity : AppCompatActivity() {
         }.onFailure { android.util.Log.w("JET-PiP", "PiP UI transition failed", it) }
     }
 
+    private fun recordPlaybackPosition(isPlaying: Boolean? = null) {
+        val activePlayer = player ?: return
+        if (currentPath.isBlank()) return
+        PlaybackStateTracker.save(
+            this,
+            currentPath,
+            activePlayer.currentPosition.coerceAtLeast(0L),
+            activePlayer.duration.takeIf { it > 0L } ?: 0L,
+            isPlaying ?: activePlayer.playWhenReady,
+            false
+        )
+    }
+
     override fun onPause() {
         super.onPause()
         val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
-        if (!inPip && !bgAudioEnabled && !isChangingConfigurations) player?.pause()
+        if (!inPip && !bgAudioEnabled && !isChangingConfigurations) {
+            recordPlaybackPosition()
+            player?.pause()
+            recordPlaybackPosition(false)
+        }
     }
     private fun seekBy(delta: Long) {
         val p = player ?: return
@@ -1047,6 +1100,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
     override fun onDestroy() {
+        if (!bgAudioEnabled) recordPlaybackPosition()
         handler.removeCallbacksAndMessages(null)
         thumbLoading.clear()
         try { unregisterReceiver(battery) } catch (_: Exception) {}
