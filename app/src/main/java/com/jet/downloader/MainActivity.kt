@@ -2415,11 +2415,18 @@ class MainActivity : AppCompatActivity() {
         private fun downloadWithNewPipe(
             downloadId: String, url: String, outDir: File, selectedItag: Int, maxHeight: Int
         ): File? {
-            val output = File(outDir, "jet-newpipe-" + downloadId + ".mp4")
+            var output = File(outDir, "jet-newpipe-" + downloadId + ".mp4")
             val videoPart = File(cacheDir, "jet-" + downloadId + "-video.part")
             val audioPart = File(cacheDir, "jet-" + downloadId + "-audio.part")
             var process: Process? = null
+            var wifiLock: WifiManager.WifiLock? = null
+            val downloadStartedAtMs = SystemClock.elapsedRealtime()
             try {
+                wifiLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
+                    .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "JET:MediaDownload").apply {
+                        setReferenceCounted(false)
+                        acquire()
+                    }
                 val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
                 val candidates = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
                 val selected = if (selectedItag > 0) {
@@ -2432,6 +2439,11 @@ class MainActivity : AppCompatActivity() {
                     info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate } ?: return null
                 } else null
                 if (audio != null) check(audio.getItag() > 0) { "Selected audio stream has no valid itag" }
+                val videoSuffix = selected.format.suffix.lowercase(Locale.ROOT)
+                val audioSuffix = audio?.format?.suffix?.lowercase(Locale.ROOT).orEmpty()
+                val useMkv = videoSuffix in setOf("webm", "mkv", "opus") ||
+                    audioSuffix in setOf("webm", "opus", "mkv")
+                output = File(outDir, "jet-newpipe-" + downloadId + if (useMkv) ".mkv" else ".mp4")
                 if (output.exists()) output.delete()
                 val checkpointFile = File(cacheDir, "jet-" + downloadId + ".chunks.ckpt")
                 if (!checkpointFile.exists()) {
@@ -2627,7 +2639,9 @@ class MainActivity : AppCompatActivity() {
                 val args = mutableListOf(ffmpeg.absolutePath, "-y", "-hide_banner", "-i", videoPart.absolutePath)
                 if (audio != null) args += listOf("-i", audioPart.absolutePath, "-map", "0:v:0", "-map", "1:a:0")
                 else args += listOf("-map", "0:v:0", "-map", "0:a?")
-                args += listOf("-c", "copy", "-movflags", "+faststart", "-progress", "pipe:1", "-nostats", output.absolutePath)
+                args += listOf("-c", "copy")
+                if (!useMkv) args += listOf("-movflags", "+faststart")
+                args += listOf("-progress", "pipe:1", "-nostats", output.absolutePath)
                 val runningProcess = ProcessBuilder(args).redirectErrorStream(true).start()
                 process = runningProcess
                 activeNewPipeProcesses[downloadId] = runningProcess
@@ -2665,9 +2679,15 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 val exitCode = runningProcess.waitFor()
+                val mergeSec = ((SystemClock.elapsedRealtime() - muxStartedAtMs).coerceAtLeast(0L)) / 1000L
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
                     verifiedNewPipeSourceSizes[downloadId] = totalBytes
+                    val dlSec = ((muxStartedAtMs - downloadStartedAtMs).coerceAtLeast(1L)) / 1000.0
+                    val videoMb = String.format(Locale.US, "%.1f", videoTotalBytes / (1024.0 * 1024.0))
+                    val audioMb = String.format(Locale.US, "%.1f", audioTotalBytes / (1024.0 * 1024.0))
+                    val avgMbps = String.format(Locale.US, "%.2f", totalDownloadedBytes.get() / (1024.0 * 1024.0) / dlSec)
+                    Log.d("DL_DEBUG", "conn=8 chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=0 blocks=0 merge=${mergeSec}s")
                     callJs(
                         "onNativeDownloadProgress",
                         listOf(
@@ -2694,6 +2714,7 @@ class MainActivity : AppCompatActivity() {
                     runCatching { videoPart.delete() }
                     runCatching { audioPart.delete() }
                 }
+                runCatching { if (wifiLock?.isHeld == true) wifiLock?.release() }
             }
         }
 
