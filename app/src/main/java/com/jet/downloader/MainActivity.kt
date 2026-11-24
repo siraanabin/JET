@@ -2325,8 +2325,7 @@ class MainActivity : AppCompatActivity() {
                         YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, _, line ->
                             val reported = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else lastReportedProgress
                             lastReportedProgress = maxOf(lastReportedProgress, reported)
-                            val downloadedText = line.substringBefore(" at ")
-                            lastBytesRead = maxOf(lastBytesRead, parseYtDlpSize(downloadedBytesRegex.find(downloadedText)))
+                            lastBytesRead = maxOf(lastBytesRead, parseYtDlpSize(downloadedBytesRegex.find(line)))
                             lastTotalBytes = maxOf(lastTotalBytes, parseYtDlpSize(totalBytesRegex.find(line)))
                             val merging = line.contains("Merging", ignoreCase = true) ||
                                 line.contains("ExtractAudio", ignoreCase = true)
