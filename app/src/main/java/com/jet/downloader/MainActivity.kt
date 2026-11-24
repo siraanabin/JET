@@ -333,6 +333,80 @@ class MainActivity : AppCompatActivity() {
         return resolvedLength
     }
 
+
+    private data class SizeLookup(val bytes: Long, val source: String, val elapsedMs: Long)
+    private data class PendingSizeLookup(val id: String, val quality: String, val url: String, val audio: Boolean)
+
+    // Cache by canonical media URL + selected quality, not expiring signed stream URL.
+    private val mediaQualitySizeCache = object : LruCache<String, Pair<Long, String>>(256) {}
+
+    private fun mediaQualitySizeKey(mediaUrl: String, quality: String): String =
+        normalizeMediaInfoUrl(mediaUrl) + "|" + quality
+
+    private fun logSizeResult(quality: String, bytes: Long, source: String, elapsedMs: Long) {
+        val size = if (bytes > 0L) formatBytes(bytes) else "N/A"
+        Log.d("SIZE_DEBUG", "quality=" + quality + " size=" + size + " src=" + source + " time=" + elapsedMs + "ms")
+    }
+
+    private fun readExtractedStreamLength(
+        mediaUrl: String,
+        quality: String,
+        streamUrl: String?,
+        extractorLength: Long
+    ): SizeLookup {
+        val started = SystemClock.elapsedRealtime()
+        val key = mediaQualitySizeKey(mediaUrl, quality)
+        synchronized(mediaQualitySizeCache) {
+            mediaQualitySizeCache.get(key)?.let { cached ->
+                val elapsed = SystemClock.elapsedRealtime() - started
+                logSizeResult(quality, cached.first, cached.second, elapsed)
+                return SizeLookup(cached.first, cached.second, elapsed)
+            }
+        }
+        if (extractorLength > 0L) {
+            synchronized(mediaQualitySizeCache) { mediaQualitySizeCache.put(key, extractorLength to "extractor") }
+            val elapsed = SystemClock.elapsedRealtime() - started
+            logSizeResult(quality, extractorLength, "extractor", elapsed)
+            return SizeLookup(extractorLength, "extractor", elapsed)
+        }
+        val clen = runCatching {
+            if (streamUrl.isNullOrBlank()) 0L
+            else Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L
+        }.getOrDefault(0L)
+        if (clen > 0L) {
+            synchronized(mediaQualitySizeCache) { mediaQualitySizeCache.put(key, clen to "clen") }
+            val elapsed = SystemClock.elapsedRealtime() - started
+            logSizeResult(quality, clen, "clen", elapsed)
+            return SizeLookup(clen, "clen", elapsed)
+        }
+        return SizeLookup(0L, "estimate", SystemClock.elapsedRealtime() - started)
+    }
+
+    private suspend fun fetchMissingStreamLength(
+        mediaUrl: String,
+        quality: String,
+        streamUrl: String
+    ): SizeLookup {
+        val started = SystemClock.elapsedRealtime()
+        val key = mediaQualitySizeKey(mediaUrl, quality)
+        synchronized(mediaQualitySizeCache) {
+            mediaQualitySizeCache.get(key)?.let { cached ->
+                val elapsed = SystemClock.elapsedRealtime() - started
+                logSizeResult(quality, cached.first, cached.second, elapsed)
+                return SizeLookup(cached.first, cached.second, elapsed)
+            }
+        }
+        val result = runCatching {
+            withContext(Dispatchers.IO) { newPipeDownloader.contentLengthWithSource(streamUrl) }
+        }.getOrDefault(0L to "estimate")
+        val elapsed = SystemClock.elapsedRealtime() - started
+        if (result.first > 0L) {
+            synchronized(mediaQualitySizeCache) { mediaQualitySizeCache.put(key, result.first to result.second) }
+        }
+        logSizeResult(quality, result.first, result.second, elapsed)
+        return SizeLookup(result.first, result.second, elapsed)
+    }
+
     private fun videoResolutionId(shortSide: Int): String = when {
         shortSide >= 2160 -> "vid-4k"
         shortSide >= 1440 -> "vid-2k"
@@ -1916,78 +1990,170 @@ class MainActivity : AppCompatActivity() {
                     name = "Koin",
                     license = "Apache 2.0",
                     category = "Dependency Injection",
-                    description = "Lightweight pragmatic dependency injection framework for Kotlin.",
-                    url = "https://insert-koin.io"
-                ),
-                OpenSourceLicenseItem(
-                    name = "Coil",
-                    license = "Apache 2.0",
-                    category = "Image Loading",
-                    description = "Coroutine-backed image and thumbnail loading library for Android.",
-                    url = "https://coil-kt.github.io/coil/"
-                ),
-                OpenSourceLicenseItem(
-                    name = "OkHttp",
-                    license = "Apache 2.0",
-                    category = "HTTP & Stream Networking",
-                    description = "Efficient HTTP/2 client powering NewPipe Extractor and stream downloads.",
-                    url = "https://square.github.io/okhttp/"
-                ),
-                OpenSourceLicenseItem(
-                    name = "Kotlin Coroutines & Serialization",
-                    license = "Apache 2.0",
-                    category = "Concurrency & JSON Parsing",
-                    description = "Structured asynchronous concurrency and multiplatform JSON serialization.",
-                    url = "https://github.com/Kotlin/kotlinx.coroutines"
-                )
-            )
-            return json.encodeToString(list)
-        }
-
-        private fun prewarmGoogleVideoUrls(videoId: String, streams: List<Pair<Int, String>>) {
-            streams.distinctBy { it.first }.forEach { (itag, streamUrl) ->
-                if (itag <= 0 || streamUrl.isBlank()) return@forEach
-                val host = runCatching { Uri.parse(streamUrl).host?.lowercase(Locale.ROOT) }.getOrNull().orEmpty()
-                if (host != "googlevideo.com" && !host.endsWith(".googlevideo.com")) return@forEach
-                val cacheKey = videoId + ":" + itag
-                lifecycleScope.launch(Dispatchers.IO) {
-                    if (prefetchedStreamChunks.get(cacheKey)?.let { System.currentTimeMillis() - it.cachedAtMs in 0..prefetchedStreamChunkTtlMs } == true) return@launch
-                    val request = Request.Builder().url(streamUrl).get()
-                        .header("Range", "bytes=0-262143")
-                        .header("Accept-Encoding", "identity")
-                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                        .header("Origin", "https://www.youtube.com")
-                        .header("Referer", "https://www.youtube.com/")
-                        .build()
-                    runCatching {
-                        okHttpClient.newCall(request).execute().use { response ->
-                            if (response.code != 206) return@use
-                            val range = response.header("Content-Range") ?: return@use
-                            val match = Regex("bytes 0-(\\d+)/(\\d+)").find(range) ?: return@use
-                            val total = match.groupValues[2].toLongOrNull() ?: return@use
-                            val bytes = response.body?.bytes() ?: return@use
-                            if (bytes.isNotEmpty() && bytes.size <= firstStreamChunkBytes && bytes.size.toLong() <= total) {
-                                prefetchedStreamChunks.put(cacheKey, PrefetchedStreamChunk(bytes, total, System.currentTimeMillis()))
-                            }
-                        }
-                    }.onFailure { Log.d("JET-Prewarm", "Googlevideo prebuffer skipped: " + (it.message ?: "network error")) }
-                }
-            }
-        }
-        private fun buildNewPipeMediaInfoPayload(info: StreamInfo): MediaInfoPayload {
+                    description = "Lightweight pra        private suspend fun buildNewPipeMediaInfoPayload(
+            info: StreamInfo,
+            mediaUrl: String,
+            onUpdate: (MediaInfoPayload) -> Unit
+        ): MediaInfoPayload = kotlinx.coroutines.coroutineScope {
             val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
             val durationSec = info.duration.toLong()
-            // Estimate sizes from cached NewPipe stream metadata and local bitrates only.
-            val bestAudio = info.audioStreams
-                .filter { it.isUrl }
-                .maxByOrNull { it.averageBitrate }
-    
+            val bestAudio = info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate }
+
             fun shortSide(width: Int, height: Int): Int =
                 if (width > 0 && height > 0) minOf(width, height) else maxOf(width, height)
 
             val streamSizes = mutableMapOf<String, StreamSizePayload>()
             listOf("aud-70" to 70L, "aud-128" to 128L, "aud-160" to 160L, "aud-320" to 320L)
                 .forEach { (id, bitrateKbps) ->
+                    val bytes = (bitrateKbps * 1000L * durationSec) / 8L
+                    streamSizes[id] = StreamSizePayload(
+                        sizeText = "~ " + formatBytes(bytes), sizeBytes = bytes, available = true
+                    )
+                    logSizeResult(id.removePrefix("aud-") + "kbps", bytes, "estimate", 0L)
+                }
+
+            val audioExtracted = readExtractedStreamLength(
+                mediaUrl, "Audio", bestAudio?.url,
+                bestAudio?.getItagItem()?.getContentLength() ?: 0L
+            )
+            val audioEstimate = estimateBytesFromBitrateKbps(
+                bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0, durationSec
+            )
+            var bestAudioBytes = audioExtracted.bytes.takeIf { it > 0L } ?: audioEstimate
+            if (audioExtracted.bytes <= 0L) logSizeResult("Audio", bestAudioBytes, "estimate", audioExtracted.elapsedMs)
+
+            streamSizes["aud-fast"] = StreamSizePayload(
+                sizeText = if (audioExtracted.bytes > 0L) formatBytes(bestAudioBytes) else "~ " + formatBytes(bestAudioBytes),
+                sizeBytes = bestAudioBytes,
+                available = bestAudioBytes > 0L
+            )
+
+            data class VideoSizeEntry(
+                val id: String,
+                val quality: String,
+                val video: org.schabi.newpipe.extractor.stream.VideoStream,
+                val needsAudio: Boolean,
+                var videoBytes: Long
+            )
+            val videoEntries = mutableListOf<VideoSizeEntry>()
+            val pending = mutableListOf<PendingSizeLookup>()
+            if (audioExtracted.bytes <= 0L && !bestAudio?.url.isNullOrBlank()) {
+                pending.add(PendingSizeLookup("aud-fast", "Audio", bestAudio!!.url, true))
+            }
+
+            val actualVideos = (info.videoOnlyStreams + info.videoStreams)
+                .filter { it.isUrl && shortSide(it.width, it.height) > 0 }
+            actualVideos.groupBy { videoResolutionId(shortSide(it.width, it.height)) }
+                .filterKeys { it.isNotBlank() }
+                .forEach { (id, candidates) ->
+                    val video = candidates.maxWithOrNull(
+                        compareBy<org.schabi.newpipe.extractor.stream.VideoStream>(
+                            { shortSide(it.width, it.height) }, { it.bitrate }
+                        )
+                    ) ?: return@forEach
+                    val short = shortSide(video.width, video.height)
+                    val quality = videoResolutionLabel(short)
+                    val extracted = readExtractedStreamLength(
+                        mediaUrl, id, video.url,
+                        video.getItagItem()?.getContentLength() ?: 0L
+                    )
+                    val estimate = if (video.bitrate > 0)
+                        estimateBytesFromBitrateBps(video.bitrate.toDouble(), durationSec)
+                    else estimateBytesFromBitrateKbps(fallbackVideoBitrateKbps(short), durationSec)
+                    val videoBytes = extracted.bytes.takeIf { it > 0L } ?: estimate
+                    val needsAudio = video.isVideoOnly || video.bitrate <= 0
+                    videoEntries.add(VideoSizeEntry(id, quality, video, needsAudio, videoBytes))
+                    if (extracted.bytes <= 0L) {
+                        logSizeResult(quality, videoBytes + if (needsAudio) bestAudioBytes else 0L, "estimate", extracted.elapsedMs)
+                        if (!video.url.isNullOrBlank()) pending.add(PendingSizeLookup(id, quality, video.url, false))
+                    }
+                }
+
+            fun refreshVideoPayloads() {
+                videoEntries.forEach { entry ->
+                    val totalBytes = entry.videoBytes + if (entry.needsAudio) bestAudioBytes else 0L
+                    val video = entry.video
+                    val short = shortSide(video.width, video.height)
+                    val exact = synchronized(mediaQualitySizeCache) {
+                        mediaQualitySizeCache.get(mediaQualitySizeKey(mediaUrl, entry.id))
+                    } != null
+                    streamSizes[entry.id] = StreamSizePayload(
+                        sizeText = if (exact) formatBytes(totalBytes) else "~ " + formatBytes(totalBytes),
+                        sizeBytes = totalBytes,
+                        available = true,
+                        itag = video.getItag().takeIf { it > 0 },
+                        height = video.getHeight().takeIf { it > 0 },
+                        shortSide = short,
+                        resolution = videoResolutionLabel(short)
+                    )
+                }
+            }
+
+            val topVideo = (info.videoOnlyStreams + info.videoStreams)
+                .filter { it.isUrl && it.getHeight() <= 1080 }
+                .maxWithOrNull(compareBy<org.schabi.newpipe.extractor.stream.VideoStream>({ it.getHeight() }, { it.bitrate }))
+                ?: (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
+                    .maxWithOrNull(compareBy<org.schabi.newpipe.extractor.stream.VideoStream>({ it.getHeight() }, { it.bitrate }))
+            val topAudio = info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate }
+            val prewarmStreams = listOfNotNull(
+                topVideo?.url?.let { streamUrl -> topVideo.getItag() to streamUrl },
+                topAudio?.url?.let { streamUrl -> topAudio.getItag() to streamUrl }
+            )
+            prewarmGoogleVideoUrls(info.id, prewarmStreams)
+
+            refreshVideoPayloads()
+            fun snapshot(): MediaInfoPayload = MediaInfoPayload(
+                ok = true,
+                title = info.name ?: "JET Media Stream",
+                duration = formatDuration(info.duration.toInt()),
+                thumbnail = bestThumb,
+                uploader = info.uploaderName ?: "",
+                extractor = "NewPipe Extractor",
+                streams = streamSizes.toMutableMap()
+            )
+
+            // Publish estimates immediately; the sheet can show them while exact sizes load.
+            onUpdate(snapshot())
+
+            suspend fun resolveBatch(batch: List<PendingSizeLookup>) {
+                if (batch.isEmpty()) return
+                val results = batch.map { task ->
+                    async(Dispatchers.IO) {
+                        task to fetchMissingStreamLength(mediaUrl, task.quality, task.url)
+                    }
+                }.map { it.await() }
+                results.forEach { (task, result) ->
+                    if (result.bytes > 0L) {
+                        if (task.audio) {
+                            bestAudioBytes = result.bytes
+                            streamSizes["aud-fast"] = StreamSizePayload(
+                                sizeText = formatBytes(bestAudioBytes),
+                                sizeBytes = bestAudioBytes,
+                                available = true
+                            )
+                        } else {
+                            videoEntries.firstOrNull { it.id == task.id }?.videoBytes = result.bytes
+                        }
+                    } else if (task.audio) {
+                        logSizeResult("Audio", bestAudioBytes, "estimate", result.elapsedMs)
+                    } else {
+                        val entry = videoEntries.firstOrNull { it.id == task.id } ?: return@forEach
+                        val total = entry.videoBytes + if (entry.needsAudio) bestAudioBytes else 0L
+                        logSizeResult(entry.quality, total, "estimate", result.elapsedMs)
+                    }
+                }
+                refreshVideoPayloads()
+                onUpdate(snapshot())
+            }
+
+            val priority = pending.filter { it.audio || it.id in setOf("vid-1080", "vid-720", "vid-480") }
+            val lazy = pending.filterNot { it.audio || it.id in setOf("vid-1080", "vid-720", "vid-480") }
+            resolveBatch(priority)
+            // Lower-priority formats are fetched only after the common choices are ready.
+            resolveBatch(lazy)
+            snapshot()
+        }
+
                     val bytes = (bitrateKbps * 1000L * durationSec) / 8L
                     streamSizes[id] = StreamSizePayload(sizeText = formatBytes(bytes), sizeBytes = bytes, available = true)
                 }
@@ -2054,8 +2220,9 @@ class MainActivity : AppCompatActivity() {
             val job=lifecycleScope.launch(Dispatchers.IO,start=CoroutineStart.LAZY){
                 try{
                     val info=getOrFetchStreamInfo(url)
-                    val payload=buildNewPipeMediaInfoPayload(info)
-                    callJs("onNativePrefetchedMediaInfo",JSONObject.quote(url)+","+JSONObject.quote(json.encodeToString(payload)))
+                    buildNewPipeMediaInfoPayload(info, url) { payload ->
+                        callJs("onNativePrefetchedMediaInfo",JSONObject.quote(url)+","+JSONObject.quote(json.encodeToString(payload)))
+                    }
                 }catch(_:CancellationException){
                     // Clearing/editing the URL invalidates this silent request.
                 }catch(_:Exception){
@@ -2082,8 +2249,9 @@ class MainActivity : AppCompatActivity() {
                 try {
                     // A prefetched StreamInfo is reused; concurrent requests share one extraction.
                     val info = getOrFetchStreamInfo(url)
-                    val payload=buildNewPipeMediaInfoPayload(info)
-                    callJs("onNativeMediaInfo", json.encodeToString(payload))
+                    buildNewPipeMediaInfoPayload(info, url) { payload ->
+                        callJs("onNativeMediaInfo", json.encodeToString(payload))
+                    }
                 } catch (npError: Exception) {
                     // 2. Fallback to yt-dlp for sites outside NewPipe Extractor
                     try {
