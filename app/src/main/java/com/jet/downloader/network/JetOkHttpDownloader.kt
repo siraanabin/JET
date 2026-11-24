@@ -41,7 +41,13 @@ class JetOkHttpDownloader(
      * Resolve the full stream size with the shared IPv4-preferred OkHttp client.
      * HEAD is preferred; a one-byte Range request exposes the total via Content-Range.
      */
-    fun contentLength(url: String): Long {
+    fun contentLength(url: String): Long = contentLengthWithSource(url).first
+
+    /**
+     * Resolve metadata size using the app's injected shared OkHttp client.
+     * Each lookup has a strict three-second total call timeout.
+     */
+    fun contentLengthWithSource(url: String): Pair<Long, String> {
         fun requestBuilder(): okhttp3.Request.Builder {
             val builder = okhttp3.Request.Builder()
                 .url(url)
@@ -55,28 +61,35 @@ class JetOkHttpDownloader(
             return builder
         }
 
+        var headCode = 0
         val headLength = runCatching {
-            client.newCall(requestBuilder().head().build()).execute().use { response ->
+            val call = client.newCall(requestBuilder().head().build())
+            call.timeout().timeout(3, TimeUnit.SECONDS)
+            call.execute().use { response ->
+                headCode = response.code
                 if (!response.isSuccessful) 0L
                 else (response.header("Content-Length")?.toLongOrNull()
                     ?: response.body?.contentLength() ?: 0L).takeIf { it > 0L } ?: 0L
             }
         }.getOrDefault(0L)
-        if (headLength > 0L) return headLength
+        if (headLength > 0L) return headLength to "HEAD"
 
-        return runCatching {
-            client.newCall(requestBuilder().get().header("Range", "bytes=0-0").build()).execute().use { response ->
-                val rangeLength = response.header("Content-Range")
+        // Range is deliberately limited to the explicit HEAD rejection cases.
+        if (headCode != 403 && headCode != 405) return 0L to "estimate"
+
+        val rangeLength = runCatching {
+            val call = client.newCall(
+                requestBuilder().get().header("Range", "bytes=0-0").build()
+            )
+            call.timeout().timeout(3, TimeUnit.SECONDS)
+            call.execute().use { response ->
+                response.header("Content-Range")
                     ?.substringAfterLast("/")
                     ?.toLongOrNull()
                     ?.takeIf { it > 0L } ?: 0L
-                if (rangeLength > 0L) rangeLength
-                else if (response.code == 200) {
-                    (response.header("Content-Length")?.toLongOrNull()
-                        ?: response.body?.contentLength() ?: 0L).takeIf { it > 0L } ?: 0L
-                } else 0L
             }
         }.getOrDefault(0L)
+        return if (rangeLength > 0L) rangeLength to "Range" else 0L to "estimate"
     }
 
     @Throws(IOException::class, ReCaptchaException::class)
