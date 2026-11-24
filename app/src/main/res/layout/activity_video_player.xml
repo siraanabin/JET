@@ -37,10 +37,10 @@
                         android:background="#FFD60A" />
                 </FrameLayout>
                 <TextView android:id="@+id/player_battery" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp" android:text="--%" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="medium" android:gravity="center_vertical" android:singleLine="true" android:includeFontPadding="false" />
+                    android:layout_marginStart="4dp" android:text="--%" android:textColor="#FFFFFF" android:textSize="14sp" android:fontFamily="sans-serif-medium" android:gravity="center_vertical" android:singleLine="true" android:includeFontPadding="false" />
             </LinearLayout>
             <TextView android:id="@+id/player_clock" android:layout_width="48dp" android:layout_height="wrap_content"
-                android:layout_marginStart="6dp" android:layout_marginEnd="10dp" android:gravity="center_vertical|center_horizontal" android:text="00:00" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="medium" />
+                android:layout_marginStart="6dp" android:layout_marginEnd="10dp" android:gravity="center_vertical|center_horizontal" android:text="00:00" android:textColor="#FFFFFF" android:textSize="14sp" android:fontFamily="sans-serif-medium" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/player_center_controls" android:layout_width="wrap_content"
