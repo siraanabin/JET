@@ -1468,8 +1468,8 @@
       };
       const downloadTelemetry = (item) => {
         const transferred = formatTransferred(item), speed = formatSpeed(item.speedBps), status = String(item.status || '').toLowerCase(), stage = String(item.stage || '').toUpperCase();
-        if (isPreByteDownload(item)) return { left: 'Connecting...', right: '<b>0%</b>' };
         if (status === 'paused') return { left: transferred + ' · Paused', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
+        if (isPreByteDownload(item)) return { left: 'Connecting...', right: '<b>0%</b>' };
         if (stage === 'MERGING' || status === 'merging') return { left: transferred + ' · Merging...', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
         const eta = Number.isFinite(Number(item.etaSec)) && Number(item.etaSec) >= 0 ? formatEta(item.etaSec) : '';
         return { left: transferred + (speed ? ' · ' + speed : ''), right: (eta ? eta + ' · ' : '') + '<b>' + shownDownloadPercent(item) + '%</b>' };

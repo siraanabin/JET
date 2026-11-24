@@ -2259,7 +2259,7 @@ class MainActivity : AppCompatActivity() {
                 var lastSpeedSampleBytes = 0L
                 var smoothedSpeedBps = 0.0
                 var lastTransferPercent = 0
-                fun emitTransferProgress(label: String, stage: String) {
+                fun emitTransferProgress(label: String, stage: String, percent: Int) {
                     val now = System.currentTimeMillis()
                     val downloadedBytes = videoDownloadedBytes + audioDownloadedBytes
                     val totalBytes = videoTotalBytes + audioTotalBytes
@@ -2272,20 +2272,21 @@ class MainActivity : AppCompatActivity() {
                         lastSpeedSampleAt = now
                         lastSpeedSampleBytes = downloadedBytes
                     }
-                    val percent = if (totalBytes > 0L) (downloadedBytes * 95L / totalBytes).toInt().coerceIn(1, 95) else lastTransferPercent
-                    lastTransferPercent = maxOf(lastTransferPercent, percent)
+                    lastTransferPercent = maxOf(lastTransferPercent, percent.coerceIn(1, 95))
                     val etaSeconds = if (totalBytes > downloadedBytes && smoothedSpeedBps > 0.0) ((totalBytes - downloadedBytes) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else -1L
                     callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastTransferPercent + ", " + JSONObject.quote(label) + ", " + JSONObject.quote(stage) + ", " + downloadedBytes + ", " + downloadedBytes + ", " + totalBytes + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", " + etaSeconds)
                 }
                 downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart) { bytes, total ->
                     videoDownloadedBytes = bytes
                     videoTotalBytes = total
-                    emitTransferProgress("Downloading...", "DOWNLOADING")
+                    val streamPercent = if (combined) (bytes * 47L / total.coerceAtLeast(1L)).toInt() else (bytes * 95L / total.coerceAtLeast(1L)).toInt()
+                    emitTransferProgress("Downloading...", "DOWNLOADING", streamPercent)
                 }
                 if (audio != null) downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: return null, audioPart) { bytes, total ->
                     audioDownloadedBytes = bytes
                     audioTotalBytes = total
-                    emitTransferProgress("Downloading...", "DOWNLOADING")
+                    val streamPercent = 47 + (bytes * 48L / total.coerceAtLeast(1L)).toInt()
+                    emitTransferProgress("Downloading...", "DOWNLOADING", streamPercent)
                 }
                 ensureYtDlpInitialized()
                 val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
