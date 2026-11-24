@@ -2252,8 +2252,14 @@ class MainActivity : AppCompatActivity() {
                 val outDir = getJetDownloadDir()
                 val downloadPrefs = preferencesManager.getDownloadPreferences()
                 acquireDownloadSlot(downloadPrefs.maxDownloadTasks)
+                var downloadWifiLock: WifiManager.WifiLock? = null
 
                 try {
+                    downloadWifiLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
+                        .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "JET:ActiveDownload").apply {
+                            setReferenceCounted(false)
+                            acquire()
+                        }
                     if (!downloadPrefs.allowMobileData && isMobileDataConnected()) {
                         val blocked = DownloadErrorPayload(downloadId, "Mobile data downloads are disabled in Settings")
                         callJs("onNativeDownloadError", json.encodeToString(blocked))
@@ -2407,6 +2413,7 @@ class MainActivity : AppCompatActivity() {
                     runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
                 } finally {
+                    runCatching { if (downloadWifiLock?.isHeld == true) downloadWifiLock?.release() }
                     releaseDownloadSlot()
                 }
             }
@@ -2419,18 +2426,12 @@ class MainActivity : AppCompatActivity() {
             val videoPart = File(cacheDir, "jet-" + downloadId + "-video.part")
             val audioPart = File(cacheDir, "jet-" + downloadId + "-audio.part")
             var process: Process? = null
-            var wifiLock: WifiManager.WifiLock? = null
             val downloadStartedAtMs = SystemClock.elapsedRealtime()
             var downloadDurationSec = 0.0
             val downloadRetryCount = AtomicInteger(0)
             val downloadBlockCount = AtomicInteger(0)
             val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
             try {
-                wifiLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
-                    .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "JET:MediaDownload").apply {
-                        setReferenceCounted(false)
-                        acquire()
-                    }
                 val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
                 val candidates = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
                 val selected = if (selectedItag > 0) {
@@ -2740,7 +2741,6 @@ class MainActivity : AppCompatActivity() {
                     runCatching { videoPart.delete() }
                     runCatching { audioPart.delete() }
                 }
-                runCatching { if (wifiLock?.isHeld == true) wifiLock?.release() }
             }
         }
 
