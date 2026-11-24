@@ -3087,66 +3087,128 @@ class MainActivity : AppCompatActivity() {
                             throw IllegalStateException("Unable to replace previous APK")
                         }
 
-                        val request = okhttp3.Request.Builder()
-                            .url(apkUrl)
-                            .header("User-Agent", "JET-Android-Updater")
-                            .header("Accept", "application/vnd.android.package-archive, application/octet-stream")
-                            .build()
+                        var downloadedBytes = 0L
+                        var totalBytes = 0L
+                        var retryCount = 0
+                        val buffer = ByteArray(64 * 1024)
 
-                        okHttpClient.newCall(request).execute().use { response ->
-                            if (!response.isSuccessful) {
-                                throw IllegalStateException("APK download failed (HTTP ${response.code})")
+                        while (totalBytes == 0L || downloadedBytes < totalBytes) {
+                            val requestBuilder = Request.Builder()
+                                .url(apkUrl)
+                                .header("User-Agent", "JET-Android-Updater")
+                                .header("Accept", "application/vnd.android.package-archive, application/octet-stream")
+                            if (downloadedBytes > 0L) {
+                                requestBuilder.header("Range", "bytes=$downloadedBytes-")
                             }
-                            if (response.request.url.scheme != "https") {
-                                throw IllegalStateException("APK download redirected to an insecure URL")
-                            }
-                            val body = response.body
-                                ?: throw IllegalStateException("APK download response was empty")
-                            val totalBytes = body.contentLength()
-                            var downloadedBytes = 0L
-                            val buffer = ByteArray(64 * 1024)
 
-                            body.byteStream().use { input ->
-                                FileOutputStream(apkFile).use { output ->
-                                    while (true) {
-                                        val count = input.read(buffer)
-                                        if (count == -1) break
-                                        output.write(buffer, 0, count)
-                                        downloadedBytes += count
+                            var streamInterrupted = false
+                            okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
+                                if (!response.isSuccessful) {
+                                    throw IllegalStateException("APK download failed (HTTP ${response.code})")
+                                }
+                                if (response.request.url.scheme != "https") {
+                                    throw IllegalStateException("APK download redirected to an insecure URL")
+                                }
+                                val body = response.body
+                                    ?: throw IllegalStateException("APK download response was empty")
 
-                                        val percent = if (totalBytes > 0L) {
-                                            ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(0, 99)
-                                        } else {
-                                            0
-                                        }
-                                        val progressText = if (totalBytes > 0L) {
-                                            "Downloading APK · $percent% · ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}"
-                                        } else {
-                                            "Downloading APK · ${formatBytes(downloadedBytes)}"
-                                        }
-                                        callJs(
-                                            "onNativeAppUpdateProgress",
-                                            "$percent, ${JSONObject.quote(progressText)}"
-                                        )
+                                if (response.code == 206) {
+                                    val range = Regex("^bytes (\\d+)-(\\d+)/(\\d+)$")
+                                        .matchEntire(response.header("Content-Range").orEmpty())
+                                        ?: throw IllegalStateException("APK server returned an invalid Content-Range")
+                                    val rangeStart = range.groupValues[1].toLong()
+                                    val rangeEnd = range.groupValues[2].toLong()
+                                    val rangeTotal = range.groupValues[3].toLong()
+                                    if (rangeStart != downloadedBytes || rangeEnd < rangeStart || rangeTotal <= rangeEnd) {
+                                        throw IllegalStateException("APK resume response did not match the requested byte offset")
                                     }
-                                    output.flush()
+                                    if (totalBytes > 0L && totalBytes != rangeTotal) {
+                                        throw IllegalStateException("APK size changed while resuming the download")
+                                    }
+                                    totalBytes = rangeTotal
+                                    val expectedSegmentBytes = rangeEnd - rangeStart + 1L
+                                    if (body.contentLength() > 0L && body.contentLength() != expectedSegmentBytes) {
+                                        throw IllegalStateException("APK response length did not match Content-Range")
+                                    }
+                                } else if (response.code == 200) {
+                                    // The server ignored Range: restart from byte zero instead of appending a duplicate APK.
+                                    downloadedBytes = 0L
+                                    totalBytes = body.contentLength()
+                                    if (totalBytes <= 0L) {
+                                        throw IllegalStateException("APK server did not provide a valid Content-Length")
+                                    }
+                                } else {
+                                    throw IllegalStateException("APK server returned unsupported HTTP ${response.code}")
+                                }
+
+                                if (totalBytes <= 0L) {
+                                    throw IllegalStateException("APK server did not provide a valid total size")
+                                }
+
+                                body.byteStream().use { input ->
+                                    FileOutputStream(apkFile, downloadedBytes > 0L).use { output ->
+                                        while (true) {
+                                            val count = try {
+                                                input.read(buffer)
+                                            } catch (readError: java.io.IOException) {
+                                                streamInterrupted = true
+                                                break
+                                            }
+                                            if (count == -1) break
+                                            output.write(buffer, 0, count)
+                                            downloadedBytes += count
+                                            if (downloadedBytes > totalBytes) {
+                                                throw IllegalStateException("APK download exceeded the advertised file size")
+                                            }
+
+                                            val percent = ((downloadedBytes * 100L) / totalBytes)
+                                                .toInt().coerceIn(0, 99)
+                                            val progressText =
+                                                "Downloading APK · $percent% · ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}"
+                                            callJs(
+                                                "onNativeAppUpdateProgress",
+                                                "$percent, ${JSONObject.quote(progressText)}"
+                                            )
+                                        }
+                                        output.flush()
+                                    }
                                 }
                             }
+
+                            if (downloadedBytes == totalBytes) break
+                            if (downloadedBytes > totalBytes) {
+                                throw IllegalStateException("Downloaded APK size exceeded the expected total")
+                            }
+                            if (retryCount >= 3) {
+                                val reason = if (streamInterrupted) "connection repeatedly closed" else "server ended the response early"
+                                throw IllegalStateException(
+                                    "APK download incomplete at ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}; $reason. Tap Try Again to retry."
+                                )
+                            }
+                            retryCount++
+                            val retryPercent = ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(0, 99)
+                            callJs(
+                                "onNativeAppUpdateProgress",
+                                "$retryPercent, ${JSONObject.quote("Connection interrupted · resuming download (retry $retryCount/3)…")}"
+                            )
                         }
 
-                        if (!apkFile.isFile || apkFile.length() < 1024L) {
-                            throw IllegalStateException("Downloaded APK is incomplete")
+                        if (totalBytes <= 0L || downloadedBytes != totalBytes) {
+                            throw IllegalStateException("APK download did not reach the exact expected byte count")
                         }
-                        FileInputStream(apkFile).use { input ->
-                            if (input.read() != 0x50 || input.read() != 0x4B) {
-                                throw IllegalStateException("Downloaded file is not a valid APK archive")
-                            }
+                        if (!apkFile.isFile || apkFile.length() != totalBytes) {
+                            throw IllegalStateException("Downloaded APK size verification failed")
+                        }
+                        val archiveInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                            ?: throw IllegalStateException("Downloaded file is not a valid, complete APK archive")
+                        if (archiveInfo.packageName != packageName) {
+                            throw IllegalStateException("Downloaded APK does not match this JET app variant")
                         }
                     }
 
                     callJs(
                         "onNativeAppUpdateProgress",
-                        "100, ${JSONObject.quote("Download complete · 100% · Opening installer…")}"
+                        "100, ${JSONObject.quote("APK verified · 100% · Opening installer…")}, true"
                     )
                     val apkUri = FileProvider.getUriForFile(
                         this@MainActivity,

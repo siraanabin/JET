@@ -789,7 +789,7 @@
       <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">The matching signed APK is provided through the Official Release Channel.</p>
       <div class="grid grid-cols-2 gap-2">
         <button id="app-update-later" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Later</button>
-        <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download &amp; Install</button>
+        <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download Update</button>
       </div>
     </div>
   </div>
@@ -2307,7 +2307,7 @@
           appUpdateStatus.textContent = res.releaseName || 'A new version is ready to install.';
           appUpdateStatus.classList.remove('hidden');
           appUpdateInstall.disabled = !pendingApkUpdateUrl;
-          appUpdateInstall.textContent = 'Download & Install';
+          appUpdateInstall.textContent = 'Download Update';
           appUpdateModal.classList.remove('hidden');
         } else {
           pendingApkUpdateUrl = '';
@@ -2318,7 +2318,7 @@
         }
       };
 
-      window.onNativeAppUpdateProgress = function (pct, label) {
+      window.onNativeAppUpdateProgress = function (pct, label, verifiedCompletion) {
         const sub = $('app-update-subtitle');
         const progress = $('app-update-progress');
         const progressLabel = $('app-update-progress-label');
@@ -2335,15 +2335,16 @@
           return;
         }
 
-        const safePct = Math.max(0, Math.min(100, Number(pct) || 0));
+        const verified = Number(pct) === 100 && verifiedCompletion === true;
+        const safePct = verified ? 100 : Math.max(0, Math.min(99, Number(pct) || 0));
         if (progress) progress.classList.remove('hidden');
-        if (progressLabel) progressLabel.textContent = label || 'Downloading APK…';
+        if (progressLabel) progressLabel.textContent = label || (verified ? 'APK verified' : 'Downloading APK…');
         if (progressPercent) progressPercent.textContent = safePct + '%';
         if (progressBar) progressBar.style.width = safePct + '%';
         appUpdateInstall.disabled = true;
-        appUpdateInstall.textContent = safePct >= 100 ? 'Opening installer…' : 'Downloading ' + safePct + '%';
-        appUpdateStatus.textContent = safePct >= 100
-          ? 'APK downloaded. Opening Android installer…'
+        appUpdateInstall.textContent = verified ? 'Verified · Opening installer…' : 'Downloading ' + safePct + '%';
+        appUpdateStatus.textContent = verified
+          ? 'APK byte count and archive verified. Opening Android installer…'
           : 'Downloading update…';
         appUpdateStatus.classList.remove('hidden');
       };

@@ -1,8 +1,9 @@
 {
-  "versionCode": 398,
-  "versionName": "3.9.8",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.8/JET-debug.apk",
+  "versionCode": 399,
+  "versionName": "3.9.9",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.9/JET-debug.apk",
   "changelog": [
+    "Prevented incomplete in-app APK downloads from triggering installation; added byte-verified resume and APK archive validation",
     "Widened brightness and volume gesture HUD pills so 100% displays without truncation",
     "Fixed exact video and audio stream size totals and parallelized stream downloads with monotonic progress",
     "Added bounded 5 MiB IPv4-preferred OkHttp stream downloads, 256 KiB NewPipe prebuffering, local-only FFmpeg remuxing, and integer byte-based progress",

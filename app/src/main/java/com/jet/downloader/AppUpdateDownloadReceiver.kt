@@ -23,13 +23,22 @@ class AppUpdateDownloadReceiver : BroadcastReceiver() {
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val query = DownloadManager.Query().setFilterById(completedId)
         val cursor = manager.query(query)
-        val successful = cursor.use {
-            it != null && it.moveToFirst() &&
-                it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) ==
-                DownloadManager.STATUS_SUCCESSFUL
+        val completedByteCounts = cursor.use {
+            if (it == null || !it.moveToFirst()) {
+                null
+            } else {
+                val status = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                val totalBytes = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                val downloadedBytes = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                if (status == DownloadManager.STATUS_SUCCESSFUL && totalBytes > 0L && downloadedBytes == totalBytes) {
+                    totalBytes to downloadedBytes
+                } else {
+                    null
+                }
+            }
         }
 
-        if (!successful) {
+        if (completedByteCounts == null) {
             preferences.edit().remove("download_id").apply()
             Toast.makeText(context, "JET update download failed. Please try again.", Toast.LENGTH_LONG).show()
             return
@@ -41,8 +50,16 @@ class AppUpdateDownloadReceiver : BroadcastReceiver() {
             return
         }
         val apkFile = File(downloadDirectory, "JET-update.apk")
-        if (!apkFile.isFile || apkFile.length() <= 0L) {
-            Toast.makeText(context, "Downloaded JET APK could not be found.", Toast.LENGTH_LONG).show()
+        val expectedBytes = completedByteCounts.first
+        if (!apkFile.isFile || apkFile.length() != expectedBytes) {
+            preferences.edit().remove("download_id").apply()
+            Toast.makeText(context, "Downloaded JET APK is incomplete. Please download it again.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+        if (archiveInfo == null || archiveInfo.packageName != context.packageName) {
+            preferences.edit().remove("download_id").apply()
+            Toast.makeText(context, "Downloaded JET APK is invalid or does not match this app.", Toast.LENGTH_LONG).show()
             return
         }
 
