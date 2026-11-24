@@ -1924,6 +1924,8 @@
         $('format-modal').classList.remove('hidden');
         refreshIcons();
 
+        clearTimeout(mediaInfoPrefetchTimer);
+        mediaInfoPrefetchTimer = null;
         const prefetchKey=normalizeMediaInfoUrl(cleanUrl);
         const prefetchEntry=mediaInfoPrefetchCache.get(prefetchKey);
         if(prefetchEntry&&prefetchEntry.expiresAt>Date.now()&&prefetchEntry.status==='ready'&&prefetchEntry.payload){
