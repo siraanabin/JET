@@ -2546,7 +2546,7 @@ class MainActivity : AppCompatActivity() {
                         val ytDlpAvgSpeed = String.format(Locale.US, "%.2f", ytDlpBytes / (1024.0 * 1024.0) / ytDlpTotalSec.coerceAtLeast(0.001))
                         val ytDlpDlLabel = String.format(Locale.US, "%.2f", ytDlpDownloadSec)
                         val ytDlpMuxLabel = String.format(Locale.US, "%.2f", ytDlpMuxSec)
-                        val ytDlpSummary = "engine=yt-dlp-managed fallbackReason=${fallbackReason.replace(Regex("\\s+"), "_")} conn=n/a chunk=n/a download=${ytDlpDlLabel}s avg=${ytDlpAvgSpeed} MB/s retries=${ytDlpRetryCount} blocks=${ytDlpBlockCount} merge=${ytDlpMuxLabel}s"
+                        val ytDlpSummary = "engine=yt-dlp-managed fallbackReason=${fallbackReason} conn=n/a chunk=n/a download=${ytDlpDlLabel}s avg=${ytDlpAvgSpeed} MB/s\nretries=${ytDlpRetryCount} blocks=${ytDlpBlockCount} merge=${ytDlpMuxLabel}s"
                         downloadTelemetrySummaries[downloadId] = ytDlpSummary to "yt-dlp • ${ytDlpDlLabel}s • ${ytDlpAvgSpeed} MB/s"
                         if (!isAudio && !containsVideoTrack(newFile)) {
                             newFile.delete()
@@ -2603,10 +2603,27 @@ class MainActivity : AppCompatActivity() {
             val downloadBlockCount = AtomicInteger(0)
             val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
             val connectionHistory = java.util.Collections.synchronizedList(mutableListOf(DEFAULT_MAX_CONNECTIONS))
+            fun logEngineDebugText(prefix: String, value: String) {
+                val chunkSize = 2500
+                if (value.isEmpty()) {
+                    Log.d("ENGINE_DEBUG", "$prefix=")
+                    return
+                }
+                var offset = 0
+                var part = 1
+                while (offset < value.length) {
+                    val end = (offset + chunkSize).coerceAtMost(value.length)
+                    Log.d("ENGINE_DEBUG", "$prefix part=$part text=" + value.substring(offset, end))
+                    offset = end
+                    part++
+                }
+            }
+            fun normalizeDiagnosticText(value: String): String =
+                value.replace("\r\n", "\n").replace('\r', '\n').replace("\n", " ⏎ ")
             fun fallback(reason: String): File? {
-                val safeReason = reason.replace(Regex("\\s+"), "_").take(180)
+                val safeReason = normalizeDiagnosticText(reason)
                 downloadFallbackReasons[downloadId] = safeReason
-                Log.d("ENGINE_DEBUG", "downloadId=$downloadId engine=yt-dlp fallbackReason=$safeReason")
+                logEngineDebugText("downloadId=$downloadId engine=yt-dlp fallbackReason", safeReason)
                 return null
             }
             try {
@@ -2877,55 +2894,134 @@ class MainActivity : AppCompatActivity() {
                 args += listOf("-c", "copy")
                 if (!useMkv) args += listOf("-movflags", "+faststart")
                 args += listOf("-progress", "pipe:1", "-nostats", output.absolutePath)
-                val runningProcess = ProcessBuilder(args).redirectErrorStream(true).start()
+                val nativeLibraryDir = File(applicationInfo.nativeLibraryDir)
+                val packagesDir = File(noBackupFilesDir, "youtubedl-android/packages")
+                val libraryDirs = listOf(
+                    nativeLibraryDir,
+                    File(packagesDir, "python/usr/lib"),
+                    File(packagesDir, "ffmpeg/usr/lib"),
+                    File(packagesDir, "aria2c/usr/lib")
+                )
+                val ldLibraryPath = libraryDirs.joinToString(File.pathSeparator) { it.absolutePath }
+                libraryDirs.forEach { directory ->
+                    Log.d(
+                        "ENGINE_DEBUG",
+                        "downloadId=$downloadId ffmpeg_library_directory path=${directory.absolutePath} exists=${directory.isDirectory}"
+                    )
+                }
+                val bundledSoFiles = libraryDirs
+                    .filter { it.isDirectory }
+                    .flatMap { directory ->
+                        directory.walkTopDown()
+                            .filter { it.isFile && it.name.endsWith(".so", ignoreCase = true) }
+                            .map { it.absolutePath }
+                            .toList()
+                    }
+                    .distinct()
+                    .sorted()
+                logEngineDebugText(
+                    "downloadId=$downloadId ffmpeg_bundled_so_files count=${bundledSoFiles.size}",
+                    bundledSoFiles.joinToString("\n")
+                )
+
+                val runningProcess = ProcessBuilder(args)
+                    .redirectErrorStream(false)
+                    .apply {
+                        environment()["LD_LIBRARY_PATH"] = ldLibraryPath
+                        environment()["PATH"] = System.getenv("PATH").orEmpty() +
+                            File.pathSeparator + nativeLibraryDir.absolutePath
+                    }
+                    .start()
                 process = runningProcess
                 activeNewPipeProcesses[downloadId] = runningProcess
                 val durationMicros = info.duration.coerceAtLeast(0L) * 1_000_000L
                 var outTimeMicros = 0L
                 var lastPercent = 0
                 val muxStartedAtMs = SystemClock.elapsedRealtime()
-                val combinedOutputTail = java.util.ArrayDeque<String>()
-                runningProcess.inputStream.bufferedReader().useLines { lines ->
-                    lines.forEach { line ->
-                        combinedOutputTail.addLast(line)
-                        if (combinedOutputTail.size > 20) combinedOutputTail.removeFirst()
-                        if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
-                            runningProcess.destroyForcibly()
-                            throw CancellationException("Download paused or cancelled")
-                        }
-                        if (line.startsWith("out_time_ms=")) {
-                            outTimeMicros = maxOf(outTimeMicros, line.substringAfter("=").toLongOrNull() ?: 0L)
-                        }
-                        if (line.startsWith("progress=")) {
-                            val finished = line.substringAfter("=") == "end"
-                            val timedFallback = ((SystemClock.elapsedRealtime() - muxStartedAtMs) / 1500L).toInt().coerceIn(0, 99)
-                            val pct = if (finished) 99 else if (durationMicros > 0L) {
-                                (outTimeMicros.toDouble() * 100.0 / durationMicros.toDouble()).toInt().coerceIn(0, 99)
-                            } else timedFallback
-                            lastPercent = maxOf(lastPercent, pct).coerceAtMost(99)
-                            callJs(
-                                "onNativeDownloadProgress",
-                                listOf(
-                                    JSONObject.quote(downloadId), lastPercent.toString(),
-                                    JSONObject.quote("Merging audio & video..."),
-                                    JSONObject.quote("MERGING"), totalBytes.toString(), totalBytes.toString(),
-                                    totalBytes.toString(), "0", "-1", JSONObject.quote("--"),
-                                    JSONObject.quote("--"), "true", "false"
-                                ).joinToString(", ")
-                            )
-                        }
-                    }
+                val stderrOutput = StringBuilder()
+                val streamReaders = Executors.newFixedThreadPool(2) { runnable ->
+                    Thread(runnable, "JET-FFmpeg-StreamReader").apply { isDaemon = true }
                 }
-                val exitCode = runningProcess.waitFor()
+                val stdoutFuture = streamReaders.submit(Callable {
+                    try {
+                        runningProcess.inputStream.bufferedReader().useLines { lines ->
+                            lines.forEach { line ->
+                                if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                                    runningProcess.destroyForcibly()
+                                    throw CancellationException("Download paused or cancelled")
+                                }
+                                if (line.startsWith("out_time_ms=")) {
+                                    outTimeMicros = maxOf(outTimeMicros, line.substringAfter("=").toLongOrNull() ?: 0L)
+                                }
+                                if (line.startsWith("progress=")) {
+                                    val finished = line.substringAfter("=") == "end"
+                                    val timedFallback = ((SystemClock.elapsedRealtime() - muxStartedAtMs) / 1500L).toInt().coerceIn(0, 99)
+                                    val pct = if (finished) 99 else if (durationMicros > 0L) {
+                                        (outTimeMicros.toDouble() * 100.0 / durationMicros.toDouble()).toInt().coerceIn(0, 99)
+                                    } else timedFallback
+                                    lastPercent = maxOf(lastPercent, pct).coerceAtMost(99)
+                                    callJs(
+                                        "onNativeDownloadProgress",
+                                        listOf(
+                                            JSONObject.quote(downloadId), lastPercent.toString(),
+                                            JSONObject.quote("Merging audio & video..."),
+                                            JSONObject.quote("MERGING"), totalBytes.toString(), totalBytes.toString(),
+                                            totalBytes.toString(), "0", "-1", JSONObject.quote("--"),
+                                            JSONObject.quote("--"), "true", "false"
+                                        ).joinToString(", ")
+                                    )
+                                }
+                            }
+                        }
+                    } catch (error: Throwable) {
+                        runningProcess.destroyForcibly()
+                        throw error
+                    }
+                    Unit
+                })
+                val stderrFuture = streamReaders.submit(Callable {
+                    try {
+                        runningProcess.errorStream.bufferedReader().useLines { lines ->
+                            lines.forEach { line ->
+                                stderrOutput.append(line).append('\n')
+                                logEngineDebugText("downloadId=$downloadId ffmpeg_stderr", line)
+                            }
+                        }
+                    } catch (error: Throwable) {
+                        runningProcess.destroyForcibly()
+                        throw error
+                    }
+                    Unit
+                })
+                val exitCode = try {
+                    val code = runningProcess.waitFor()
+                    var stdoutFailure: Throwable? = null
+                    var stderrFailure: Throwable? = null
+                    try {
+                        stdoutFuture.get()
+                    } catch (error: Exception) {
+                        stdoutFailure = error.cause ?: error
+                    }
+                    try {
+                        stderrFuture.get()
+                    } catch (error: Exception) {
+                        stderrFailure = error.cause ?: error
+                    }
+                    if (stdoutFailure != null) throw (stdoutFailure as? Exception ?: RuntimeException(stdoutFailure))
+                    if (stderrFailure != null) throw (stderrFailure as? Exception ?: RuntimeException(stderrFailure))
+                    code
+                } finally {
+                    streamReaders.shutdownNow()
+                }
                 customMuxSec = ((SystemClock.elapsedRealtime() - muxStartedAtMs).coerceAtLeast(0L)) / 1000.0
                 val mergeSec = customMuxSec
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode != 0) {
-                    val tail = combinedOutputTail.toList()
-                    val lastLine = tail.lastOrNull().orEmpty().take(240)
-                    Log.e("ENGINE_DEBUG", "downloadId=" + downloadId + " fallbackReason=ffmpeg_merge_failed exitCode=" + exitCode + " lastLine=" + lastLine)
-                    tail.forEach { Log.e("ENGINE_DEBUG", "downloadId=" + downloadId + " ffmpeg_output=" + it) }
-                    return fallback("ffmpeg_merge_failed_exit_" + exitCode + "_" + lastLine)
+                    val fullStderr = stderrOutput.toString()
+                    val stderrForReason = normalizeDiagnosticText(fullStderr).ifBlank { "<empty stderr>" }
+                    val fullReason = "ffmpeg_merge_failed_exit_${exitCode}: ${stderrForReason}"
+                    logEngineDebugText("downloadId=$downloadId ffmpeg_exit_failure", fullReason)
+                    return fallback(fullReason)
                 }
                 if (!output.isFile || output.length() <= 0L) {
                     Log.w("ENGINE_DEBUG", "downloadId=" + downloadId + " fallbackReason=output_file_missing")
@@ -3321,7 +3417,7 @@ class MainActivity : AppCompatActivity() {
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
             val chunkSize = Regex("""chunk=([^\s]+)""", RegexOption.IGNORE_CASE)
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
-            val fallbackReason = Regex("""fallbackReason=([^\s]+)""", RegexOption.IGNORE_CASE)
+            val fallbackReason = Regex("""fallbackReason=(.*?)(?=\\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "none"
             val retries = metricInt("""retries=([0-9]+)""", 0)
             val blocks = metricInt("""blocks=([0-9]+)""", 0)
