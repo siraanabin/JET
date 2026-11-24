@@ -13,6 +13,7 @@ import android.view.animation.OvershootInterpolator
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import android.graphics.Bitmap
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,6 +23,9 @@ import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
 import android.view.ScaleGestureDetector
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -55,7 +59,8 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var topBar: View
     private lateinit var bottomPanel: View
     private lateinit var centerControls: View
-    private lateinit var playlist: LinearLayout
+    private lateinit var playlist: RecyclerView
+    private lateinit var playlistAdapter: PlaylistAdapter
     private lateinit var playlistDrawer: LinearLayout
     private lateinit var playlistScrim: View
     private lateinit var playlistToggle: ImageButton
@@ -72,7 +77,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var bgAudioEnabled = false
     private val thumbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
-    private val thumbCache = android.util.LruCache<String, android.graphics.Bitmap>(24)
+    private val thumbCache = object : android.util.LruCache<String, Bitmap>(12 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
     private var currentPath = ""
     private var locked = false
     private var muted = false
@@ -144,6 +151,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         bottomPanel = findViewById(R.id.player_bottom_panel)
         centerControls = findViewById(R.id.player_center_controls)
         playlist = findViewById(R.id.player_playlist_list)
+        playlist.layoutManager = LinearLayoutManager(this)
+        playlistAdapter = PlaylistAdapter()
+        playlist.adapter = playlistAdapter
         playlistDrawer = findViewById(R.id.player_playlist_drawer)
         playlistScrim = findViewById(R.id.player_playlist_scrim)
         playlistToggle = findViewById(R.id.player_playlist_toggle)
@@ -179,7 +189,14 @@ class VideoPlayerActivity : AppCompatActivity() {
         if (savedBrightness >= 0) {
             window.attributes = window.attributes.apply { screenBrightness = savedBrightness / 100f }
         }
-        val exo = ExoPlayer.Builder(this).build()
+        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
+            .setEnableDecoderFallback(true)
+            .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 50_000, 1_500, 3_000)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+        val exo = ExoPlayer.Builder(this, renderersFactory).setLoadControl(loadControl).build()
         player = exo
         playerView.player = exo
         playerView.useController = false
@@ -393,10 +410,11 @@ class VideoPlayerActivity : AppCompatActivity() {
                 return true
             }
 
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
                 if (locked) showLockIndicator() else showControls(!controlsVisible)
                 return true
             }
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean = true
         })
 
         // This transparent layer sits above PlayerView but below the clickable player controls.
@@ -644,56 +662,107 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
     }
     private fun renderPlaylistFiles(files: List<File>) {
-        playlist.removeAllViews()
-        files.forEach { file ->
-            val card = LinearLayout(this).apply {
+        playlistAdapter.submitFiles(files)
+    }
+
+    private inner class PlaylistAdapter : RecyclerView.Adapter<PlaylistAdapter.Holder>() {
+        private var items: List<File> = emptyList()
+        inner class Holder(val row: LinearLayout, val image: ImageView, val duration: TextView, val title: TextView, val size: TextView) : RecyclerView.ViewHolder(row)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+            val row = LinearLayout(this@VideoPlayerActivity).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(8), dp(8), dp(8), dp(8))
-                layoutParams = LinearLayout.LayoutParams(-1, dp(82)).apply { bottomMargin = dp(8) }
+                layoutParams = RecyclerView.LayoutParams(-1, dp(82)).apply { bottomMargin = dp(8) }
                 background = GradientDrawable().apply { setColor(0xFF191E29.toInt()); cornerRadius = dp(12).toFloat(); setStroke(dp(1), 0xFF2A3140.toInt()) }
-                tag = file.absolutePath
-                setOnClickListener {
-                    currentPath = file.absolutePath; titleView.text = file.nameWithoutExtension
-                    player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
-                    player?.prepare(); player?.play(); refreshSelection(); togglePlaylistDrawer(false)
-                }
             }
-            val thumb = FrameLayout(this).apply {
+            val thumb = FrameLayout(this@VideoPlayerActivity).apply {
                 layoutParams = LinearLayout.LayoutParams(dp(112), dp(64)).apply { marginEnd = dp(10) }
                 background = GradientDrawable().apply { setColor(0xFF303746.toInt()); cornerRadius = dp(8).toFloat() }; clipToOutline = true
             }
-            val image = ImageView(this).apply { layoutParams = FrameLayout.LayoutParams(-1, -1); scaleType = ImageView.ScaleType.CENTER_CROP; tag = file.absolutePath }
-            thumb.addView(image)
-            val durationBadge = TextView(this).apply {
-                text = "--:--"; textSize = 9f; setTextColor(-1); setPadding(dp(4), dp(2), dp(4), dp(2))
+            val image = ImageView(this@VideoPlayerActivity).apply { layoutParams = FrameLayout.LayoutParams(-1, -1); scaleType = ImageView.ScaleType.CENTER_CROP }
+            val duration = TextView(this@VideoPlayerActivity).apply {
+                textSize = 9f; setTextColor(-1); setPadding(dp(4), dp(2), dp(4), dp(2))
                 background = GradientDrawable().apply { setColor(0xCC000000.toInt()); cornerRadius = dp(4).toFloat() }
                 layoutParams = FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(4), dp(4)) }
             }
-            thumb.addView(durationBadge)
-            val cached = thumbCache.get(file.absolutePath)
-            if (cached != null) image.setImageBitmap(cached)
-            thumbExecutor.execute {
-                var bitmap: android.graphics.Bitmap? = null; var duration = 0L
-                val retriever = MediaMetadataRetriever()
-                try { retriever.setDataSource(file.absolutePath); bitmap = retriever.getFrameAtTime(1_000_000L); duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L }
-                catch (_: Exception) { } finally { try { retriever.release() } catch (_: Exception) { } }
-                val label = if (duration > 0L) time(duration) else "--:--"
-                bitmap?.let { decoded -> thumbCache.put(file.absolutePath, decoded); runOnUiThread { if (!isDestroyed && image.tag == file.absolutePath) image.setImageBitmap(decoded) } }
-                runOnUiThread { if (!isDestroyed && durationBadge.parent != null) durationBadge.text = label }
-            }
-            val textColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -1, 1f) }
-            val title = TextView(this).apply { text = file.nameWithoutExtension; setTextColor(-1); textSize = 12f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
-            val size = TextView(this).apply { text = android.text.format.Formatter.formatShortFileSize(this@VideoPlayerActivity, file.length()); setTextColor(0xFF9AA4B5.toInt()); textSize = 10f }
-            textColumn.addView(title); textColumn.addView(size); card.addView(thumb); card.addView(textColumn); playlist.addView(card)
+            thumb.addView(image); thumb.addView(duration)
+            val column = LinearLayout(this@VideoPlayerActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -1, 1f) }
+            val title = TextView(this@VideoPlayerActivity).apply { setTextColor(-1); textSize = 12f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+            val size = TextView(this@VideoPlayerActivity).apply { setTextColor(0xFF9AA4B5.toInt()); textSize = 10f }
+            column.addView(title); column.addView(size); row.addView(thumb); row.addView(column)
+            return Holder(row, image, duration, title, size)
         }
-        refreshSelection()
+
+        override fun getItemCount(): Int = items.size
+        override fun onBindViewHolder(holder: Holder, position: Int) {
+            val file = items[position]
+            holder.row.tag = file.absolutePath
+            holder.image.tag = file.absolutePath
+            holder.title.text = file.nameWithoutExtension
+            holder.size.text = android.text.format.Formatter.formatShortFileSize(this@VideoPlayerActivity, file.length())
+            holder.duration.text = "--:--"
+            holder.row.background = GradientDrawable().apply {
+                setColor(if (file.absolutePath == currentPath) 0xFF202B43.toInt() else 0xFF191E29.toInt())
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), if (file.absolutePath == currentPath) 0xFF4F7CFF.toInt() else 0xFF2A3140.toInt())
+            }
+            holder.row.setOnClickListener {
+                currentPath = file.absolutePath; titleView.text = file.nameWithoutExtension
+                player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
+                player?.prepare(); player?.play(); refreshSelection(); togglePlaylistDrawer(false)
+            }
+            val cached = thumbCache.get(file.absolutePath)
+            if (cached != null) holder.image.setImageBitmap(cached) else {
+                holder.image.setImageDrawable(null)
+                thumbExecutor.execute {
+                    var bitmap: Bitmap? = null
+                    var durationMs = 0L
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(file.absolutePath)
+                        bitmap = if (Build.VERSION.SDK_INT >= 27) retriever.getScaledFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, dp(320), dp(180))
+                            else retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                    } catch (_: Exception) {
+                    } finally { runCatching { retriever.release() } }
+                    if (bitmap != null && (bitmap!!.width > dp(320) || bitmap!!.height > dp(180))) {
+                        val scaled = Bitmap.createScaledBitmap(bitmap!!, dp(320), dp(180), true)
+                        if (scaled !== bitmap) bitmap!!.recycle()
+                        bitmap = scaled
+                    }
+                    bitmap?.let { decoded ->
+                        thumbCache.put(file.absolutePath, decoded)
+                        runOnUiThread {
+                            if (!isDestroyed && holder.image.tag == file.absolutePath) holder.image.setImageBitmap(decoded)
+                        }
+                    }
+                    runOnUiThread {
+                        if (!isDestroyed && holder.row.tag == file.absolutePath) holder.duration.text = if (durationMs > 0L) time(durationMs) else "--:--"
+                    }
+                }
+            }
+        }
+
+        fun submitFiles(next: List<File>) {
+            val previous = items
+            val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = previous.size
+                override fun getNewListSize() = next.size
+                override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) = previous[oldItemPosition].absolutePath == next[newItemPosition].absolutePath
+                override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int) =
+                    previous[oldItemPosition].length() == next[newItemPosition].length() && previous[oldItemPosition].lastModified() == next[newItemPosition].lastModified()
+            })
+            items = next
+            diff.dispatchUpdatesTo(this)
+        }
     }
 
     private fun togglePlaylistDrawer(open: Boolean) {
         if (open) {
             (playlist.parent as? View)?.visibility = View.VISIBLE
             playlist.visibility = View.VISIBLE
-            if (playlist.childCount == 0) populatePlaylist(File(currentPath).parentFile)
+            if (playlistAdapter.itemCount == 0) populatePlaylist(File(currentPath).parentFile)
             playlistScrim.visibility = View.VISIBLE
             playlistDrawer.visibility = View.VISIBLE
             playlistDrawer.translationX = dp(320).toFloat()
@@ -709,11 +778,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
     }
     private fun refreshSelection() {
-        for (i in 0 until playlist.childCount) {
-            val child = playlist.getChildAt(i)
-            val selected = child.tag == currentPath
-            child.background = GradientDrawable().apply { setColor(if (selected) 0xFF202B43.toInt() else 0xFF191E29.toInt()); cornerRadius = dp(12).toFloat(); setStroke(dp(1), if (selected) 0xFF4F7CFF.toInt() else 0xFF2A3140.toInt()) }
-        }
+        if (::playlistAdapter.isInitialized) playlistAdapter.notifyDataSetChanged()
     }
     private fun backgroundAudio() {
         if (currentPath.isBlank() || !File(currentPath).isFile) return
