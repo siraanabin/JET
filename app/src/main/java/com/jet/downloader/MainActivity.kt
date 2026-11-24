@@ -1,5 +1,12 @@
 package com.jet.downloader
 
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentLinkedQueue
+import com.jet.downloader.network.MAX_RETRIES
+import com.jet.downloader.network.DISK_BUFFER_BYTES
+import com.jet.downloader.network.CHUNK_SIZE_BYTES
+import com.jet.downloader.network.DEFAULT_MAX_CONNECTIONS
+import android.net.wifi.WifiManager
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
@@ -2524,23 +2531,12 @@ class MainActivity : AppCompatActivity() {
                             { runCatching { emitTransferProgress() } }, 0L, 500L, TimeUnit.MILLISECONDS
                         )
                         runBlocking(Dispatchers.IO) {
-                            kotlinx.coroutines.coroutineScope {
-                                val videoJob = async(Dispatchers.IO) {
-                                    downloadGoogleVideoToPart(
-                                        downloadId, info.id, selected.getItag(), selectedUrl, videoPart,
-                                        videoTotalBytes, videoAccess.channel, 6, totalDownloadedBytes
-                                    )
-                                }
-                                val audioJob = if (audio != null) async(Dispatchers.IO) {
-                                    downloadGoogleVideoToPart(
-                                        downloadId, info.id, audio.getItag(),
-                                        audioUrl ?: throw IllegalStateException("Audio stream URL is missing"),
-                                        audioPart, audioTotalBytes, audioAccess!!.channel, 2, totalDownloadedBytes
-                                    )
-                                } else null
-                                videoJob.await()
-                                audioJob?.await()
-                            }
+                            downloadSharedGoogleVideoParts(
+                                downloadId, info.id, selected.getItag(), selectedUrl,
+                                videoPart, videoTotalBytes, videoAccess.channel,
+                                audio?.getItag() ?: -1, audioUrl, audioPart, audioTotalBytes,
+                                audioAccess?.channel, totalDownloadedBytes
+                            )
                         }
                         emitTransferProgress()
                     } finally {
@@ -2653,6 +2649,181 @@ class MainActivity : AppCompatActivity() {
                 runCatching { process?.destroy() }
                 runCatching { videoPart.delete() }
                 runCatching { audioPart.delete() }
+            }
+        }
+
+        private fun downloadSharedGoogleVideoParts(
+            downloadId: String, videoId: String, videoItag: Int, videoUrl: String,
+            videoFile: File, videoSize: Long, videoChannel: FileChannel,
+            audioItag: Int, audioUrl: String?, audioFile: File, audioSize: Long,
+            audioChannel: FileChannel?, downloaded: AtomicLong
+        ) {
+            data class Task(val audio: Boolean, val start: Long, val end: Long, val index: Int)
+            val queue = ConcurrentLinkedQueue<Task>()
+            val checkpoint = File(cacheDir, "jet-" + downloadId + ".chunks.ckpt")
+            val completed = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+            val checkpointLock = Any()
+            val retryCount = AtomicInteger(0)
+            val blockCount = AtomicInteger(0)
+            val activeLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
+            val consecutiveFailures = AtomicInteger(0)
+            val previous = runCatching { if (checkpoint.isFile) JSONObject(checkpoint.readText()) else null }.getOrNull()
+            val validCheckpoint = previous != null &&
+                previous.optLong("videoSize") == videoSize && previous.optLong("audioSize") == audioSize &&
+                previous.optInt("videoItag") == videoItag && previous.optInt("audioItag") == audioItag
+            if (validCheckpoint) {
+                val entries = previous!!.optJSONArray("completed")
+                if (entries != null) for (i in 0 until entries.length()) {
+                    entries.optString(i).takeIf { it.isNotBlank() }?.let { completed.add(it) }
+                }
+            } else {
+                checkpoint.delete()
+                videoFile.setLength(0L)
+                videoFile.setLength(videoSize)
+                if (audioUrl != null) {
+                    audioFile.setLength(0L)
+                    audioFile.setLength(audioSize)
+                }
+            }
+            fun saveCheckpoint() {
+                synchronized(checkpointLock) {
+                    checkpoint.writeText(JSONObject()
+                        .put("videoSize", videoSize).put("audioSize", audioSize)
+                        .put("videoItag", videoItag).put("audioItag", audioItag)
+                        .put("completed", JSONArray().apply { completed.sorted().forEach { put(it) } })
+                        .toString())
+                }
+            }
+            fun seed(isAudio: Boolean, size: Long) {
+                var start = 0L
+                var index = 0
+                while (start < size) {
+                    val end = minOf(size - 1L, start + CHUNK_SIZE_BYTES - 1L)
+                    val key = (if (isAudio) "a:" else "v:") + index
+                    if (key !in completed) queue.add(Task(isAudio, start, end, index))
+                    else downloaded.addAndGet(end - start + 1L)
+                    start = end + 1L
+                    index++
+                }
+            }
+            seed(true, audioSize)
+            seed(false, videoSize)
+            fun poll(wantAudio: Boolean): Task? {
+                for (task in queue) if (task.audio == wantAudio && queue.remove(task)) return task
+                return null
+            }
+            fun stepDown() {
+                while (true) {
+                    val old = activeLimit.get()
+                    val next = when (old) { 8 -> 6; 6 -> 4; else -> 4 }
+                    if (old == next || activeLimit.compareAndSet(old, next)) return
+                }
+            }
+            fun runTask(task: Task) {
+                val targetUrl = if (task.audio) audioUrl!! else videoUrl
+                val channel = if (task.audio) audioChannel!! else videoChannel
+                val expectedSize = if (task.audio) audioSize else videoSize
+                var offset = task.start
+                var attempts = 0
+                while (offset <= task.end) {
+                    if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                        throw CancellationException("Download paused or cancelled")
+                    }
+                    try {
+                        JetOkHttpDownloader.withRangeRequestPermit {
+                            val request = Request.Builder().url(targetUrl).get()
+                                .header("Range", "bytes=" + offset + "-" + task.end)
+                                .header("Accept-Encoding", "identity")
+                                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                                .header("Origin", "https://www.youtube.com")
+                                .header("Referer", "https://www.youtube.com/")
+                                .build()
+                            okHttpClient.newCall(request).execute().use { response ->
+                                if (response.code == 403 || response.code == 429) {
+                                    blockCount.incrementAndGet()
+                                    stepDown()
+                                    throw IOException("HTTP " + response.code + " throttled media request")
+                                }
+                                if (response.code != 206) throw IOException("Range unsupported: HTTP " + response.code)
+                                val range = Regex("^bytes (\\d+)-(\\d+)/(\\d+)$")
+                                    .matchEntire(response.header("Content-Range").orEmpty())
+                                    ?: throw IOException("Invalid Content-Range")
+                                val first = range.groupValues[1].toLong()
+                                val last = range.groupValues[2].toLong()
+                                val total = range.groupValues[3].toLong()
+                                if (first != offset || last < first || last > task.end || total != expectedSize) {
+                                    throw IOException("Unexpected media byte range")
+                                }
+                                val input = response.body?.byteStream() ?: throw IOException("Empty range body")
+                                input.use {
+                                    val buffer = ByteArray(DISK_BUFFER_BYTES)
+                                    var position = offset
+                                    while (true) {
+                                        if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                                            throw CancellationException("Download paused or cancelled")
+                                        }
+                                        val count = it.read(buffer)
+                                        if (count < 0) break
+                                        if (count == 0) continue
+                                        val bytes = ByteBuffer.wrap(buffer, 0, count)
+                                        while (bytes.hasRemaining()) {
+                                            val written = channel.write(bytes, position)
+                                            if (written <= 0) throw IOException("FileChannel positional write stalled")
+                                            position += written.toLong()
+                                            downloaded.addAndGet(written.toLong())
+                                        }
+                                        offset = position
+                                    }
+                                    if (position != last + 1L) throw IOException("Range response ended early")
+                                }
+                            }
+                        }
+                        consecutiveFailures.set(0)
+                    } catch (error: IOException) {
+                        retryCount.incrementAndGet()
+                        attempts++
+                        if (consecutiveFailures.incrementAndGet() >= 2) stepDown()
+                        if (attempts >= MAX_RETRIES) throw error
+                        Thread.sleep(when (attempts) { 1 -> 1000L; 2 -> 2000L; else -> 4000L })
+                    }
+                }
+                completed.add((if (task.audio) "a:" else "v:") + task.index)
+                saveCheckpoint()
+            }
+            val executor = Executors.newFixedThreadPool(DEFAULT_MAX_CONNECTIONS)
+            try {
+                val futures = (0 until DEFAULT_MAX_CONNECTIONS).map { worker ->
+                    executor.submit(Callable {
+                        while (worker < activeLimit.get()) {
+                            if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                                throw CancellationException("Download paused or cancelled")
+                            }
+                            val preferAudio = worker < 2 && audioUrl != null
+                            val task = poll(preferAudio) ?: poll(!preferAudio) ?: break
+                            runTask(task)
+                        }
+                    })
+                }
+                futures.forEach { future ->
+                    try { future.get() } catch (error: ExecutionException) {
+                        futures.forEach { it.cancel(true) }
+                        throw (error.cause ?: error)
+                    }
+                }
+                executor.shutdown()
+                check(executor.awaitTermination(30L, TimeUnit.SECONDS)) { "Shared media workers did not terminate" }
+                videoChannel.force(false)
+                audioChannel?.force(false)
+                val videoChunks = (videoSize + CHUNK_SIZE_BYTES - 1L) / CHUNK_SIZE_BYTES
+                val audioChunks = if (audioUrl != null) (audioSize + CHUNK_SIZE_BYTES - 1L) / CHUNK_SIZE_BYTES else 0L
+                check(completed.size.toLong() == videoChunks + audioChunks) { "Not all media chunks were checkpointed" }
+                checkpoint.delete()
+                Log.d("DL_DEBUG", "shared queue complete conn=" + activeLimit.get() +
+                    " chunk=" + (CHUNK_SIZE_BYTES / (1024 * 1024)) + "MB retries=" + retryCount.get() +
+                    " blocks=" + blockCount.get())
+            } finally {
+                executor.shutdownNow()
+                runCatching { executor.awaitTermination(5L, TimeUnit.SECONDS) }
             }
         }
 
