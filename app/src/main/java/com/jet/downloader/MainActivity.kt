@@ -2604,7 +2604,7 @@ class MainActivity : AppCompatActivity() {
             val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
             val connectionHistory = java.util.Collections.synchronizedList(mutableListOf(DEFAULT_MAX_CONNECTIONS))
             fun logEngineDebugText(prefix: String, value: String) {
-                val chunkSize = 2500
+                val chunkSize = 900
                 if (value.isEmpty()) {
                     Log.d("ENGINE_DEBUG", "$prefix=")
                     return
