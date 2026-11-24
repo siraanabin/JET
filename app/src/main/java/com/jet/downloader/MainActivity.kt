@@ -2457,7 +2457,7 @@ class MainActivity : AppCompatActivity() {
                     var lastTickTimeMs = SystemClock.elapsedRealtime()
                     var lastDataTimeMs = lastTickTimeMs
                     var smoothedSpeed = 0.0
-                    var lastTransferPercent = 1
+                    var lastTransferPercent = 0
 
                     fun emitTransferProgress() {
                         synchronized(progressLock) {
@@ -2494,7 +2494,7 @@ class MainActivity : AppCompatActivity() {
                                 etaSeconds < 60L -> etaSeconds.toString() + "s"
                                 else -> (etaSeconds / 60L).toString() + "m " + (etaSeconds % 60L).toString() + "s"
                             }
-                            val rawPercent = ((currentBytes * 95L) / totalBytes).toInt().coerceIn(1, 95)
+                            val rawPercent = (currentBytes.toDouble() / totalBytes.toDouble() * 100.0).toInt().coerceIn(0, 100)
                             lastTransferPercent = maxOf(lastTransferPercent, rawPercent)
                             val args = listOf(
                                 JSONObject.quote(downloadId), lastTransferPercent.toString(),
@@ -2510,7 +2510,7 @@ class MainActivity : AppCompatActivity() {
                     callJs(
                         "onNativeDownloadProgress",
                         listOf(
-                            JSONObject.quote(downloadId), "1", JSONObject.quote("Downloading..."),
+                            JSONObject.quote(downloadId), "0", JSONObject.quote("Downloading..."),
                             JSONObject.quote("DOWNLOADING"), "0", "0", totalBytes.toString(),
                             "0", "-1", JSONObject.quote("0.0 KB/s"), JSONObject.quote("--"),
                             "true", "false"
@@ -2563,13 +2563,23 @@ class MainActivity : AppCompatActivity() {
                     "Combined downloaded bytes do not match the exact stream total"
                 }
 
+                callJs(
+                    "onNativeDownloadProgress",
+                    listOf(
+                        JSONObject.quote(downloadId), "100", JSONObject.quote("Downloading..."),
+                        JSONObject.quote("DOWNLOADING"), totalBytes.toString(), totalBytes.toString(),
+                        totalBytes.toString(), "0", "0", JSONObject.quote("0.0 KB/s"),
+                        JSONObject.quote("0s"), "true", "false"
+                    ).joinToString(", ")
+                )
+
                 ensureYtDlpInitialized()
                 val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                 check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
                 callJs(
                     "onNativeDownloadProgress",
                     listOf(
-                        JSONObject.quote(downloadId), "96", JSONObject.quote("Remuxing..."),
+                        JSONObject.quote(downloadId), "0", JSONObject.quote("Merging audio & video..."),
                         JSONObject.quote("MERGING"), totalBytes.toString(), totalBytes.toString(),
                         totalBytes.toString(), "0", "-1", JSONObject.quote("--"),
                         JSONObject.quote("--"), "true", "false"
@@ -2584,7 +2594,8 @@ class MainActivity : AppCompatActivity() {
                 activeNewPipeProcesses[downloadId] = runningProcess
                 val durationMicros = info.duration.coerceAtLeast(0L) * 1_000_000L
                 var outTimeMicros = 0L
-                var lastPercent = 96
+                var lastPercent = 0
+                val muxStartedAtMs = SystemClock.elapsedRealtime()
                 runningProcess.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
                         if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
@@ -2596,15 +2607,16 @@ class MainActivity : AppCompatActivity() {
                         }
                         if (line.startsWith("progress=")) {
                             val finished = line.substringAfter("=") == "end"
+                            val timedFallback = ((SystemClock.elapsedRealtime() - muxStartedAtMs) / 1500L).toInt().coerceIn(0, 99)
                             val pct = if (finished) 99 else if (durationMicros > 0L) {
-                                (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99)
-                            } else 96
+                                (outTimeMicros.toDouble() * 100.0 / durationMicros.toDouble()).toInt().coerceIn(0, 99)
+                            } else timedFallback
                             lastPercent = maxOf(lastPercent, pct).coerceAtMost(99)
                             callJs(
                                 "onNativeDownloadProgress",
                                 listOf(
                                     JSONObject.quote(downloadId), lastPercent.toString(),
-                                    JSONObject.quote(if (finished) "Finalizing..." else "Remuxing..."),
+                                    JSONObject.quote("Merging audio & video..."),
                                     JSONObject.quote("MERGING"), totalBytes.toString(), totalBytes.toString(),
                                     totalBytes.toString(), "0", "-1", JSONObject.quote("--"),
                                     JSONObject.quote("--"), "true", "false"
