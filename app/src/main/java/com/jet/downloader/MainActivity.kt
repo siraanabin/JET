@@ -411,6 +411,7 @@ class MainActivity : AppCompatActivity() {
     private val exactStreamSizeCache = ConcurrentHashMap<String, Long>()
     private val verifiedNewPipeSourceSizes = ConcurrentHashMap<String, Long>()
     private val downloadTelemetrySummaries = ConcurrentHashMap<String, Pair<String, String>>()
+    private val downloadStartedAtMs = ConcurrentHashMap<String, Long>()
 
     private fun normalizeMediaInfoUrl(rawUrl:String):String {
         return try {
@@ -2247,6 +2248,7 @@ class MainActivity : AppCompatActivity() {
             realDownloadSpecs[downloadId] = RealDownloadSpec(
                 downloadId, url, title, isAudio, audioBitrate, audioExt, maxHeight, selectedItag, includeSubtitles, thumbnailUrl, selectedResolution
             )
+            downloadStartedAtMs[downloadId] = System.currentTimeMillis()
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)
             requestNotificationPermissionForDownload()
@@ -3055,10 +3057,21 @@ class MainActivity : AppCompatActivity() {
             pausedDownloads.remove(downloadId)
             runCatching { DownloadNotificationService.completed(this@MainActivity, downloadId, file.nameWithoutExtension, sizeStr, thumbnailUrl) }
             val completedPayloadJson = JSONObject(json.encodeToString(payload))
-            downloadTelemetrySummaries.remove(downloadId)?.let { telemetry ->
-                completedPayloadJson.put("telemetrySummary", telemetry.first)
-                completedPayloadJson.put("telemetryDisplay", telemetry.second)
+            val telemetry = downloadTelemetrySummaries.remove(downloadId) ?: run {
+                val elapsedMs = (System.currentTimeMillis() -
+                    (downloadStartedAtMs[downloadId] ?: System.currentTimeMillis())).coerceAtLeast(1L)
+                val elapsedSec = elapsedMs / 1000.0
+                val downloadedMb = displaySizeBytes / (1024.0 * 1024.0)
+                val averageMbps = downloadedMb / elapsedSec
+                val secondsLabel = String.format(Locale.US, "%.1f", elapsedSec)
+                val speedLabel = String.format(Locale.US, "%.1f", averageMbps)
+                val summary = "engine=yt-dlp-managed bytes=${displaySizeBytes} download=${secondsLabel}s avg=${speedLabel} MB/s"
+                Log.d("DL_DEBUG", summary)
+                summary to "yt-dlp • ${secondsLabel}s • ${speedLabel} MB/s"
             }
+            downloadStartedAtMs.remove(downloadId)
+            completedPayloadJson.put("telemetrySummary", telemetry.first)
+            completedPayloadJson.put("telemetryDisplay", telemetry.second)
             callJs("onNativeDownloadComplete", completedPayloadJson.toString())
             pushScannedLibraryToWeb()
         }
