@@ -1439,13 +1439,42 @@
         const key=normalizeMediaInfoUrl(rawUrl),entry=mediaInfoPrefetchCache.get(key);
         if(entry&&entry.status==='inFlight')mediaInfoPrefetchCache.delete(key);
       };
-      const clampDownloadPercent = (percent) =>
-        Math.min(100, Math.max(0, Math.floor(Number(percent) || 0)));
-      const isPreByteDownload = (item) =>
-        ['PREPARING', 'CONNECTING'].includes(String(item.stage || '').toUpperCase()) && Number(item.bytesRead) <= 0;
+      const clampDownloadPercent = (percent) => Math.min(100, Math.max(0, Math.floor(Number(percent) || 0));
+      const isPreByteDownload = (item) => ['PREPARING', 'CONNECTING'].includes(String(item.stage || '').toUpperCase()) && Number(item.bytesRead) <= 0;
       const shownDownloadPercent = (item) => isPreByteDownload(item) ? 0 : clampDownloadPercent(item.progress);
       const downloadBarWidth = (item) => isPreByteDownload(item) ? 8 : shownDownloadPercent(item);
-      window.onNativeDownloadProgress = function (id, progress, speedLabel, stage, bytesRead) {
+      const formatBytes = (bytes) => {
+        const value = Math.max(0, Number(bytes) || 0), units = ['B', 'KB', 'MB', 'GB'];
+        let amount = value, unit = 0; while (amount >= 1024 && unit < units.length - 1) { amount /= 1024; unit++; }
+        return amount.toFixed(1) + ' ' + units[unit];
+      };
+      const formatTransferred = (item) => {
+        const downloaded = Math.max(0, Number(item.downloadedBytes ?? item.bytesRead) || 0), total = Math.max(0, Number(item.totalBytes) || 0);
+        if (total <= 0) return formatBytes(downloaded);
+        const unit = total >= 1024 ** 3 ? 1024 ** 3 : total >= 1024 ** 2 ? 1024 ** 2 : total >= 1024 ? 1024 : 1;
+        const suffix = unit === 1024 ** 3 ? 'GB' : unit === 1024 ** 2 ? 'MB' : unit === 1024 ? 'KB' : 'B';
+        return (downloaded / unit).toFixed(1) + ' / ' + (total / unit).toFixed(1) + ' ' + suffix;
+      };
+      const formatSpeed = (bytesPerSec) => {
+        const value = Math.max(0, Number(bytesPerSec) || 0); if (!value) return '';
+        const unit = value >= 1024 ** 2 ? 1024 ** 2 : value >= 1024 ? 1024 : 1;
+        return (value / unit).toFixed(1) + ' ' + (unit === 1024 ** 2 ? 'MB/s' : unit === 1024 ? 'KB/s' : 'B/s');
+      };
+      const formatEta = (seconds) => {
+        const value = Math.max(0, Math.floor(Number(seconds) || 0));
+        if (value < 60) return value + 's left';
+        if (value < 3600) return Math.floor(value / 60) + 'm ' + String(value % 60).padStart(2, '0') + 's left';
+        return Math.floor(value / 3600) + 'h ' + String(Math.floor((value % 3600) / 60)).padStart(2, '0') + 'm left';
+      };
+      const downloadTelemetry = (item) => {
+        const transferred = formatTransferred(item), speed = formatSpeed(item.speedBps), status = String(item.status || '').toLowerCase(), stage = String(item.stage || '').toUpperCase();
+        if (isPreByteDownload(item)) return { left: 'Connecting...', right: '<b>0%</b>' };
+        if (status === 'paused') return { left: transferred + ' · Paused', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
+        if (stage === 'MERGING' || status === 'merging') return { left: transferred + ' · Merging...', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
+        const eta = Number.isFinite(Number(item.etaSec)) && Number(item.etaSec) >= 0 ? formatEta(item.etaSec) : '';
+        return { left: transferred + (speed ? ' · ' + speed : ''), right: (eta ? eta + ' · ' : '') + '<b>' + shownDownloadPercent(item) + '%</b>' };
+      };
+      window.onNativeDownloadProgress = function (id, progress, speedLabel, stage, bytesRead, downloadedBytes, totalBytes, speedBps, etaSec) {
         const item = state.activeDownloads.find((d) => d.id === id);
         if (!item) return;
         const normalizedStage = String(stage || '').toUpperCase();
@@ -1453,6 +1482,18 @@
           ? normalizedStage
           : (Number(progress) > 0 ? 'DOWNLOADING' : 'PREPARING');
         item.bytesRead = Math.max(0, Number(bytesRead) || 0);
+        item.downloadedBytes = Math.max(0, Number(downloadedBytes ?? bytesRead) || 0);
+        item.totalBytes = Math.max(0, Number(totalBytes) || 0);
+        const now = Date.now(), previousBytes = Number(item._speedSampleBytes ?? item.downloadedBytes) || 0, previousAt = Number(item._speedSampleAt ?? now) || now;
+        const elapsedMs = Math.max(1, now - previousAt), deltaBytes = Math.max(0, item.downloadedBytes - previousBytes);
+        if (deltaBytes > 0) {
+          const instant = deltaBytes * 1000 / elapsedMs, alpha = 1 - Math.exp(-elapsedMs / 1800);
+          item._smoothedSpeedBps = item._smoothedSpeedBps > 0 ? item._smoothedSpeedBps + alpha * (instant - item._smoothedSpeedBps) : instant;
+          item._speedSampleBytes = item.downloadedBytes; item._speedSampleAt = now;
+        }
+        item.speedBps = Math.max(0, Number(speedBps) || item._smoothedSpeedBps || 0);
+        item.etaSec = Number.isFinite(Number(etaSec)) && Number(etaSec) >= 0 ? Number(etaSec) :
+          (item.totalBytes > item.downloadedBytes && item.speedBps > 0 ? (item.totalBytes - item.downloadedBytes) / item.speedBps : -1);
         const realPercent = clampDownloadPercent(progress);
         if (item.bytesRead > 0 && (item.stage === 'PREPARING' || item.stage === 'CONNECTING')) item.stage = 'DOWNLOADING';
         if (isPreByteDownload(item)) {
@@ -1880,9 +1921,9 @@
               <div class="w-full h-2 rounded-full bg-app-elevated overflow-hidden">
                 <div class="h-full rounded-full ${isPreByteDownload(item) ? 'jet-download-prebyte-shimmer' : 'bg-app-primary transition-all duration-300'}" style="width:${downloadBarWidth(item)}%"></div>
               </div>
-              <div class="flex justify-between text-[11px] font-semibold tabular-nums">
-                <span class="text-app-primary truncate">${item.status === 'preparing' ? (item.speed || 'Preparing / extracting streams…') : item.speed}</span>
-                <span class="text-app-secondary shrink-0">${shownDownloadPercent(item)}%</span>
+              <div class="flex items-center justify-between gap-2 text-[10px] leading-4 font-semibold tabular-nums min-w-0 whitespace-nowrap">
+                <span class="text-app-primary min-w-0 flex-1 truncate">${downloadTelemetry(item).left}</span>
+                <span class="text-app-secondary shrink-0 text-right">${downloadTelemetry(item).right}</span>
               </div>
             </div>
           `).join('');
