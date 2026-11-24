@@ -2599,6 +2599,7 @@ class MainActivity : AppCompatActivity() {
                                 totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
                             }
                         } else {
+                            checkpointFile.delete()
                             videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId, totalDownloadedBytes)
                             audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId, totalDownloadedBytes) else 0L
                             totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
@@ -2894,6 +2895,8 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                         consecutiveFailures.set(0)
+                    } catch (error: RangeUnsupportedException) {
+                        throw error
                     } catch (error: IOException) {
                         retryCount.incrementAndGet()
                         attempts++
