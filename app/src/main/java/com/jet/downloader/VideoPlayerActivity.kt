@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.os.*
+import android.util.Size
 import android.provider.MediaStore
 import android.graphics.drawable.GradientDrawable
 import android.view.*
@@ -16,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.graphics.Bitmap
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.content.ContextCompat
@@ -76,7 +78,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var pendingSeekPosition = 0L
     private var player: ExoPlayer? = null
     private var bgAudioEnabled = false
-    private val thumbExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val thumbDispatcher = Dispatchers.IO.limitedParallelism(4)
     private val thumbCache = object : android.util.LruCache<String, Bitmap>(12 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
@@ -176,7 +178,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             finish(); return
         }
         currentPath = path
-        titleView.text = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension }
+        updatePlayerTitle(intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension })
         playerPrefs = PlayerPrefsManager(this)
         volumePercent = playerPrefs.savedVolumePercent
         val savedResizeModes = intArrayOf(
@@ -697,7 +699,9 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private inner class PlaylistAdapter : RecyclerView.Adapter<PlaylistAdapter.Holder>() {
         private var items: List<File> = emptyList()
-        inner class Holder(val row: LinearLayout, val image: ImageView, val duration: TextView, val title: TextView, val size: TextView) : RecyclerView.ViewHolder(row)
+        inner class Holder(val row: LinearLayout, val image: ImageView, val duration: TextView, val title: TextView, val size: TextView) : RecyclerView.ViewHolder(row) {
+            var thumbnailJob: Job? = null
+        }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
             val row = LinearLayout(this@VideoPlayerActivity).apply {
@@ -738,41 +742,58 @@ class VideoPlayerActivity : AppCompatActivity() {
                 setStroke(dp(1), if (file.absolutePath == currentPath) 0xFF4F7CFF.toInt() else 0xFF2A3140.toInt())
             }
             holder.row.setOnClickListener {
-                currentPath = file.absolutePath; titleView.text = file.nameWithoutExtension
+                currentPath = file.absolutePath; updatePlayerTitle(file.nameWithoutExtension)
                 player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
                 player?.prepare(); player?.play(); refreshSelection(); togglePlaylistDrawer(false)
             }
             val cached = thumbCache.get(file.absolutePath)
             if (cached != null) holder.image.setImageBitmap(cached) else {
                 holder.image.setImageDrawable(null)
-                if (thumbLoading.add(file.absolutePath)) thumbExecutor.execute {
+                if (thumbLoading.add(file.absolutePath)) holder.thumbnailJob = lifecycleScope.launch(thumbDispatcher) {
                     var bitmap: Bitmap? = null
                     var durationMs = 0L
-                    val retriever = MediaMetadataRetriever()
                     try {
-                        retriever.setDataSource(file.absolutePath)
-                        bitmap = if (Build.VERSION.SDK_INT >= 27) retriever.getScaledFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, dp(320), dp(180))
-                            else retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                        durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                    } catch (_: Exception) {
-                    } finally { runCatching { retriever.release() } }
-                    if (bitmap != null && (bitmap!!.width > dp(320) || bitmap!!.height > dp(180))) {
-                        val scaled = Bitmap.createScaledBitmap(bitmap!!, dp(320), dp(180), true)
-                        if (scaled !== bitmap) bitmap!!.recycle()
-                        bitmap = scaled
-                    }
-                    bitmap?.let { decoded ->
-                        thumbCache.put(file.absolutePath, decoded)
-                        runOnUiThread {
-                            if (!isDestroyed && holder.image.tag == file.absolutePath) holder.image.setImageBitmap(decoded)
+                        // Use the system thumbnail pipeline first, then fall back to retriever decoding.
+                        bitmap = loadSystemThumbnail(file)
+                        val retriever = MediaMetadataRetriever()
+                        try {
+                            retriever.setDataSource(file.absolutePath)
+                            if (bitmap == null) {
+                                bitmap = if (Build.VERSION.SDK_INT >= 27) retriever.getScaledFrameAtTime(
+                                    1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, dp(320), dp(180)
+                                ) else retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                            }
+                            durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                        } catch (_: Exception) {
+                        } finally { runCatching { retriever.release() } }
+                        if (bitmap != null && (bitmap!!.width > dp(320) || bitmap!!.height > dp(180))) {
+                            val scaled = Bitmap.createScaledBitmap(bitmap!!, dp(320), dp(180), true)
+                            if (scaled !== bitmap) bitmap!!.recycle()
+                            bitmap = scaled
                         }
+                        bitmap?.let { decoded ->
+                            thumbCache.put(file.absolutePath, decoded)
+                            withContext(Dispatchers.Main) {
+                                if (!isDestroyed && holder.image.tag == file.absolutePath) holder.image.setImageBitmap(decoded)
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            if (!isDestroyed && holder.row.tag == file.absolutePath) holder.duration.text = if (durationMs > 0L) time(durationMs) else "--:--"
+                        }
+                    } finally {
+                        thumbLoading.remove(file.absolutePath)
                     }
-                    runOnUiThread {
-                        if (!isDestroyed && holder.row.tag == file.absolutePath) holder.duration.text = if (durationMs > 0L) time(durationMs) else "--:--"
-                    }
-                    thumbLoading.remove(file.absolutePath)
                 }
             }
+        }
+
+        override fun onViewRecycled(holder: Holder) {
+            holder.thumbnailJob?.cancel()
+            (holder.row.tag as? String)?.let { thumbLoading.remove(it) }
+            holder.thumbnailJob = null
+            holder.image.tag = null
+            holder.row.tag = null
+            super.onViewRecycled(holder)
         }
 
         fun submitFiles(next: List<File>) {
@@ -787,6 +808,39 @@ class VideoPlayerActivity : AppCompatActivity() {
             items = next
             diff.dispatchUpdatesTo(this)
         }
+    }
+
+    private fun loadSystemThumbnail(file: File): Bitmap? {
+        return try {
+            val projection = arrayOf(MediaStore.Video.Media._ID)
+            val selection = MediaStore.Video.Media.DATA + " = ?"
+            contentResolver.query(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                arrayOf(file.absolutePath),
+                null
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return null
+                val id = cursor.getLong(0)
+                val contentUri = android.content.ContentUris.withAppendedId(
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentResolver.loadThumbnail(contentUri, Size(dp(320), dp(180)), null)
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Video.Thumbnails.getThumbnail(
+                        contentResolver, id, MediaStore.Video.Thumbnails.MINI_KIND, null
+                    )
+                }
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun updatePlayerTitle(value: String) {
+        titleView.text = value
+        titleView.isSelected = true
     }
 
     private fun togglePlaylistDrawer(open: Boolean) {
@@ -825,27 +879,39 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun enterPip() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val params = PictureInPictureParams.Builder()
-                .setAspectRatio(android.util.Rational(16, 9))
+                .setAspectRatio(android.util.Rational(16, 9).let { ratio ->
+                    val clamped = ratio.toFloat().coerceIn(0.42f, 2.39f)
+                    android.util.Rational((clamped * 1000).roundToInt(), 1000)
+                })
                 .build()
-            enterPictureInPictureMode(params)
+            runCatching { enterPictureInPictureMode(params) }
+                .onFailure { android.util.Log.w("JET-PiP", "Unable to enter picture-in-picture mode", it) }
         }
     }
-    override fun onUserLeaveHint() { super.onUserLeaveHint(); if (Build.VERSION.SDK_INT >= 26) enterPip() }
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !isFinishing && !isDestroyed) {
+            runCatching { enterPip() }.onFailure { android.util.Log.w("JET-PiP", "PiP lifecycle request failed", it) }
+        }
+    }
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: android.content.res.Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        if (isInPictureInPictureMode) {
-            handler.removeCallbacks(hideControls)
-            controls.visibility = View.GONE
-            findViewById<Button>(R.id.player_unlock).visibility = View.GONE
-        } else if (!locked) {
-            showControls(true)
-        } else {
-            controls.visibility = View.GONE
-            findViewById<Button>(R.id.player_unlock).visibility = View.VISIBLE
-        }
+        runCatching {
+            val unlockView = findViewById<View>(R.id.player_unlock)
+            if (isInPictureInPictureMode) {
+                handler.removeCallbacks(hideControls)
+                controls.visibility = View.GONE
+                unlockView?.visibility = View.GONE
+            } else if (!locked) {
+                showControls(true)
+            } else {
+                controls.visibility = View.GONE
+                unlockView?.visibility = View.VISIBLE
+            }
+        }.onFailure { android.util.Log.w("JET-PiP", "PiP UI transition failed", it) }
     }
 
     override fun onPause() {
@@ -878,7 +944,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
-        thumbExecutor.shutdownNow()
+        thumbLoading.clear()
         try { unregisterReceiver(battery) } catch (_: Exception) {}
         if (::playerView.isInitialized) playerView.player = null
         player?.release()

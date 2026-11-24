@@ -1,8 +1,12 @@
 {
-  "versionCode": 384,
-  "versionName": "3.8.4",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.4/JET-debug.apk",
+  "versionCode": 385,
+  "versionName": "3.8.5",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.5/JET-debug.apk",
   "changelog": [
+    "Fixed PiP UI cast crash and improved player title marquee and progress styling",
+    "Persisted Library snapshots and deferred scans for instant tab display",
+    "Added intro-gated auto-open for successfully prefetched copied media URLs",
+    "Accelerated playlist thumbnails with system APIs and bounded parallel decoding",
     "Improved video library header spacing and player controls",
     "Fixed music seeking and smooth playback progress updates",
     "Prevented clipboard auto-paste from opening download dialogs",
