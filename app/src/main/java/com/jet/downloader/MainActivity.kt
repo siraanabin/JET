@@ -13,6 +13,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.ColorDrawable
+import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -164,6 +165,16 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             runCatching { musicController?.pause(); musicController?.clearMediaItems() }
             if (::webView.isInitialized) callJs("onNativeVideoPlaybackStarted", "")
+        }
+    }
+    private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    private var lastMusicVolumeIndex = 0
+    private var musicVolumeReceiverRegistered = false
+    private val musicVolumeReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val stream = intent?.getIntExtra(AudioManager.EXTRA_VOLUME_STREAM_TYPE, AudioManager.STREAM_MUSIC)
+                ?: AudioManager.STREAM_MUSIC
+            if (stream == AudioManager.STREAM_MUSIC) syncMusicVolumeToWeb()
         }
     }
     private var musicControllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
@@ -532,6 +543,7 @@ class MainActivity : AppCompatActivity() {
                 dispatchClipboardUrlToWebView()
                 pushScannedLibraryToWeb()
                 syncNetworkStateToJs()
+                syncMusicVolumeToWeb()
             }
 
             override fun onReceivedError(
@@ -592,11 +604,42 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (::networkMonitor.isInitialized) networkMonitor.start()
+        if (!musicVolumeReceiverRegistered) {
+            ContextCompat.registerReceiver(
+                this, musicVolumeReceiver,
+                android.content.IntentFilter(AudioManager.VOLUME_CHANGED_ACTION),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            musicVolumeReceiverRegistered = true
+        }
+        syncMusicVolumeToWeb()
     }
 
     override fun onStop() {
         if (::networkMonitor.isInitialized) networkMonitor.stop()
+        if (musicVolumeReceiverRegistered) {
+            runCatching { unregisterReceiver(musicVolumeReceiver) }
+            musicVolumeReceiverRegistered = false
+        }
         super.onStop()
+    }
+
+    private fun currentMusicVolumePercent(): Int {
+        val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).coerceIn(0, maximum)
+        if (current > 0) lastMusicVolumeIndex = current
+        return (current * 100f / maximum).toInt().coerceIn(0, 100)
+    }
+
+    private fun lastMusicVolumePercent(): Int {
+        val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val previous = lastMusicVolumeIndex.coerceIn(0, maximum)
+        return (previous * 100f / maximum).toInt().coerceIn(0, 100)
+    }
+
+    private fun syncMusicVolumeToWeb() {
+        if (!::webView.isInitialized) return
+        callJs("onNativeMusicVolumeChanged", currentMusicVolumePercent().toString() + ", " + lastMusicVolumePercent().toString())
     }
 
     private fun connectMusicController() {
@@ -673,7 +716,7 @@ class MainActivity : AppCompatActivity() {
     private var requestedMusicArtworkPath = ""
     private fun pushMusicStateToWeb() {
         val c=musicController?:return;val item=c.currentMediaItem;val meta=item?.mediaMetadata
-        val state=JSONObject().apply{put("isPlaying",c.isPlaying);put("title",meta?.title?.toString().orEmpty());put("subtitle",meta?.artist?.toString().orEmpty());put("filePath",item?.mediaId.orEmpty());put("source",musicSourceLabel);put("currentIndex",c.currentMediaItemIndex.coerceAtLeast(0));put("shuffleEnabled",c.shuffleModeEnabled);put("repeatMode",when(c.repeatMode){Player.REPEAT_MODE_ONE->"one";Player.REPEAT_MODE_ALL->"all";else->"off"});put("volume",c.volume.toDouble());put("durationMs",c.duration.coerceAtLeast(0L));put("positionMs",c.currentPosition.coerceAtLeast(0L));put("playbackState",c.playbackState)}
+        val state=JSONObject().apply{put("isPlaying",c.isPlaying);put("title",meta?.title?.toString().orEmpty());put("subtitle",meta?.artist?.toString().orEmpty());put("filePath",item?.mediaId.orEmpty());put("source",musicSourceLabel);put("currentIndex",c.currentMediaItemIndex.coerceAtLeast(0));put("shuffleEnabled",c.shuffleModeEnabled);put("repeatMode",when(c.repeatMode){Player.REPEAT_MODE_ONE->"one";Player.REPEAT_MODE_ALL->"all";else->"off"});put("volume",c.volume.toDouble());put("systemVolumePercent",currentMusicVolumePercent());put("lastSystemVolumePercent",lastMusicVolumePercent());put("durationMs",c.duration.coerceAtLeast(0L));put("positionMs",c.currentPosition.coerceAtLeast(0L));put("playbackState",c.playbackState)}
         callJs("onNativeMusicStateChanged",state.toString())
         val path = item?.mediaId.orEmpty()
         if (path.isNotBlank() && path != requestedMusicArtworkPath) {
@@ -707,6 +750,8 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         mediaRefreshHandler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(videoPlaybackStartedReceiver) }
+        if (musicVolumeReceiverRegistered) runCatching { unregisterReceiver(musicVolumeReceiver) }
+        musicVolumeReceiverRegistered = false
         musicProgressHandler.removeCallbacksAndMessages(null)
         mediaStoreObserver?.let { runCatching { contentResolver.unregisterContentObserver(it) } }
         mediaStoreObserver = null
@@ -2393,7 +2438,16 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun musicPrevious(){runOnUiThread{connectMusicController();musicController?.let{if(it.hasPreviousMediaItem())it.seekToPreviousMediaItem() else it.seekTo(0L)}}}
         @JavascriptInterface fun musicSetShuffle(enabled:Boolean){runOnUiThread{connectMusicController();musicController?.shuffleModeEnabled=enabled}}
         @JavascriptInterface fun musicSetRepeat(mode:String){runOnUiThread{connectMusicController();musicController?.repeatMode=when(mode.lowercase(Locale.ROOT)){"one"->Player.REPEAT_MODE_ONE;"all"->Player.REPEAT_MODE_ALL;else->Player.REPEAT_MODE_OFF}}}
-        @JavascriptInterface fun musicSetVolume(volume:Double){runOnUiThread{connectMusicController();val v=volume.toFloat().coerceIn(0f,1f);if(v>0f)lastMusicVolume=v;musicController?.volume=v}}
+        @JavascriptInterface fun musicSetVolume(volume:Double) {
+            runOnUiThread {
+                val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                val percent = (volume.coerceIn(0.0, 1.0) * 100.0).toInt().coerceIn(0, 100)
+                val target = if (percent == 0) 0 else ((percent * maximum + 50) / 100).coerceIn(1, maximum)
+                if (target > 0) lastMusicVolumeIndex = target
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+                syncMusicVolumeToWeb()
+            }
+        }
         @JavascriptInterface fun musicGetQueue():String=runBlocking(Dispatchers.Main){buildMusicQueueJson()}
         @JavascriptInterface fun musicPlayIndex(index:Int){runOnUiThread{connectMusicController();musicController?.let{if(index in 0 until it.mediaItemCount){it.seekToDefaultPosition(index);it.play()}}}}
         @JavascriptInterface fun musicSleepTimer(minutes:Int){applyMusicSleepTimer(minutes)}

@@ -91,10 +91,11 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var aspect = 0
     private var controlsVisible = true
     private var isTouchDown = false
+    private var isScaling = false
     private var isSwipeSeeking = false
     private var isAdjustingVolume = false
     private var isAdjustingBrightness = false
-    private var isScrubbing = false
+    private var isUserScrubbing = false
     private var seekCommitPending = false
     private val hideLockIndicator = Runnable { findViewById<View>(R.id.player_unlock)?.visibility = View.GONE }
     private lateinit var scaleDetector: ScaleGestureDetector
@@ -137,12 +138,12 @@ class VideoPlayerActivity : AppCompatActivity() {
         override fun run() { updateProgress(); handler.postDelayed(this, 300L) }
     }
     private val hideHud = Runnable {
-        if (isTouchDown || isSwipeSeeking || isAdjustingVolume || isAdjustingBrightness || isScrubbing) return@Runnable
+        if (isTouchDown || isSwipeSeeking || isAdjustingVolume || isAdjustingBrightness || isUserScrubbing) return@Runnable
         fadeHud(volumeHud); fadeHud(brightnessHud); fadeHud(seekHud); fadeHud(seekPill)
         fadeHud(leftTapHud); fadeHud(rightTapHud); fadeHud(zoomHud)
     }
     private val hideControls = Runnable {
-        if (isTouchDown || isSwipeSeeking || isAdjustingVolume || isAdjustingBrightness || isScrubbing) return@Runnable
+        if (isTouchDown || isSwipeSeeking || isAdjustingVolume || isAdjustingBrightness || isUserScrubbing) return@Runnable
         if (!locked && player?.isPlaying == true) showControls(false)
     }
 
@@ -309,7 +310,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             } }
         seek.addListener(object : TimeBar.OnScrubListener {
             override fun onScrubStart(timeBar: TimeBar, position: Long) {
-                isScrubbing = true
+                isUserScrubbing = true
                 cancelAutoHideCallbacks()
                 controls.visibility = View.VISIBLE
                 bottomPanel.visibility = View.VISIBLE
@@ -320,7 +321,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                 currentTime.text = time(position)
             }
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
-                isScrubbing = false
+                isUserScrubbing = false
                 if (!canceled) {
                     seekCommitPending = true
                     player?.seekTo(position)
@@ -341,10 +342,11 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun finishTouchInteraction() {
         isTouchDown = false
+        isScaling = false
         isSwipeSeeking = false
         isAdjustingVolume = false
         isAdjustingBrightness = false
-        isScrubbing = false
+        isUserScrubbing = false
         gestureMode = 0
         cancelAutoHideCallbacks()
         handler.postDelayed(hideHud, 400L)
@@ -353,6 +355,16 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun setupGestures() {
         scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                isScaling = true
+                gestureMode = 0
+                isSwipeSeeking = false
+                isAdjustingVolume = false
+                isAdjustingBrightness = false
+                isUserScrubbing = false
+                return true
+            }
+
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 zoomScale = (zoomScale * detector.scaleFactor).coerceIn(1f, 4f)
                 if (zoomScale <= 1.001f) { zoomScale = 1f; panX = 0f; panY = 0f }
@@ -362,6 +374,21 @@ class VideoPlayerActivity : AppCompatActivity() {
                 panX = panX.coerceIn(-maxX, maxX); panY = panY.coerceIn(-maxY, maxY)
                 playerView.translationX = panX; playerView.translationY = panY
                 return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                isScaling = false
+                gestureMode = 0
+                isSwipeSeeking = false
+                isAdjustingVolume = false
+                isAdjustingBrightness = false
+                isUserScrubbing = false
+                gestureStartX = detector.focusX
+                gestureStartY = detector.focusY
+                gestureStartPosition = player?.currentPosition ?: 0L
+                pendingSeekPosition = gestureStartPosition
+                lastPanX = gestureStartX
+                lastPanY = gestureStartY
             }
         })
         val detector = GestureDetectorCompat(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -373,15 +400,16 @@ class VideoPlayerActivity : AppCompatActivity() {
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                if (locked || zoomScale > 1.001f) return false
+                if (locked) return false
                 val start = e1 ?: return false
                 val dx = e2.x - gestureStartX
                 val dy = e2.y - gestureStartY
                 if (gestureMode == 0 && (abs(dx) > 0f || abs(dy) > 0f)) {
                     gestureMode = if (abs(dx) > abs(dy)) 3
-                    else if (start.x < playerView.width * .5f) 1 else 2
+                    else if (gestureStartX < playerView.width * .5f) 1 else 2
                     showGestureControls()
                     if (gestureMode == 3) {
+                        isUserScrubbing = true
                         pendingSeekPosition = gestureStartPosition
                     }
                 }
@@ -408,6 +436,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                             val delta = (dx / playerView.width.coerceAtLeast(1) *
                                 duration.coerceAtMost(3_600_000L) * 1.4f).toLong()
                             pendingSeekPosition = (gestureStartPosition + delta).coerceIn(0L, duration)
+                            isUserScrubbing = true
                             seek.setDuration(duration)
                             seek.setPosition(pendingSeekPosition)
                             currentTime.text = time(pendingSeekPosition)
@@ -449,16 +478,37 @@ class VideoPlayerActivity : AppCompatActivity() {
         gestureOverlay.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_MOVE && isTouchDown) cancelAutoHideCallbacks()
             scaleDetector.onTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+                isScaling = true
+                gestureMode = 0
+                isSwipeSeeking = false
+                isAdjustingVolume = false
+                isAdjustingBrightness = false
+                isUserScrubbing = false
+            }
             if (locked) {
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) showLockIndicator()
                 return@setOnTouchListener true
             }
-            if (event.pointerCount > 1 || scaleDetector.isInProgress) {
+            if (event.pointerCount > 1 || isScaling || scaleDetector.isInProgress) {
                 if (event.actionMasked == MotionEvent.ACTION_POINTER_UP) {
+                    isScaling = false
                     gestureMode = 0
                     isSwipeSeeking = false
                     isAdjustingVolume = false
                     isAdjustingBrightness = false
+                    isUserScrubbing = false
+                    val remainingIndex = if (event.actionIndex == 0) 1 else 0
+                    if (remainingIndex < event.pointerCount) {
+                        gestureStartX = event.getX(remainingIndex)
+                        gestureStartY = event.getY(remainingIndex)
+                        gestureStartPosition = player?.currentPosition ?: 0L
+                        pendingSeekPosition = gestureStartPosition
+                        gestureStartValue = if (gestureStartX < playerView.width * .5f) {
+                            (playerPrefs.savedBrightnessPercent.takeIf { it >= 0 }?.toFloat()
+                                ?: (window.attributes.screenBrightness.takeIf { it >= 0f }?.times(100f) ?: 50f))
+                        } else volumePercent.toFloat()
+                    }
                 }
                 if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                     finishTouchInteraction()
@@ -490,15 +540,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     cancelAutoHideCallbacks()
-                    if (zoomScale > 1.001f && event.pointerCount == 1 && gestureMode == 0) {
-                        val maxX = playerView.width * (zoomScale - 1f) / 2f
-                        val maxY = playerView.height * (zoomScale - 1f) / 2f
-                        panX = (panX + event.x - lastPanX).coerceIn(-maxX, maxX)
-                        panY = (panY + event.y - lastPanY).coerceIn(-maxY, maxY)
-                        playerView.translationX = panX; playerView.translationY = panY
-                        lastPanX = event.x; lastPanY = event.y
-                        return@setOnTouchListener true
-                    }
+                    // Single-finger movement after zoom is handled by brightness, volume, and seek gestures.
                 }
             }
 
@@ -511,21 +553,18 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
 
             when (event.actionMasked) {
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (gestureMode == 3 && !locked) {
+                        isUserScrubbing = false
+                        seekCommitPending = true
                         player?.seekTo(pendingSeekPosition)
+                        handler.postDelayed({ seekCommitPending = false; updateProgress() }, 180L)
                         seekPill.animate().cancel()
                         seekPill.visibility = View.GONE
                         seekPill.alpha = 1f
-                    } else if (gestureMode != 0) {
+                    } else if (gestureMode != 0 && event.actionMasked == MotionEvent.ACTION_UP) {
                         handler.postDelayed(hideHud, 400L)
                     }
-                    finishTouchInteraction()
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    seekPill.animate().cancel()
-                    seekPill.visibility = View.GONE
-                    seekPill.alpha = 1f
                     finishTouchInteraction()
                 }
             }
@@ -992,7 +1031,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         val p = player ?: return
         val duration = p.duration.takeIf { it > 0 } ?: C.TIME_UNSET
         seek.setDuration(duration)
-        if (!isScrubbing && !seekCommitPending) {
+        if (!isUserScrubbing && !seekCommitPending) {
             seek.setPosition(p.currentPosition.coerceAtLeast(0L))
             seek.setBufferedPosition(p.bufferedPosition.coerceAtLeast(0L))
             currentTime.text = time(p.currentPosition)

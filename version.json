@@ -1,8 +1,9 @@
 {
-  "versionCode": 393,
-  "versionName": "3.9.3",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.3/JET-debug.apk",
+  "versionCode": 394,
+  "versionName": "3.9.4",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.4/JET-debug.apk",
   "changelog": [
+    "Restored single-finger player gestures after pinch zoom, locked seek UI during swipe scrubbing, and added Android system music volume slider with hardware-key sync",
     "Fixed IPv4-preferred OkHttp DNS sorting to compile correctly while preserving IPv4-first connection attempts",
     "Fixed canonical YouTube stream caching, added 15-minute cache TTL and Googlevideo prewarming, and replaced fractional pre-byte progress with clean integer percentages",
     "Added translucent Sound/Brightness HUD backdrops and honest staged download progress with cached NewPipe streams",
