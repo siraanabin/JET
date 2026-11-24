@@ -34,7 +34,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.DefaultTimeBar
+import com.jet.downloader.player.RoundedTimeBar
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TimeBar
 import com.jet.downloader.player.PlayerPrefsManager
@@ -54,7 +54,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     }
     private lateinit var playerView: PlayerView
     private lateinit var titleView: TextView
-    private lateinit var seek: DefaultTimeBar
+    private lateinit var seek: RoundedTimeBar
     private lateinit var currentTime: TextView
     private lateinit var durationTime: TextView
     private lateinit var controls: View

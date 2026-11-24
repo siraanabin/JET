@@ -18,7 +18,7 @@
                 android:background="@drawable/bg_player_glass_circle" android:contentDescription="Back"
                 android:src="@drawable/ic_player_back" android:tint="#FFFFFF" />
             <TextView android:id="@+id/player_title" android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_marginStart="18dp" android:layout_marginEnd="6dp" android:layout_weight="1"
+                android:layout_marginStart="10dp" android:layout_marginEnd="6dp" android:layout_weight="1"
                 android:singleLine="true" android:ellipsize="marquee" android:marqueeRepeatLimit="marquee_forever" android:scrollHorizontally="true"
                 android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
             <TextView android:id="@+id/player_cc" android:layout_width="38dp" android:layout_height="40dp"
@@ -62,14 +62,11 @@
             android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingBottom="5dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:paddingTop="2dp" android:paddingBottom="3dp">
-                <androidx.media3.ui.DefaultTimeBar
-                    android:id="@+id/player_seek" android:layout_width="match_parent" android:layout_height="30dp"
+                <com.jet.downloader.player.RoundedTimeBar
+                    android:id="@+id/player_seek" android:layout_width="match_parent" android:layout_height="40dp"
                     android:layout_marginStart="50dp" android:layout_marginEnd="50dp"
                     android:paddingStart="0dp" android:paddingEnd="0dp"
-                    app:bar_height="6dp" app:touch_target_height="40dp" app:scrubber_enabled_size="8dp"
-                    app:scrubber_dragged_size="11dp" app:played_color="#FF7FA8FF"
-                    app:scrubber_color="#FFFFFFFF" app:buffered_color="#A6FFFFFF"
-                    app:unplayed_color="#40FFFFFF" />
+                    android:background="@android:color/transparent" />
                 <LinearLayout android:layout_width="match_parent" android:layout_height="18dp"
                     android:layout_marginStart="50dp" android:layout_marginEnd="50dp"
                     android:gravity="center_vertical" android:orientation="horizontal">
