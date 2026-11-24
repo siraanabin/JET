@@ -2119,8 +2119,9 @@ class MainActivity : AppCompatActivity() {
                         mediaQualitySizeCache.get(mediaQualitySizeKey(mediaUrl, entry.id))
                     } != null
                     streamSizes[entry.id] = StreamSizePayload(
-                        if (exact) formatBytes(total) else "~ " + formatBytes(total),
-                        total, true,
+                        sizeText = if (exact) formatBytes(total) else "~ " + formatBytes(total),
+                        sizeBytes = total,
+                        available = true,
                         itag = video.getItag().takeIf { it > 0 },
                         height = video.getHeight().takeIf { it > 0 },
                         shortSide = short,
