@@ -178,7 +178,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             finish(); return
         }
         currentPath = path
-        runCatching { ContextCompat.startForegroundService(this, Intent(this, PlayerPlaybackService::class.java).apply { action = PlayerPlaybackService.ACTION_STOP_FOR_VIDEO }) }.onFailure { android.util.Log.w("JET-Video", "Unable to stop background audio before video playback", it) }
+        runCatching { startService(Intent(this, PlayerPlaybackService::class.java).apply { action = PlayerPlaybackService.ACTION_STOP_FOR_VIDEO }) }.onFailure { android.util.Log.w("JET-Video", "Unable to stop background audio before video playback", it) }
         updatePlayerTitle(intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension })
         playerPrefs = PlayerPrefsManager(this)
         volumePercent = playerPrefs.savedVolumePercent

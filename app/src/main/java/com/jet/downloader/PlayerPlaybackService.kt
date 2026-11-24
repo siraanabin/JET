@@ -1,6 +1,7 @@
 package com.jet.downloader
 
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -29,6 +30,17 @@ class PlayerPlaybackService : MediaSessionService() {
     private var player: ExoPlayer? = null
     private var session: MediaSession? = null
     private var initializationFailed = false
+    private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS -> runCatching { player?.stop(); player?.clearMediaItems() }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> runCatching { player?.pause() }
+        }
+    }
+    @Suppress("DEPRECATION")
+    private fun requestMusicAudioFocus() { audioManager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN) }
+    @Suppress("DEPRECATION")
+    private fun abandonMusicAudioFocus() { runCatching { audioManager.abandonAudioFocus(audioFocusListener) } }
     private val timerHandler = Handler(Looper.getMainLooper())
     private val sleepTimer = Runnable {
         try {
@@ -41,7 +53,7 @@ class PlayerPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         try {
-            val exo = ExoPlayer.Builder(this).build().apply { setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA).setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC).build(), true) }
+            val exo = ExoPlayer.Builder(this).build().apply { setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA).setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC).build(), false) }
             player = exo
             session = MediaSession.Builder(this, exo).build()
         } catch (t: Throwable) {
@@ -63,7 +75,7 @@ class PlayerPlaybackService : MediaSessionService() {
             }
 
             when (intent?.action) {
-                ACTION_STOP_FOR_VIDEO -> { timerHandler.removeCallbacksAndMessages(null); runCatching { player?.stop(); player?.clearMediaItems() }; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(startId) }
+                ACTION_STOP_FOR_VIDEO -> { timerHandler.removeCallbacksAndMessages(null); runCatching { player?.stop(); player?.clearMediaItems() }; abandonMusicAudioFocus(); stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(startId) }
                 ACTION_SLEEP_TIMER -> {
                     timerHandler.removeCallbacks(sleepTimer)
                     val minutes = intent.getIntExtra(EXTRA_SLEEP_TIMER_MINUTES, 0).coerceIn(0, 240)
@@ -89,6 +101,7 @@ class PlayerPlaybackService : MediaSessionService() {
                                 .orEmpty().ifBlank { file.nameWithoutExtension }
                             val mediaItem = buildMediaItem(file, title)
                             val exo = player ?: return START_NOT_STICKY
+                            requestMusicAudioFocus()
                             exo.setMediaItem(mediaItem)
                             exo.prepare()
                             exo.play()
@@ -149,6 +162,7 @@ class PlayerPlaybackService : MediaSessionService() {
                 return
             }
 
+            requestMusicAudioFocus()
             exo.setMediaItems(items, selectedIndex.coerceIn(items.indices), 0L)
             exo.prepare()
             exo.play()
@@ -165,6 +179,7 @@ class PlayerPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         timerHandler.removeCallbacksAndMessages(null)
+        abandonMusicAudioFocus()
         runCatching { session?.release() }
         session = null
         runCatching { player?.release() }
