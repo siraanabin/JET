@@ -1911,6 +1911,11 @@ class MainActivity : AppCompatActivity() {
                         val durationSec = info.duration.toLong()
                         val formats = info.formats.orEmpty()
 
+                        fun exactUrlContentLength(streamUrl: String?): Long {
+                            if (streamUrl.isNullOrBlank()) return 0L
+                            return runCatching { Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L }.getOrDefault(0L)
+                        }
+
                         fun formatBytes(
                             exactBytes: Long,
                             approximateBytes: Long,
@@ -1941,11 +1946,11 @@ class MainActivity : AppCompatActivity() {
                         val bestAudioFormat = audioFormats.maxByOrNull {
                             (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
                         }
-                        val bestAudioBytes = bestAudioFormat?.let {
-                            formatBytes(
-                                it.fileSize,
-                                it.fileSizeApproximate,
-                                (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toDouble(),
+                        val bestAudioBytes = bestAudioFormat?.let { audioFormat ->
+                            exactUrlContentLength(audioFormat.url).takeIf { it > 0L } ?: formatBytes(
+                                audioFormat.fileSize,
+                                audioFormat.fileSizeApproximate,
+                                (audioFormat.abr.takeIf { bitrate -> bitrate > 0 } ?: audioFormat.tbr).toDouble(),
                                 durationSec
                             )
                         }?.takeIf { it > 0L } ?: estimateBytesFromBitrateKbps(128.0, durationSec)
@@ -1998,13 +2003,14 @@ class MainActivity : AppCompatActivity() {
                                     )
                                 ) ?: return@forEach
                                 val short = shortSide(videoFormat.width, videoFormat.height)
-                                val videoBytes = formatBytes(
-                                    videoFormat.fileSize, videoFormat.fileSizeApproximate,
-                                    videoFormat.tbr.toDouble(), durationSec
-                                ).takeIf { it > 0L } ?: estimateBytesFromBitrateKbps(
-                                    videoFormat.tbr.takeIf { it > 0 }?.toDouble()
-                                        ?: fallbackVideoBitrateKbps(short), durationSec
-                                )
+                                val videoBytes = exactUrlContentLength(videoFormat.url).takeIf { it > 0L }
+                                    ?: formatBytes(
+                                        videoFormat.fileSize, videoFormat.fileSizeApproximate,
+                                        videoFormat.tbr.toDouble(), durationSec
+                                    ).takeIf { it > 0L } ?: estimateBytesFromBitrateKbps(
+                                        videoFormat.tbr.takeIf { it > 0 }?.toDouble()
+                                            ?: fallbackVideoBitrateKbps(short), durationSec
+                                    )
                                 val isVideoOnly = videoFormat.acodec == null || videoFormat.acodec == "none" || videoFormat.tbr <= 0
                                 val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
                                 streamSizes[id] = StreamSizePayload(
