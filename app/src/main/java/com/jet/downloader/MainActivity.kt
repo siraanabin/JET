@@ -2712,7 +2712,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 val exitCode = runningProcess.waitFor()
-                val mergeSec = ((SystemClock.elapsedRealtime() - muxStartedAtMs).coerceAtLeast(0L)) / 1000L
+                val mergeSec = ((SystemClock.elapsedRealtime() - muxStartedAtMs).coerceAtLeast(0L)) / 1000.0
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
                     verifiedNewPipeSourceSizes[downloadId] = totalBytes
@@ -3023,8 +3023,8 @@ class MainActivity : AppCompatActivity() {
             selectedResolution: String
         ) {
             MediaScannerConnection.scanFile(applicationContext, arrayOf(file.absolutePath), null, null)
-            val displaySizeBytes = verifiedNewPipeSourceSizes.remove(downloadId)?.takeIf { it > 0L }
-                ?: file.length()
+            verifiedNewPipeSourceSizes.remove(downloadId)
+            val displaySizeBytes = file.length().coerceAtLeast(0L)
             val sizeStr = formatBytes(displaySizeBytes)
             val resolution = if (mediaType == "video") selectedResolution.ifBlank { extractVideoResolution(file) } else ""
 
@@ -3058,21 +3058,56 @@ class MainActivity : AppCompatActivity() {
             pausedDownloads.remove(downloadId)
             runCatching { DownloadNotificationService.completed(this@MainActivity, downloadId, file.nameWithoutExtension, sizeStr, thumbnailUrl) }
             val completedPayloadJson = JSONObject(json.encodeToString(payload))
-            val telemetry = downloadTelemetrySummaries.remove(downloadId) ?: run {
-                val elapsedMs = (System.currentTimeMillis() -
-                    (downloadStartedAtMs[downloadId] ?: System.currentTimeMillis())).coerceAtLeast(1L)
-                val elapsedSec = elapsedMs / 1000.0
-                val downloadedMb = displaySizeBytes / (1024.0 * 1024.0)
-                val averageMbps = downloadedMb / elapsedSec
-                val secondsLabel = String.format(Locale.US, "%.1f", elapsedSec)
-                val speedLabel = String.format(Locale.US, "%.1f", averageMbps)
-                val summary = "engine=yt-dlp-managed bytes=${displaySizeBytes} download=${secondsLabel}s avg=${speedLabel} MB/s"
-                Log.d("DL_DEBUG", summary)
-                summary to "yt-dlp • ${secondsLabel}s • ${speedLabel} MB/s"
+            val telemetry = downloadTelemetrySummaries.remove(downloadId)
+            val elapsedMs = (System.currentTimeMillis() -
+                (downloadStartedAtMs[downloadId] ?: System.currentTimeMillis())).coerceAtLeast(1L)
+            val fallbackSec = elapsedMs / 1000.0
+            val previousSummary = telemetry?.first.orEmpty()
+            fun metric(pattern: String, fallback: Double): Double =
+                Regex(pattern, RegexOption.IGNORE_CASE).find(previousSummary)?.groupValues?.getOrNull(1)?.toDoubleOrNull() ?: fallback
+            fun metricInt(pattern: String, fallback: Int): Int =
+                Regex(pattern, RegexOption.IGNORE_CASE).find(previousSummary)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: fallback
+            val downloadSec = metric("""download=([0-9]+(?:\\.[0-9]+)?)s""", fallbackSec).coerceAtLeast(0.001)
+            val muxSec = metric("""merge=([0-9]+(?:\\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
+            val totalSec = downloadSec + muxSec
+            val netSpeed = displaySizeBytes / (1024.0 * 1024.0) / downloadSec
+            val avgSpeed = displaySizeBytes / (1024.0 * 1024.0) / totalSec.coerceAtLeast(0.001)
+            val connections = Regex("""conn=([^\\s]+)""", RegexOption.IGNORE_CASE)
+                .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
+            val chunkSize = Regex("""chunk=([^\\s]+)""", RegexOption.IGNORE_CASE)
+                .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
+            val retries = metricInt("""retries=([0-9]+)""", 0)
+            val blocks = metricInt("""blocks=([0-9]+)""", 0)
+            val timestamp = java.text.SimpleDateFormat("hh:mm a", Locale.US).format(java.util.Date())
+            fun seconds(value: Double) = String.format(Locale.US, "%.1f", value) + "s"
+            fun speed(value: Double) = String.format(Locale.US, "%.1f MB/s", value)
+            val avgSpeedText = speed(avgSpeed)
+            val netSpeedText = speed(netSpeed)
+            val container = file.extension.lowercase(Locale.US).ifBlank { "unknown" }
+            val rawLog = "title=${file.nameWithoutExtension} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
+            Log.d("DL_DEBUG", rawLog)
+            val telemetryJson = JSONObject().apply {
+                put("title", file.nameWithoutExtension)
+                put("resolution", resolution.ifBlank { "audio" })
+                put("container", container)
+                put("sizeText", sizeStr)
+                put("bytes", displaySizeBytes)
+                put("downloadSec", seconds(downloadSec))
+                put("muxSec", seconds(muxSec))
+                put("totalSec", seconds(totalSec))
+                put("avgSpeedText", avgSpeedText)
+                put("netSpeedText", netSpeedText)
+                put("connections", connections)
+                put("chunkSize", chunkSize)
+                put("retries", retries)
+                put("blocks", blocks)
+                put("timestamp", timestamp)
+                put("rawLog", rawLog)
             }
+            completedPayloadJson.put("telemetry", telemetryJson)
+            completedPayloadJson.put("telemetrySummary", rawLog)
+            completedPayloadJson.put("telemetryDisplay", "${connections} conn • ${seconds(downloadSec)} • ${avgSpeedText}")
             downloadStartedAtMs.remove(downloadId)
-            completedPayloadJson.put("telemetrySummary", telemetry.first)
-            completedPayloadJson.put("telemetryDisplay", telemetry.second)
             callJs("onNativeDownloadComplete", completedPayloadJson.toString())
             pushScannedLibraryToWeb()
         }
