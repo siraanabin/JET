@@ -1812,7 +1812,8 @@
       });
 
       function startSelectedDownload() {
-        const fmt = state.formats.find((f) => f.id === state.selectedFormatId) || state.formats[10];
+        const fmt = state.formats.find((f) => f.id === state.selectedFormatId);
+        if (!fmt) { showToast('Selected format is unavailable'); return; }
         const targetUrl = state.pendingUrl || urlInput.value.trim();
         if (!targetUrl) return;
         const downloadId = String(Date.now());
@@ -1844,7 +1845,7 @@
 
         const requestArgs = [
           downloadId, targetUrl, displayTitle, fmt.group === 'music',
-          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, Number(fmt.itag) || -1, state.ccEnabled, state.fetchedThumbnail, selectedResolution
+          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 0, Number(fmt.itag) || -1, state.ccEnabled, state.fetchedThumbnail, selectedResolution
         ];
         const activeItem = state.activeDownloads.find((d) => d.id === downloadId);
         if (activeItem) activeItem.requestArgs = requestArgs;

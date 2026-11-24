@@ -2110,8 +2110,8 @@ class MainActivity : AppCompatActivity() {
                         request.addOption("--audio-format", audioExt.lowercase(Locale.US))
                         request.addOption("--audio-quality", audioBitrate)
                     } else {
-                        // Resolve the best separate video/audio streams at or below the
-                        // selected resolution. youtubedl-android injects its bundled
+                        // Resolve only the selected itag or exact requested height.
+                        // youtubedl-android injects its bundled
                         // --ffmpeg-location automatically; do not override that path.
                         val strictSelector = "bestvideo[height=${maxHeight}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=${maxHeight}]+bestaudio/best[height=${maxHeight}]"
                         // If the selected itag is unavailable, fail instead of silently changing quality.
