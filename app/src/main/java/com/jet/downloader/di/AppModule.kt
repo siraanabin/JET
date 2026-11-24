@@ -30,7 +30,10 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 val appModule = module {
     single {
         OkHttpClient.Builder()
-            .dns(Dns { hostname -> Dns.SYSTEM.lookup(hostname).sortedBy { if (it is Inet4Address) 0 else 1 } })
+            .dns(object : Dns {
+                override fun lookup(hostname: String): List<java.net.InetAddress> =
+                    Dns.SYSTEM.lookup(hostname).sortedBy { if (it is Inet4Address) 0 else 1 }
+            })
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
