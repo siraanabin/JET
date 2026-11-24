@@ -2418,6 +2418,7 @@ class MainActivity : AppCompatActivity() {
                     runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
                 } finally {
+                    downloadStartedAtMs.remove(downloadId)
                     runCatching { if (downloadWifiLock?.isHeld == true) downloadWifiLock?.release() }
                     releaseDownloadSlot()
                 }
