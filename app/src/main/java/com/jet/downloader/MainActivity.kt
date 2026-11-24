@@ -2503,6 +2503,9 @@ class MainActivity : AppCompatActivity() {
                     (audio == null || (audioTotalBytes > 0L && supportsRanges(audioUrl!!)))
                 if (rangeSupported) {
                     totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
+                } else if (videoTotalBytes <= 0L || (audioUrl != null && audioTotalBytes <= 0L)) {
+                    // Unknown sequential response length: keep percent indeterminate until both files finish.
+                    totalBytes = 0L
                 }
 
                 val totalDownloadedBytes = AtomicLong(0L)
