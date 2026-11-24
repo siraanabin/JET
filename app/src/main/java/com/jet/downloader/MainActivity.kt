@@ -87,6 +87,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
@@ -1923,7 +1924,7 @@ class MainActivity : AppCompatActivity() {
                             durationSec: Long
                         ): Long {
                             if (exactBytes > 0L) return exactBytes
-                            if (approximateBytes > 0L) return approximateBytes
+                            // Ignore approximate container estimates; fall back to bitrate only when exact length is absent.
                             // yt-dlp tbr/abr are in kbps. Estimate bytes from bitrate and duration.
                             if (bitrateKbps > 0.0 && durationSec > 0L) {
                                 return (bitrateKbps * 1000.0 / 8.0 * durationSec).toLong()
@@ -2292,7 +2293,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 runBlocking(Dispatchers.IO) {
                     kotlinx.coroutines.coroutineScope {
-                        val videoJob = kotlinx.coroutines.async(Dispatchers.IO) {
+                        val videoJob = async(Dispatchers.IO) {
                             downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart) { bytes, total ->
                                 videoDownloadedBytes.set(bytes); videoTotalBytes.set(total); emitTransferProgress()
                             }
