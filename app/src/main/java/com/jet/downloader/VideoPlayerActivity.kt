@@ -655,6 +655,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         if (show) {
             controls.visibility = View.VISIBLE
             topBar.visibility = View.VISIBLE
+            titleView.post { titleView.isSelected = true }
             bottomPanel.visibility = View.VISIBLE
             bottomIcons.visibility = View.VISIBLE
             centerControls.visibility = View.VISIBLE
@@ -935,6 +936,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun updatePlayerTitle(value: String) {
         titleView.text = value
         titleView.isSelected = true
+        titleView.post { titleView.isSelected = true }
     }
 
     private fun togglePlaylistDrawer(open: Boolean) {

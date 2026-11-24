@@ -1820,7 +1820,7 @@
           ? state.fetchedTitle
           : targetUrl;
 
-        const selectedResolution = fmt.resolution || '';
+        const selectedResolution = fmt.resolution || ({ 'vid-144':'144p', 'vid-240':'240p', 'vid-360':'360p', 'vid-480':'480p', 'vid-720':'720p', 'vid-1080':'1080p', 'vid-2k':'2K (1440p)', 'vid-4k':'4K (2160p)' }[fmt.id] || '');
         state.activeDownloads.unshift({
           id: downloadId,
           title: displayTitle,
@@ -1844,7 +1844,7 @@
 
         const requestArgs = [
           downloadId, targetUrl, displayTitle, fmt.group === 'music',
-          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, Number(fmt.itag) || -1, state.ccEnabled, state.fetchedThumbnail
+          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, Number(fmt.itag) || -1, state.ccEnabled, state.fetchedThumbnail, selectedResolution
         ];
         const activeItem = state.activeDownloads.find((d) => d.id === downloadId);
         if (activeItem) activeItem.requestArgs = requestArgs;

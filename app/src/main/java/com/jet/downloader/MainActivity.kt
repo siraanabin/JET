@@ -113,7 +113,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 private data class RealDownloadSpec(
     val id: String, val url: String, val title: String, val isAudio: Boolean,
     val audioBitrate: String, val audioExt: String, val maxHeight: Int, val selectedItag: Int,
-    val includeSubtitles: Boolean, val thumbnailUrl: String
+    val includeSubtitles: Boolean, val thumbnailUrl: String, val selectedResolution: String
 )
 
 class MainActivity : AppCompatActivity() {
@@ -2047,10 +2047,11 @@ class MainActivity : AppCompatActivity() {
             maxHeight: Int,
             selectedItag: Int,
             includeSubtitles: Boolean,
-            thumbnailUrl: String
+            thumbnailUrl: String,
+            selectedResolution: String
         ) {
             realDownloadSpecs[downloadId] = RealDownloadSpec(
-                downloadId, url, title, isAudio, audioBitrate, audioExt, maxHeight, selectedItag, includeSubtitles, thumbnailUrl
+                downloadId, url, title, isAudio, audioBitrate, audioExt, maxHeight, selectedItag, includeSubtitles, thumbnailUrl, selectedResolution
             )
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)
@@ -2068,7 +2069,7 @@ class MainActivity : AppCompatActivity() {
                         runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, blocked.error) }
                         return@launch
                     }
-                    downloadDao.upsert(DownloadEntity(downloadId, title, url, if (isAudio) audioExt.uppercase(Locale.US) else "${maxHeight}p", "", "", if (isAudio) "audio" else "video", thumbnailUrl = thumbnailUrl, resolution = ""))
+                    downloadDao.upsert(DownloadEntity(downloadId, title, url, if (isAudio) audioExt.uppercase(Locale.US) else "${maxHeight}p", "", "", if (isAudio) "audio" else "video", thumbnailUrl = thumbnailUrl, resolution = selectedResolution))
                     val resolvedThumbnailUrl = thumbnailUrl
 
                     // Show extraction as a separate phase; yt-dlp can spend several seconds
@@ -2078,7 +2079,7 @@ class MainActivity : AppCompatActivity() {
 
                     val newPipeFile = if (!isAudio) downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight) else null
                     if (newPipeFile != null) {
-                        finishDownloadSuccess(downloadId, url, newPipeFile, "video", resolvedThumbnailUrl)
+                        finishDownloadSuccess(downloadId, url, newPipeFile, "video", resolvedThumbnailUrl, selectedResolution)
                     } else {
                         if (pauseRequestedDownloads.remove(downloadId)) {
                             pausedDownloads.add(downloadId)
@@ -2112,12 +2113,9 @@ class MainActivity : AppCompatActivity() {
                         // Resolve the best separate video/audio streams at or below the
                         // selected resolution. youtubedl-android injects its bundled
                         // --ffmpeg-location automatically; do not override that path.
-                        val strictSelector = if (maxHeight == 1080) {
-                            "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]"
-                        } else {
-                            "bestvideo[height<=${maxHeight}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]"
-                        }
-                        val formatSelector = if (selectedItag > 0) "$selectedItag+bestaudio/$strictSelector" else strictSelector
+                        val strictSelector = "bestvideo[height=${maxHeight}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height=${maxHeight}]+bestaudio/best[height=${maxHeight}]"
+                        // If the selected itag is unavailable, fail instead of silently changing quality.
+                        val formatSelector = if (selectedItag > 0) "$selectedItag+bestaudio" else strictSelector
                         request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
                         request.addOption("--remux-video", "mp4")
@@ -2197,7 +2195,7 @@ class MainActivity : AppCompatActivity() {
                             newFile.delete()
                             throw IllegalStateException("Downloaded file has no video track; audio-only output was rejected.")
                         }
-                        finishDownloadSuccess(downloadId, url, newFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl)
+                        finishDownloadSuccess(downloadId, url, newFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl, selectedResolution)
                     } else {
                         val fail = DownloadErrorPayload(downloadId, "Output file not found after download")
                         downloadDao.deleteById(downloadId)
@@ -2239,9 +2237,11 @@ class MainActivity : AppCompatActivity() {
             try {
                 val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
                 val candidates = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
-                val selected = candidates.firstOrNull { selectedItag > 0 && it.getItag() == selectedItag }
-                    ?: candidates.firstOrNull { it.getHeight() == maxHeight }
-                    ?: return null
+                val selected = (if (selectedItag > 0) {
+                    candidates.firstOrNull { it.getItag() == selectedItag }
+                } else {
+                    candidates.firstOrNull { it.getHeight() == maxHeight }
+                }) ?: return null
                 val audio = if (selected.isVideoOnly) {
                     info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate } ?: return null
                 } else null
@@ -2415,11 +2415,12 @@ class MainActivity : AppCompatActivity() {
             url: String,
             file: File,
             mediaType: String,
-            thumbnailUrl: String
+            thumbnailUrl: String,
+            selectedResolution: String
         ) {
             MediaScannerConnection.scanFile(applicationContext, arrayOf(file.absolutePath), null, null)
             val sizeStr = formatBytes(file.length())
-            val resolution = if (mediaType == "video") extractVideoResolution(file) else ""
+            val resolution = if (mediaType == "video") selectedResolution.ifBlank { extractVideoResolution(file) } else ""
 
             // Persist in Room database
             downloadDao.upsert(
@@ -2469,14 +2470,14 @@ class MainActivity : AppCompatActivity() {
             val spec = realDownloadSpecs[downloadId] ?: return
             if (!pausedDownloads.remove(downloadId)) return
             startRealDownload(spec.id, spec.url, spec.title, spec.isAudio, spec.audioBitrate,
-                spec.audioExt, spec.maxHeight, spec.selectedItag, spec.includeSubtitles, spec.thumbnailUrl)
+                spec.audioExt, spec.maxHeight, spec.selectedItag, spec.includeSubtitles, spec.thumbnailUrl, spec.selectedResolution)
         }
 
         @JavascriptInterface
         fun retryRealDownload(downloadId: String) {
             val spec = realDownloadSpecs[downloadId] ?: return
             startRealDownload(spec.id, spec.url, spec.title, spec.isAudio, spec.audioBitrate,
-                spec.audioExt, spec.maxHeight, spec.selectedItag, spec.includeSubtitles, spec.thumbnailUrl)
+                spec.audioExt, spec.maxHeight, spec.selectedItag, spec.includeSubtitles, spec.thumbnailUrl, spec.selectedResolution)
         }
 
         @JavascriptInterface
