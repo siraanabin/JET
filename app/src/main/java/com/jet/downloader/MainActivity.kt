@@ -2246,15 +2246,16 @@ class MainActivity : AppCompatActivity() {
                 if (audio != null) args += listOf("-i", audioPart.absolutePath, "-map", "0:v:0", "-map", "1:a:0")
                 else args += listOf("-map", "0:v:0", "-map", "0:a?")
                 args += listOf("-c", "copy", "-movflags", "+faststart", "-progress", "pipe:1", "-nostats", output.absolutePath)
-                process = ProcessBuilder(args).redirectErrorStream(true).start()
-                activeNewPipeProcesses[downloadId] = process
+                val runningProcess = ProcessBuilder(args).redirectErrorStream(true).start()
+                process = runningProcess
+                activeNewPipeProcesses[downloadId] = runningProcess
                 val durationMicros = info.duration.coerceAtLeast(0L) * 1_000_000L
                 var outTimeMicros = 0L
                 var lastPercent = 96
-                process.inputStream.bufferedReader().useLines { lines ->
+                runningProcess.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
                         if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
-                            process?.destroyForcibly()
+                            runningProcess.destroyForcibly()
                             throw CancellationException("Download paused or cancelled")
                         }
                         if (line.startsWith("out_time_ms=")) outTimeMicros = maxOf(outTimeMicros, line.substringAfter("=").toLongOrNull() ?: 0L)
@@ -2266,8 +2267,8 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
-                val exitCode = process.waitFor()
-                activeNewPipeProcesses.remove(downloadId, process)
+                val exitCode = runningProcess.waitFor()
+                activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
                     callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 100, " + JSONObject.quote("Complete") + ", " + JSONObject.quote("MERGING") + ", " + output.length())
                     return output
