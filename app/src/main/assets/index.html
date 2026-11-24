@@ -473,6 +473,7 @@
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">DOWNLOADS</p>
               <label class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="hd" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Default quality</span><span class="block text-[11px] text-app-secondary mt-0.5">Preselected format</span></span></span><select id="default-quality-setting" class="max-w-[145px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="vid-360">360p</option><option value="vid-480">480p</option><option value="vid-720">720p</option><option value="vid-1080">1080p</option><option value="vid-2k">2K</option><option value="vid-4k">4K</option><option value="aud-fast">Audio Fast</option><option value="aud-128">MP3 128K</option><option value="aud-320">MP3 320K</option></select></label>
               <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="closed-caption" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
+              <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="gauge" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Show Download Speed Stats</span><span class="block text-[11px] text-app-secondary mt-0.5">Show speed and time on Done cards</span></span></span><button id="show-download-speed-stats-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
             </div>
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">NETWORK</p>
               <label class="flex items-center justify-between gap-3">
@@ -860,6 +861,7 @@
         themeMode: 'system',
         systemDark: false,
         clipboardAutoDetect: true,
+        showDownloadSpeedStats: (() => { try { return localStorage.getItem('jet_show_dl_stats') === 'true'; } catch (_) { return false; } })(),
         dlTab: 'active',
         libFilter: 'all',
         libView: 'grid',
@@ -1040,6 +1042,23 @@
         if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference(key, String(enabled));
       }
 
+      function applyDownloadStatsToggle(enabled, shouldRender = true) {
+        state.showDownloadSpeedStats = Boolean(enabled);
+        try { localStorage.setItem('jet_show_dl_stats', String(state.showDownloadSpeedStats)); } catch (_) {}
+        const btn = $('show-download-speed-stats-toggle');
+        if (btn) {
+          btn.setAttribute('aria-checked', String(state.showDownloadSpeedStats));
+          btn.classList.toggle('bg-app-primary', state.showDownloadSpeedStats);
+          btn.classList.toggle('border-app-primary', state.showDownloadSpeedStats);
+          btn.classList.toggle('bg-app-elevated', !state.showDownloadSpeedStats);
+          btn.classList.toggle('border-app-border', !state.showDownloadSpeedStats);
+          btn.querySelector('.toggle-thumb')?.classList.toggle('translate-x-5', state.showDownloadSpeedStats);
+        }
+        if (shouldRender) renderDownloads();
+      }
+
+      applyDownloadStatsToggle(state.showDownloadSpeedStats, false);
+
       window.onNativeDownloadSettings = function (settings) {
         if (!settings || typeof settings !== 'object') return;
         state.downloadSettings = { ...state.downloadSettings, ...settings };
@@ -1137,6 +1156,9 @@
         const enabled = $('save-subtitles-toggle').getAttribute('aria-checked') !== 'true';
         state.downloadSettings.saveSubtitles = enabled;
         applyDownloadToggle('save-subtitles-toggle', enabled, 'saveSubtitles');
+      });
+      $('show-download-speed-stats-toggle').addEventListener('click', () => {
+        applyDownloadStatsToggle(!state.showDownloadSpeedStats);
       });
       $('mobile-data-toggle').addEventListener('click', () => {
         const enabled = $('mobile-data-toggle').getAttribute('aria-checked') !== 'true';
@@ -1606,8 +1628,11 @@
           fileUri: data.fileUri || '',
           thumbnailUrl,
           date: 'Just now',
-          resolution: data.resolution || (existing && existing.resolution) || ''
+          resolution: data.resolution || (existing && existing.resolution) || '',
+          telemetrySummary: data.telemetrySummary || '',
+          telemetryDisplay: data.telemetryDisplay || ''
         });
+        try { localStorage.setItem('jet-done-downloads-v1', JSON.stringify(state.doneDownloads.slice(0, 500))); } catch (_) {}
 
         $('latest-title').textContent = title;
         const completedMeta = formatVideoMetadata(data.size || 'Saved', data.resolution || '', fmtLabel);
@@ -1923,8 +1948,37 @@
       });
 
       // Downloads Screen
+      function renderDownloadStatsBadge(item) {
+        if (!state.showDownloadSpeedStats || !item.telemetrySummary || !item.telemetryDisplay) return '';
+        return `<button type="button" data-dl-stats-copy="${item.id}" class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full border border-app-border bg-app-elevated/70 px-2.5 py-1 text-[10px] font-semibold text-app-secondary tabular-nums" aria-label="Copy download speed stats"><span class="truncate">${item.telemetryDisplay}</span><i data-lucide="copy" class="h-3 w-3 shrink-0"></i></button>`;
+      }
+
+      async function copyDownloadStats(item) {
+        const summary = item && item.telemetrySummary;
+        if (!summary) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(summary);
+          } else {
+            const field = document.createElement('textarea');
+            field.value = summary;
+            field.setAttribute('readonly', '');
+            field.style.position = 'fixed';
+            field.style.opacity = '0';
+            document.body.appendChild(field);
+            field.select();
+            const copied = document.execCommand('copy');
+            field.remove();
+            if (!copied) throw new Error('Clipboard copy failed');
+          }
+          showToast('Stats copied');
+        } catch (_) {
+          showToast('Could not copy stats');
+        }
+      }
+
       function renderDownloads() {
-        const renderKey = JSON.stringify([state.activeDownloads,state.doneDownloads]);
+        const renderKey = JSON.stringify([state.activeDownloads,state.doneDownloads,state.showDownloadSpeedStats]);
         if (renderKey === lastDownloadsRenderKey) return;
         lastDownloadsRenderKey = renderKey;
         const activeCount = state.activeDownloads.length;
@@ -1982,7 +2036,8 @@
               <div class="surface-card rounded-2xl p-3.5 flex items-center justify-between gap-3">
                 ${thumbnail}
                 <div class="min-w-0 flex-1"><p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}${item.resolution ? ' · ' + item.resolution : ''} · ${item.date}</p></div>
+                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}${item.resolution ? ' · ' + item.resolution : ''} · ${item.date}</p>
+                  ${renderDownloadStatsBadge(item)}</div>
                 <button type="button" data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${isAudio ? 'audio' : 'video'}" class="w-9 h-9 rounded-full bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0" aria-label="Play ${item.title}">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play w-4 h-4" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
                 </button>
@@ -2011,6 +2066,12 @@
 
       window.jetCancelledDownloadIds = window.jetCancelledDownloadIds || new Set();
       document.addEventListener('click', (e) => {
+        const statsBtn = e.target.closest('[data-dl-stats-copy]');
+        if (statsBtn) {
+          const item = state.doneDownloads.find((entry) => String(entry.id) === statsBtn.dataset.dlStatsCopy);
+          if (item) void copyDownloadStats(item);
+          return;
+        }
         const pauseBtn = e.target.closest('[data-dl-pause]');
         if (pauseBtn) {
           const id = pauseBtn.dataset.dlPause, item = state.activeDownloads.find((d) => d.id === id);
@@ -2495,6 +2556,7 @@
       window.onNativeCompletedDownloads = function (items) {
         if (!Array.isArray(items)) return;
         const restored = new Map();
+        const cachedDone = new Map(state.doneDownloads.map((item) => [item.filePath, item]));
         items.forEach((item) => {
           if (!item || !item.filePath) return;
           restored.set(item.filePath, {
@@ -2506,7 +2568,9 @@
             fileUri: item.fileUri || '',
             thumbnailUrl: item.thumbnailUrl || '',
             date: item.date || 'Saved',
-            resolution: item.resolution || ''
+            resolution: item.resolution || '',
+            telemetrySummary: (cachedDone.get(item.filePath) || {}).telemetrySummary || '',
+            telemetryDisplay: (cachedDone.get(item.filePath) || {}).telemetryDisplay || ''
           });
         });
         state.doneDownloads = Array.from(restored.values());
