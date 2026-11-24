@@ -1593,6 +1593,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun currentCachedLibraryItems(): List<LibraryItemPayload> {
+        return cachedLibraryItems ?: runCatching {
+            if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else emptyList()
+        }.getOrDefault(emptyList())
+    }
+
     private fun hasLibraryMutationReadPermission(filePath: String): Boolean {
         val ext = File(filePath).extension.lowercase(Locale.ROOT)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1692,7 +1698,7 @@ class MainActivity : AppCompatActivity() {
                 val target = File(allowedDir, newName!!).canonicalFile
                 downloadDao.getAll().firstOrNull { it.filePath == source.absolutePath }?.let { downloadDao.upsert(it.copy(filePath = target.absolutePath)) }
                 MediaScannerConnection.scanFile(applicationContext, arrayOf(target.absolutePath), null, null)
-                val items = (cachedLibraryItems ?: emptyList()).map { if (it.filePath == source.absolutePath) it.copy(filePath = target.absolutePath, title = target.nameWithoutExtension) else it }
+                val items = currentCachedLibraryItems().map { if (it.filePath == source.absolutePath) it.copy(filePath = target.absolutePath, title = target.nameWithoutExtension) else it }
                 cachedLibraryItems = items
                 runCatching { libraryCacheFile.writeText(json.encodeToString(items)) }
                 callJs("onNativeLibraryItemRenamed", listOf(source.absolutePath, target.absolutePath, target.name).joinToString(",") { JSONObject.quote(it) })
@@ -1703,12 +1709,13 @@ class MainActivity : AppCompatActivity() {
                 val thumbnailKey = (source.absolutePath + "|" + source.length() + "|" + source.lastModified()).hashCode().toUInt().toString(16)
                 check(contentResolver.delete(uri, null, null) > 0) { "MediaStore could not delete this file" }
                 downloadDao.getAll().firstOrNull { it.filePath == source.absolutePath }?.let { downloadDao.deleteById(it.id) }
-                val items = (cachedLibraryItems ?: emptyList()).filterNot { it.filePath == source.absolutePath }
+                val items = currentCachedLibraryItems().filterNot { it.filePath == source.absolutePath }
                 cachedLibraryItems = items
                 runCatching { libraryCacheFile.writeText(json.encodeToString(items)) }
                 runCatching { File(libraryThumbnailCacheDir, "$thumbnailKey.txt").delete() }
                 callJs("onNativeLibraryItemDeleted", JSONObject.quote(source.absolutePath))
                 pendingLibraryMutation = null
+                pushScannedLibraryToWeb(force = true)
                 withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "File deleted", Toast.LENGTH_SHORT).show() }
             }
         } catch (error: android.app.RecoverableSecurityException) {
