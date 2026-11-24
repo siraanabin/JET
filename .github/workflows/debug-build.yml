@@ -150,15 +150,15 @@ jobs:
           g = Path('app/build.gradle.kts').read_text()
           code = int(re.search(r'versionCode\s*=\s*(\d+)', g).group(1))
           name = re.search(r'versionName\s*=\s*"([^"]+)"', g).group(1)
-          assert code == 404, code
-          assert name == '3.9.14', name
+          assert code == 405, code
+          assert name == '3.9.15', name
           assert v['versionCode'] == code, (code, v['versionCode'])
           assert v['versionName'] == name, (name, v['versionName'])
-          assert v['apkUrl'].endswith('/debug-v3.9.14/JET-debug.apk'), v['apkUrl']
+          assert v['apkUrl'].endswith('/debug-v3.9.15/JET-debug.apk'), v['apkUrl']
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f"version_name={name}\n")
               f.write(f"version_code={code}\n")
-              f.write("tag_name=debug-v3.9.14\n")
+              f.write("tag_name=debug-v3.9.15\n")
           print(f"JET Debug {name} (versionCode {code})")
           PY
 
@@ -188,17 +188,17 @@ jobs:
             find "$APK_DIR" -maxdepth 1 -type f -print
             exit 1
           fi
-          cp "$APK" jet-debug-v3.9.14.apk
+          cp "$APK" jet-debug-v3.9.15.apk
           cp "$APK" JET-debug.apk
-          test -s jet-debug-v3.9.14.apk
+          test -s jet-debug-v3.9.15.apk
           test -s JET-debug.apk
-          ls -lh jet-debug-v3.9.14.apk JET-debug.apk
+          ls -lh jet-debug-v3.9.15.apk JET-debug.apk
 
       - name: Upload versioned Debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: jet-debug-v3.9.14.apk
-          path: jet-debug-v3.9.14.apk
+          name: jet-debug-v3.9.15.apk
+          path: jet-debug-v3.9.15.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -206,8 +206,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ github.token }}
-          tag_name: debug-v3.9.14
-          name: JET Debug v3.9.14
+          tag_name: debug-v3.9.15
+          name: JET Debug v3.9.15
           target_commitish: ${{ github.sha }}
           files: JET-debug.apk
           overwrite_files: true
