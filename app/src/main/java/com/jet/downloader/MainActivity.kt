@@ -2352,7 +2352,7 @@ class MainActivity : AppCompatActivity() {
                             val merging = line.contains("Merging", ignoreCase = true) ||
                                 line.contains("ExtractAudio", ignoreCase = true)
                             if (merging && ytDlpMuxStartedAtMs == null) ytDlpMuxStartedAtMs = SystemClock.elapsedRealtime()
-                            if (Regex("""HTTP\\s+(403|429)|\\b(403|429)\\b""", RegexOption.IGNORE_CASE).containsMatchIn(line)) ytDlpBlockCount++
+                            if (Regex("""HTTP\s+(403|429)|\b(403|429)\b""", RegexOption.IGNORE_CASE).containsMatchIn(line)) ytDlpBlockCount++
                             if (line.contains("retry", ignoreCase = true)) ytDlpRetryCount++
                             val stage = when {
                                 merging -> "MERGING"
@@ -3095,8 +3095,8 @@ class MainActivity : AppCompatActivity() {
                 Regex(pattern, RegexOption.IGNORE_CASE).find(previousSummary)?.groupValues?.getOrNull(1)?.toDoubleOrNull() ?: fallback
             fun metricInt(pattern: String, fallback: Int): Int =
                 Regex(pattern, RegexOption.IGNORE_CASE).find(previousSummary)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: fallback
-            val downloadSec = metric("""download=([0-9]+(?:\\.[0-9]+)?)s""", fallbackSec).coerceAtLeast(0.001)
-            val muxSec = metric("""merge=([0-9]+(?:\\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
+            val downloadSec = metric("""download=([0-9]+(?:\.[0-9]+)?)s""", fallbackSec).coerceAtLeast(0.001)
+            val muxSec = metric("""merge=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
             val totalSec = downloadSec + muxSec
             val netSpeed = displaySizeBytes / (1024.0 * 1024.0) / downloadSec
             val avgSpeed = displaySizeBytes / (1024.0 * 1024.0) / totalSec.coerceAtLeast(0.001)
