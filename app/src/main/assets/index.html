@@ -1951,9 +1951,9 @@
       function formatDownloadStatsDisplay(summary) {
         const text = String(summary || '');
         if (!text) return '';
-        const conn = text.match(/(?:^|\\s)conn=([^\\s]+)/i);
-        const duration = text.match(/(?:^|\\s)download=([0-9]+(?:\\.[0-9]+)?)s/i);
-        const speed = text.match(/(?:^|\\s)avg=([0-9]+(?:\\.[0-9]+)?)\\s*MB\\/s/i);
+        const conn = text.match(/(?:^|\s)conn=([^\s]+)/i);
+        const duration = text.match(/(?:^|\s)download=([0-9]+(?:\.[0-9]+)?)s/i);
+        const speed = text.match(/(?:^|\s)avg=([0-9]+(?:\.[0-9]+)?)\s*MB\/s/i);
         const parts = [];
         if (conn) parts.push(conn[1] + ' conn');
         if (duration) parts.push(duration[1] + 's');
