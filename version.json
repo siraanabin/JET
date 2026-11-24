@@ -1,8 +1,9 @@
 {
-  "versionCode": 399,
-  "versionName": "3.9.9",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.9/JET-debug.apk",
+  "versionCode": 400,
+  "versionName": "3.9.10",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.10/JET-debug.apk",
   "changelog": [
+    "Added bounded 8-worker parallel video/audio range downloads with exact byte totals, positional writes, native EMA speed and live ETA",
     "Prevented incomplete in-app APK downloads from triggering installation; added byte-verified resume and APK archive validation",
     "Widened brightness and volume gesture HUD pills so 100% displays without truncation",
     "Fixed exact video and audio stream size totals and parallelized stream downloads with monotonic progress",

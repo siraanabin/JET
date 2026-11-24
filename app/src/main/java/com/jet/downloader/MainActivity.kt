@@ -25,6 +25,7 @@ import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
+import android.os.SystemClock
 import android.os.Looper
 import android.os.Bundle
 import android.os.Environment
@@ -111,8 +112,15 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
@@ -391,6 +399,7 @@ class MainActivity : AppCompatActivity() {
     private val mediaInfoPrefetchJobs=ConcurrentHashMap<String,Job>()
     private val streamInfoCacheTtlMs=15*60*1000L
     private val exactStreamSizeCache = ConcurrentHashMap<String, Long>()
+    private val verifiedNewPipeSourceSizes = ConcurrentHashMap<String, Long>()
 
     private fun normalizeMediaInfoUrl(rawUrl:String):String {
         return try {
@@ -2299,15 +2308,11 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
-                    val speedRegex = Regex("at\\s+([0-9.]+\\s*[KMG]i?B/s)")
                     val downloadedBytesRegex = Regex("""^.*?([0-9]+(?:\.[0-9]+)?)\s*(B|KiB|MiB|GiB)\b""")
                     val totalBytesRegex = Regex("""of\s+~?([0-9]+(?:\.[0-9]+)?)\s*(B|KiB|MiB|GiB)\b""")
                     var lastReportedProgress = 0
                     var lastBytesRead = 0L
                     var lastTotalBytes = 0L
-                    var lastSpeedSampleAt = System.currentTimeMillis()
-                    var lastSpeedSampleBytes = 0L
-                    var smoothedSpeedBps = 0.0
                     fun parseYtDlpSize(match: MatchResult?): Long {
                         if (match == null) return 0L
                         val value = match.groupValues[1].toDoubleOrNull() ?: return 0L
@@ -2316,29 +2321,14 @@ class MainActivity : AppCompatActivity() {
                     }
                     callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Connecting...")}, ${JSONObject.quote("CONNECTING")}, 0, 0, 0, 0, -1")
                     synchronized(ytDlpEngineLock) {
-                        YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, etaInSeconds, line ->
+                        YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, _, line ->
                             val reported = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else lastReportedProgress
                             lastReportedProgress = maxOf(lastReportedProgress, reported)
                             val downloadedText = line.substringBefore(" at ")
                             lastBytesRead = maxOf(lastBytesRead, parseYtDlpSize(downloadedBytesRegex.find(downloadedText)))
                             lastTotalBytes = maxOf(lastTotalBytes, parseYtDlpSize(totalBytesRegex.find(line)))
-                            val now = System.currentTimeMillis()
-                            val elapsedMs = (now - lastSpeedSampleAt).coerceAtLeast(1L)
-                            val speedText = speedRegex.find(line)?.groupValues?.getOrNull(1)
-                            val speedMatch = speedText?.let { Regex("([0-9.]+)\\s*([KMG])i?B/s").find(it) }
-                            val parsedSpeed = if (speedMatch == null) 0.0 else {
-                                val unit = when (speedMatch.groupValues[2]) { "K" -> 1024.0; "M" -> 1024.0 * 1024.0; else -> 1024.0 * 1024.0 * 1024.0 }
-                                (speedMatch.groupValues[1].toDoubleOrNull() ?: 0.0) * unit
-                            }
-                            val deltaBytes = (lastBytesRead - lastSpeedSampleBytes).coerceAtLeast(0L)
-                            val instantSpeed = if (parsedSpeed > 0.0) parsedSpeed else deltaBytes * 1000.0 / elapsedMs.toDouble()
-                            if (instantSpeed > 0.0) {
-                                val alpha = 1.0 - kotlin.math.exp(-elapsedMs.toDouble() / 1800.0)
-                                smoothedSpeedBps = if (smoothedSpeedBps <= 0.0) instantSpeed else smoothedSpeedBps + alpha * (instantSpeed - smoothedSpeedBps)
-                                lastSpeedSampleAt = now
-                                lastSpeedSampleBytes = lastBytesRead
-                            }
-                            val merging = line.contains("Merging", ignoreCase = true) || line.contains("ExtractAudio", ignoreCase = true)
+                            val merging = line.contains("Merging", ignoreCase = true) ||
+                                line.contains("ExtractAudio", ignoreCase = true)
                             val stage = when {
                                 merging -> "MERGING"
                                 lastBytesRead > 0L -> "DOWNLOADING"
@@ -2349,10 +2339,25 @@ class MainActivity : AppCompatActivity() {
                                 lastBytesRead > 0L -> maxOf(1, lastReportedProgress)
                                 else -> 0
                             }.coerceAtMost(99)
-                            val speedLabel = when { merging -> "Merging..."; lastBytesRead == 0L -> "Connecting..."; speedText != null -> speedText; else -> "Downloading..." }
-                            val etaSeconds = if (lastTotalBytes > lastBytesRead && smoothedSpeedBps > 0.0) ((lastTotalBytes - lastBytesRead) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else etaInSeconds.toLong().coerceAtLeast(-1L)
-                            callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}, ${JSONObject.quote(stage)}, $lastBytesRead, $lastBytesRead, $lastTotalBytes, ${smoothedSpeedBps.toLong().coerceAtLeast(0L)}, $etaSeconds")
-                            runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, pct, speedLabel, resolvedThumbnailUrl) }
+                            val speedLabel = when {
+                                merging -> "Merging..."
+                                lastBytesRead == 0L -> "Connecting..."
+                                else -> "Downloading..."
+                            }
+                            val callbackArgs = listOf(
+                                JSONObject.quote(downloadId), pct.toString(),
+                                JSONObject.quote(speedLabel), JSONObject.quote(stage),
+                                lastBytesRead.toString(), lastBytesRead.toString(),
+                                lastTotalBytes.toString(), "0", "-1",
+                                JSONObject.quote("--"), JSONObject.quote("--"), "false", "false"
+                            ).joinToString(", ")
+                            callJs("onNativeDownloadProgress", callbackArgs)
+                            runCatching {
+                                DownloadNotificationService.update(
+                                    this@MainActivity, downloadId, title, pct, speedLabel, resolvedThumbnailUrl
+                                )
+                            }
+                        }
                         }
                     }
 
@@ -2411,73 +2416,166 @@ class MainActivity : AppCompatActivity() {
             try {
                 val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
                 val candidates = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
-                val selected = (if (selectedItag > 0) {
+                val selected = if (selectedItag > 0) {
                     candidates.firstOrNull { it.getItag() == selectedItag }
                 } else {
                     candidates.firstOrNull { it.getHeight() == maxHeight }
-                }) ?: return null
+                } ?: return null
+                check(selected.getItag() > 0) { "Selected video stream has no valid itag" }
                 val audio = if (selected.isVideoOnly) {
                     info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate } ?: return null
                 } else null
+                if (audio != null) check(audio.getItag() > 0) { "Selected audio stream has no valid itag" }
                 if (output.exists()) output.delete()
                 if (videoPart.exists()) videoPart.delete()
                 if (audioPart.exists()) audioPart.delete()
+
                 val selectedUrl = selected.url ?: return null
                 val audioUrl = if (audio != null) audio.url ?: return null else null
-                val combined = audio != null
-                val videoDownloadedBytes = AtomicLong(0L)
-                val audioDownloadedBytes = AtomicLong(0L)
-                val videoTotalBytes = AtomicLong(0L)
-                val audioTotalBytes = AtomicLong(0L)
-                videoTotalBytes.set(resolveExactStreamContentLength(selectedUrl))
-                audioTotalBytes.set(resolveExactStreamContentLength(audioUrl))
-                val progressLock = Any()
-                var lastSpeedSampleAt = System.currentTimeMillis()
-                var lastSpeedSampleBytes = 0L
-                var smoothedSpeedBps = 0.0
-                var lastTransferPercent = 0
-                fun emitTransferProgress() {
-                    synchronized(progressLock) {
-                        val now = System.currentTimeMillis()
-                        val downloadedBytes = videoDownloadedBytes.get() + audioDownloadedBytes.get()
-                        val videoLength = videoTotalBytes.get()
-                        val audioLength = audioTotalBytes.get()
-                        val allStreamLengthsKnown = !combined || (videoLength > 0L && audioLength > 0L)
-                        val totalBytes = if (allStreamLengthsKnown) videoLength + audioLength else 0L
-                        val elapsedMs = (now - lastSpeedSampleAt).coerceAtLeast(1L)
-                        val deltaBytes = (downloadedBytes - lastSpeedSampleBytes).coerceAtLeast(0L)
-                        if (deltaBytes > 0L) {
-                            val instantSpeed = deltaBytes * 1000.0 / elapsedMs.toDouble()
-                            val alpha = 1.0 - kotlin.math.exp(-elapsedMs.toDouble() / 1800.0)
-                            smoothedSpeedBps = if (smoothedSpeedBps <= 0.0) instantSpeed else smoothedSpeedBps + alpha * (instantSpeed - smoothedSpeedBps)
-                            lastSpeedSampleAt = now; lastSpeedSampleBytes = downloadedBytes
-                        }
-                        val rawPercent = if (totalBytes > 0L) (downloadedBytes * 95L / totalBytes).toInt() else 1
-                        val safePercent = if (combined && !allStreamLengthsKnown) 1 else rawPercent
-                        lastTransferPercent = maxOf(lastTransferPercent, safePercent.coerceIn(1, 95))
-                        val etaSeconds = if (totalBytes > downloadedBytes && smoothedSpeedBps > 0.0) ((totalBytes - downloadedBytes) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else -1L
-                        callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastTransferPercent + ", " + JSONObject.quote("Downloading...") + ", " + JSONObject.quote("DOWNLOADING") + ", " + downloadedBytes + ", " + downloadedBytes + ", " + totalBytes + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", " + etaSeconds)
-                    }
+                val videoTotalBytes = resolveExactStreamContentLength(selectedUrl)
+                check(videoTotalBytes > 0L) { "Could not resolve the exact video Content-Length" }
+                val audioTotalBytes = if (audio != null) resolveExactStreamContentLength(audioUrl) else 0L
+                if (audio != null) check(audioTotalBytes > 0L) {
+                    "Could not resolve the exact audio Content-Length"
                 }
-                runBlocking(Dispatchers.IO) {
-                    kotlinx.coroutines.coroutineScope {
-                        val videoJob = async(Dispatchers.IO) {
-                            downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart) { bytes, total ->
-                                videoDownloadedBytes.set(bytes); videoTotalBytes.set(total); emitTransferProgress()
+                val totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
+                check(totalBytes > 0L) { "Combined stream size is invalid" }
+
+                val totalDownloadedBytes = AtomicLong(0L)
+                videoPart.parentFile?.mkdirs()
+                val videoAccess = RandomAccessFile(videoPart, "rw")
+                var audioAccess: RandomAccessFile? = null
+                try {
+                    // Allocate both exact-size output files before starting any range worker.
+                    videoAccess.setLength(videoTotalBytes)
+                    if (audio != null) {
+                        audioAccess = RandomAccessFile(audioPart, "rw")
+                        audioAccess!!.setLength(audioTotalBytes)
+                    }
+
+                    val progressLock = Any()
+                    var lastTickBytes = 0L
+                    var lastTickTimeMs = SystemClock.elapsedRealtime()
+                    var lastDataTimeMs = lastTickTimeMs
+                    var smoothedSpeed = 0.0
+                    var lastTransferPercent = 1
+
+                    fun emitTransferProgress() {
+                        synchronized(progressLock) {
+                            val now = SystemClock.elapsedRealtime()
+                            val currentBytes = totalDownloadedBytes.get().coerceIn(0L, totalBytes)
+                            val deltaBytes = (currentBytes - lastTickBytes).coerceAtLeast(0L)
+                            val deltaMs = (now - lastTickTimeMs).coerceAtLeast(1L)
+                            if (deltaBytes > 0L) {
+                                val bytesPerSec = (deltaBytes * 1000.0) / deltaMs.toDouble()
+                                smoothedSpeed = if (smoothedSpeed <= 0.0) bytesPerSec
+                                else 0.35 * bytesPerSec + 0.65 * smoothedSpeed
+                                lastDataTimeMs = now
+                            } else {
+                                smoothedSpeed *= 0.5
+                                if (now - lastDataTimeMs > 2000L) smoothedSpeed = 0.0
+                            }
+                            lastTickBytes = currentBytes
+                            lastTickTimeMs = now
+
+                            val remainingBytes = (totalBytes - currentBytes).coerceAtLeast(0L)
+                            val etaSeconds = when {
+                                currentBytes == totalBytes -> 0L
+                                smoothedSpeed > 1024.0 ->
+                                    kotlin.math.ceil(remainingBytes / smoothedSpeed).toLong()
+                                else -> -1L
+                            }
+                            val speedText = if (smoothedSpeed >= 1024.0 * 1024.0) {
+                                String.format(Locale.US, "%.1f MB/s", smoothedSpeed / (1024.0 * 1024.0))
+                            } else {
+                                String.format(Locale.US, "%.1f KB/s", smoothedSpeed / 1024.0)
+                            }
+                            val etaText = when {
+                                etaSeconds < 0L -> "--"
+                                etaSeconds < 60L -> etaSeconds.toString() + "s"
+                                else -> (etaSeconds / 60L).toString() + "m " + (etaSeconds % 60L).toString() + "s"
+                            }
+                            val rawPercent = ((currentBytes * 95L) / totalBytes).toInt().coerceIn(1, 95)
+                            lastTransferPercent = maxOf(lastTransferPercent, rawPercent)
+                            val args = listOf(
+                                JSONObject.quote(downloadId), lastTransferPercent.toString(),
+                                JSONObject.quote("Downloading..."), JSONObject.quote("DOWNLOADING"),
+                                currentBytes.toString(), currentBytes.toString(), totalBytes.toString(),
+                                smoothedSpeed.toLong().coerceAtLeast(0L).toString(), etaSeconds.toString(),
+                                JSONObject.quote(speedText), JSONObject.quote(etaText), "true", "false"
+                            ).joinToString(", ")
+                            callJs("onNativeDownloadProgress", args)
+                        }
+                    }
+
+                    callJs(
+                        "onNativeDownloadProgress",
+                        listOf(
+                            JSONObject.quote(downloadId), "1", JSONObject.quote("Downloading..."),
+                            JSONObject.quote("DOWNLOADING"), "0", "0", totalBytes.toString(),
+                            "0", "-1", JSONObject.quote("0.0 KB/s"), JSONObject.quote("--"),
+                            "true", "false"
+                        ).joinToString(", ")
+                    )
+                    val ticker = Executors.newSingleThreadScheduledExecutor { runnable ->
+                        Thread(runnable, "JET-Download-Progress").apply { isDaemon = true }
+                    }
+                    try {
+                        ticker.scheduleAtFixedRate(
+                            { runCatching { emitTransferProgress() } }, 0L, 500L, TimeUnit.MILLISECONDS
+                        )
+                        runBlocking(Dispatchers.IO) {
+                            kotlinx.coroutines.coroutineScope {
+                                val videoJob = async(Dispatchers.IO) {
+                                    downloadGoogleVideoToPart(
+                                        downloadId, info.id, selected.getItag(), selectedUrl, videoPart,
+                                        videoTotalBytes, videoAccess.channel, 6, totalDownloadedBytes
+                                    )
+                                }
+                                val audioJob = if (audio != null) async(Dispatchers.IO) {
+                                    downloadGoogleVideoToPart(
+                                        downloadId, info.id, audio.getItag(),
+                                        audioUrl ?: throw IllegalStateException("Audio stream URL is missing"),
+                                        audioPart, audioTotalBytes, audioAccess!!.channel, 2, totalDownloadedBytes
+                                    )
+                                } else null
+                                videoJob.await()
+                                audioJob?.await()
                             }
                         }
-                        val audioJob = if (audio != null) async(Dispatchers.IO) {
-                            downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: throw IllegalStateException("Audio stream URL is missing"), audioPart) { bytes, total ->
-                                audioDownloadedBytes.set(bytes); audioTotalBytes.set(total); emitTransferProgress()
-                            }
-                        } else null
-                        videoJob.await(); audioJob?.await()
+                        emitTransferProgress()
+                    } finally {
+                        ticker.shutdownNow()
+                    }
+                } finally {
+                    runCatching { audioAccess?.close() }
+                    runCatching { videoAccess.close() }
+                }
+
+                check(videoPart.isFile && videoPart.length() == videoTotalBytes) {
+                    "Downloaded video stream size does not match Content-Length"
+                }
+                if (audio != null) {
+                    check(audioPart.isFile && audioPart.length() == audioTotalBytes) {
+                        "Downloaded audio stream size does not match Content-Length"
                     }
                 }
+                check(totalDownloadedBytes.get() == totalBytes) {
+                    "Combined downloaded bytes do not match the exact stream total"
+                }
+
                 ensureYtDlpInitialized()
                 val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                 check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
-                callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 96, " + JSONObject.quote("Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoTotalBytes.get() + audioTotalBytes.get()) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
+                callJs(
+                    "onNativeDownloadProgress",
+                    listOf(
+                        JSONObject.quote(downloadId), "96", JSONObject.quote("Remuxing..."),
+                        JSONObject.quote("MERGING"), totalBytes.toString(), totalBytes.toString(),
+                        totalBytes.toString(), "0", "-1", JSONObject.quote("--"),
+                        JSONObject.quote("--"), "true", "false"
+                    ).joinToString(", ")
+                )
                 val args = mutableListOf(ffmpeg.absolutePath, "-y", "-hide_banner", "-i", videoPart.absolutePath)
                 if (audio != null) args += listOf("-i", audioPart.absolutePath, "-map", "0:v:0", "-map", "1:a:0")
                 else args += listOf("-map", "0:v:0", "-map", "0:a?")
@@ -2494,27 +2592,50 @@ class MainActivity : AppCompatActivity() {
                             runningProcess.destroyForcibly()
                             throw CancellationException("Download paused or cancelled")
                         }
-                        if (line.startsWith("out_time_ms=")) outTimeMicros = maxOf(outTimeMicros, line.substringAfter("=").toLongOrNull() ?: 0L)
+                        if (line.startsWith("out_time_ms=")) {
+                            outTimeMicros = maxOf(outTimeMicros, line.substringAfter("=").toLongOrNull() ?: 0L)
+                        }
                         if (line.startsWith("progress=")) {
                             val finished = line.substringAfter("=") == "end"
-                            val pct = if (finished) 99 else if (durationMicros > 0L) (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99) else 96
+                            val pct = if (finished) 99 else if (durationMicros > 0L) {
+                                (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99)
+                            } else 96
                             lastPercent = maxOf(lastPercent, pct).coerceAtMost(99)
-                            callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastPercent + ", " + JSONObject.quote(if (finished) "Finalizing..." else "Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoTotalBytes.get() + audioTotalBytes.get()) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
+                            callJs(
+                                "onNativeDownloadProgress",
+                                listOf(
+                                    JSONObject.quote(downloadId), lastPercent.toString(),
+                                    JSONObject.quote(if (finished) "Finalizing..." else "Remuxing..."),
+                                    JSONObject.quote("MERGING"), totalBytes.toString(), totalBytes.toString(),
+                                    totalBytes.toString(), "0", "-1", JSONObject.quote("--"),
+                                    JSONObject.quote("--"), "true", "false"
+                                ).joinToString(", ")
+                            )
                         }
                     }
                 }
                 val exitCode = runningProcess.waitFor()
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
-                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 100, " + JSONObject.quote("Complete") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoTotalBytes.get() + audioTotalBytes.get()) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", 0")
+                    verifiedNewPipeSourceSizes[downloadId] = totalBytes
+                    callJs(
+                        "onNativeDownloadProgress",
+                        listOf(
+                            JSONObject.quote(downloadId), "100", JSONObject.quote("Complete"),
+                            JSONObject.quote("MERGING"), totalBytes.toString(), totalBytes.toString(),
+                            totalBytes.toString(), "0", "0", JSONObject.quote("0.0 KB/s"),
+                            JSONObject.quote("0s"), "true", "true"
+                        ).joinToString(", ")
+                    )
                     return output
                 }
                 output.delete()
                 return null
             } catch (error: Exception) {
+                verifiedNewPipeSourceSizes.remove(downloadId)
                 activeNewPipeProcesses.remove(downloadId)?.let { runCatching { it.destroyForcibly() } }
                 output.delete()
-                Log.w("JET-NewPipe", "Local NewPipe download/remux failed; falling back to yt-dlp", error)
+                Log.w("JET-NewPipe", "Local parallel NewPipe download/remux failed; falling back to yt-dlp", error)
                 return null
             } finally {
                 activeNewPipeProcesses.remove(downloadId)
@@ -2525,65 +2646,176 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun downloadGoogleVideoToPart(
-            downloadId: String, videoId: String, itag: Int, streamUrl: String, target: File,
-            onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit
+            downloadId: String,
+            videoId: String,
+            itag: Int,
+            streamUrl: String,
+            target: File,
+            streamTotalBytes: Long,
+            channel: FileChannel,
+            workerCount: Int,
+            totalDownloadedBytes: AtomicLong
         ) {
             val host = Uri.parse(streamUrl).host?.lowercase(Locale.ROOT).orEmpty()
-            check(host == "googlevideo.com" || host.endsWith(".googlevideo.com")) { "Unexpected media stream host" }
+            check(host == "googlevideo.com" || host.endsWith(".googlevideo.com")) {
+                "Unexpected media stream host"
+            }
+            check(streamTotalBytes > 0L) { "Stream Content-Length must be known before workers start" }
+            check(workerCount in 1..6) { "Invalid stream worker count" }
+            target.parentFile?.mkdirs()
+
             val cacheKey = videoId + ":" + itag
             val now = System.currentTimeMillis()
             val cached = prefetchedStreamChunks.get(cacheKey)
-            val validCache = cached?.takeIf { now - it.cachedAtMs in 0..prefetchedStreamChunkTtlMs && it.bytes.isNotEmpty() }
+            val validCache = cached?.takeIf {
+                now - it.cachedAtMs in 0..prefetchedStreamChunkTtlMs &&
+                    it.bytes.isNotEmpty() &&
+                    it.totalBytes == streamTotalBytes &&
+                    it.bytes.size.toLong() <= streamTotalBytes
+            }
             if (cached != null && validCache == null) prefetchedStreamChunks.remove(cacheKey)
-            var totalBytes = validCache?.totalBytes ?: -1L
-            var downloaded = 0L
-            target.parentFile?.mkdirs()
-            FileOutputStream(target, false).use { output ->
-                if (validCache != null) {
-                    output.write(validCache.bytes)
-                    downloaded = validCache.bytes.size.toLong()
-                    totalBytes = validCache.totalBytes
-                    onProgress(downloaded, totalBytes)
+            val cachedBytes = validCache?.bytes ?: ByteArray(0)
+            if (cachedBytes.isNotEmpty()) {
+                val cachedBuffer = ByteBuffer.wrap(cachedBytes)
+                var filePosition = 0L
+                while (cachedBuffer.hasRemaining()) {
+                    val written = channel.write(cachedBuffer, filePosition)
+                    if (written <= 0) throw IOException("Could not write prefetched stream bytes")
+                    filePosition += written.toLong()
+                    totalDownloadedBytes.addAndGet(written.toLong())
                 }
-                while (totalBytes < 0L || downloaded < totalBytes) {
-                    if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) throw CancellationException("Download paused or cancelled")
-                    val rangeStart = downloaded
-                    val rangeEnd = if (totalBytes > 0L) minOf(totalBytes - 1L, rangeStart + downloadRangeChunkBytes - 1L) else rangeStart + downloadRangeChunkBytes - 1L
-                    val request = Request.Builder().url(streamUrl).get()
-                        .header("Range", "bytes=" + rangeStart + "-" + rangeEnd)
-                        .header("Accept-Encoding", "identity")
-                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                        .header("Origin", "https://www.youtube.com")
-                        .header("Referer", "https://www.youtube.com/")
-                        .build()
-                    okHttpClient.newCall(request).execute().use { response ->
-                        check(response.code == 206) { "Googlevideo range request returned HTTP " + response.code }
-                        val contentRange = response.header("Content-Range") ?: throw IllegalStateException("Missing Content-Range")
-                        val match = Regex("bytes (\\d+)-(\\d+)/(\\d+)").find(contentRange) ?: throw IllegalStateException("Invalid Content-Range: " + contentRange)
-                        val actualStart = match.groupValues[1].toLong()
-                        val actualEnd = match.groupValues[2].toLong()
-                        val responseTotal = match.groupValues[3].toLong()
-                        check(actualStart == rangeStart && actualEnd <= rangeEnd && responseTotal > actualEnd) { "Unexpected Googlevideo byte range" }
-                        if (totalBytes < 0L) totalBytes = responseTotal else check(totalBytes == responseTotal) { "Stream length changed during download" }
-                        val input = response.body?.byteStream() ?: throw IllegalStateException("Empty Googlevideo response")
-                        input.use { stream ->
-                            val buffer = ByteArray(64 * 1024)
-                            while (true) {
-                                if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) throw CancellationException("Download paused or cancelled")
-                                val count = stream.read(buffer)
-                                if (count < 0) break
-                                if (count == 0) continue
-                                output.write(buffer, 0, count)
-                                downloaded += count.toLong()
-                                onProgress(downloaded, totalBytes)
+            }
+
+            val tasks = ArrayList<Callable<Unit>>()
+            var chunkStart = 0L
+            while (chunkStart < streamTotalBytes) {
+                val chunkEnd = minOf(streamTotalBytes - 1L, chunkStart + downloadRangeChunkBytes - 1L)
+                val firstMissingByte = if (chunkStart == 0L) cachedBytes.size.toLong() else chunkStart
+                if (firstMissingByte <= chunkEnd) {
+                    tasks.add(Callable {
+                        downloadGoogleVideoRangeChunk(
+                            downloadId, streamUrl, firstMissingByte, chunkEnd, streamTotalBytes,
+                            channel, totalDownloadedBytes
+                        )
+                    })
+                }
+                chunkStart = chunkEnd + 1L
+            }
+
+            val executor = Executors.newFixedThreadPool(workerCount)
+            val futures = tasks.map { executor.submit(it) }
+            try {
+                futures.forEach { future ->
+                    try {
+                        future.get()
+                    } catch (error: ExecutionException) {
+                        futures.forEach { it.cancel(true) }
+                        throw (error.cause ?: error)
+                    }
+                }
+                executor.shutdown()
+                check(executor.awaitTermination(30L, TimeUnit.SECONDS)) {
+                    "Parallel stream workers did not terminate"
+                }
+                channel.force(false)
+            } finally {
+                executor.shutdownNow()
+            }
+        }
+
+        private fun downloadGoogleVideoRangeChunk(
+            downloadId: String,
+            streamUrl: String,
+            initialStart: Long,
+            chunkEnd: Long,
+            streamTotalBytes: Long,
+            channel: FileChannel,
+            totalDownloadedBytes: AtomicLong
+        ) {
+            var nextByte = initialStart
+            var retryCount = 0
+            while (nextByte <= chunkEnd) {
+                if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                    throw CancellationException("Download paused or cancelled")
+                }
+                val request = Request.Builder()
+                    .url(streamUrl)
+                    .get()
+                    .header("Range", "bytes=" + nextByte + "-" + chunkEnd)
+                    .header("Accept-Encoding", "identity")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                    .header("Origin", "https://www.youtube.com")
+                    .header("Referer", "https://www.youtube.com/")
+                    .build()
+                try {
+                    JetOkHttpDownloader.withRangeRequestPermit {
+                        okHttpClient.newCall(request).execute().use { response ->
+                            if (response.code == 408 || response.code == 425 || response.code == 429 ||
+                                response.code in 500..599
+                            ) throw IOException("Transient Googlevideo HTTP " + response.code)
+                            check(response.code == 206) {
+                                "Googlevideo range request returned HTTP " + response.code
+                            }
+                            val contentRange = response.header("Content-Range")
+                                ?: throw IllegalStateException("Missing Content-Range")
+                            val match = Regex("^bytes (\\d+)-(\\d+)/(\\d+)$").matchEntire(contentRange)
+                                ?: throw IllegalStateException("Invalid Content-Range: " + contentRange)
+                            val actualStart = match.groupValues[1].toLong()
+                            val actualEnd = match.groupValues[2].toLong()
+                            val responseTotal = match.groupValues[3].toLong()
+                            check(actualStart == nextByte && actualEnd >= actualStart &&
+                                actualEnd <= chunkEnd && responseTotal == streamTotalBytes
+                            ) { "Unexpected Googlevideo byte range" }
+                            val expectedSegmentBytes = actualEnd - actualStart + 1L
+                            val body = response.body ?: throw IOException("Empty Googlevideo response")
+                            if (body.contentLength() >= 0L) {
+                                check(body.contentLength() == expectedSegmentBytes) {
+                                    "Googlevideo response body length does not match Content-Range"
+                                }
+                            }
+                            body.byteStream().use { input ->
+                                val buffer = ByteArray(64 * 1024)
+                                var filePosition = nextByte
+                                while (true) {
+                                    if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                                        throw CancellationException("Download paused or cancelled")
+                                    }
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    if (count == 0) continue
+                                    check(filePosition + count.toLong() <= actualEnd + 1L) {
+                                        "Googlevideo returned bytes beyond the requested range"
+                                    }
+                                    val byteBuffer = ByteBuffer.wrap(buffer, 0, count)
+                                    while (byteBuffer.hasRemaining()) {
+                                        val written = channel.write(byteBuffer, filePosition)
+                                        if (written <= 0) throw IOException("FileChannel positional write made no progress")
+                                        filePosition += written.toLong()
+                                        totalDownloadedBytes.addAndGet(written.toLong())
+                                    }
+                                    nextByte = filePosition
+                                }
+                                if (filePosition != actualEnd + 1L) {
+                                    throw IOException("Googlevideo range stream ended early at byte " + filePosition)
+                                }
                             }
                         }
-                        check(downloaded == actualEnd + 1L) { "Incomplete Googlevideo range response" }
+                    }
+                    retryCount = 0
+                } catch (error: IOException) {
+                    if (retryCount >= 4) throw error
+                    val backoffMs = 250L shl retryCount
+                    retryCount++
+                    try {
+                        Thread.sleep(backoffMs)
+                    } catch (interrupted: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        throw CancellationException("Download worker interrupted during retry backoff")
                     }
                 }
             }
-            check(target.isFile && target.length() == totalBytes) { "Downloaded stream size mismatch" }
         }
+
         private fun containsVideoTrack(file: File): Boolean {
             val extractor = MediaExtractor()
             return try {
@@ -2605,7 +2837,9 @@ class MainActivity : AppCompatActivity() {
             selectedResolution: String
         ) {
             MediaScannerConnection.scanFile(applicationContext, arrayOf(file.absolutePath), null, null)
-            val sizeStr = formatBytes(file.length())
+            val displaySizeBytes = verifiedNewPipeSourceSizes.remove(downloadId)?.takeIf { it > 0L }
+                ?: file.length()
+            val sizeStr = formatBytes(displaySizeBytes)
             val resolution = if (mediaType == "video") selectedResolution.ifBlank { extractVideoResolution(file) } else ""
 
             // Persist in Room database

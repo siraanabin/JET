@@ -13,6 +13,21 @@ class JetOkHttpDownloader(
 ) : Downloader() {
 
     companion object {
+        private val RANGE_REQUEST_SEMAPHORE = java.util.concurrent.Semaphore(8, true)
+
+        /**
+         * Synchronous OkHttp execute() calls bypass Dispatcher.maxRequests.
+         * Bound all parallel media range workers process-wide to eight.
+         */
+        fun <T> withRangeRequestPermit(block: () -> T): T {
+            RANGE_REQUEST_SEMAPHORE.acquire()
+            try {
+                return block()
+            } finally {
+                RANGE_REQUEST_SEMAPHORE.release()
+            }
+        }
+
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
     }

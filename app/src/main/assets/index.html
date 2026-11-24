@@ -1458,26 +1458,24 @@
         const suffix = unit === 1024 ** 3 ? 'GB' : unit === 1024 ** 2 ? 'MB' : unit === 1024 ? 'KB' : 'B';
         return (downloaded / unit).toFixed(1) + ' / ' + (total / unit).toFixed(1) + ' ' + suffix;
       };
-      const formatSpeed = (bytesPerSec) => {
-        const value = Math.max(0, Number(bytesPerSec) || 0); if (!value) return '';
-        const unit = value >= 1024 ** 2 ? 1024 ** 2 : value >= 1024 ? 1024 : 1;
-        return (value / unit).toFixed(1) + ' ' + (unit === 1024 ** 2 ? 'MB/s' : unit === 1024 ? 'KB/s' : 'B/s');
-      };
-      const formatEta = (seconds) => {
-        const value = Math.max(0, Math.floor(Number(seconds) || 0));
-        if (value < 60) return value + 's left';
-        if (value < 3600) return Math.floor(value / 60) + 'm ' + String(value % 60).padStart(2, '0') + 's left';
-        return Math.floor(value / 3600) + 'h ' + String(Math.floor((value % 3600) / 60)).padStart(2, '0') + 'm left';
-      };
       const downloadTelemetry = (item) => {
-        const transferred = formatTransferred(item), speed = formatSpeed(item.speedBps), status = String(item.status || '').toLowerCase(), stage = String(item.stage || '').toUpperCase();
+        const transferred = formatTransferred(item);
+        const speed = String(item.speedText || '--');
+        const eta = String(item.etaText || '--');
+        const status = String(item.status || '').toLowerCase();
+        const stage = String(item.stage || '').toUpperCase();
         if (status === 'paused') return { left: transferred + ' · Paused', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
         if (isPreByteDownload(item)) return { left: 'Connecting...', right: '<b>0%</b>' };
         if (stage === 'MERGING' || status === 'merging') return { left: transferred + ' · Merging...', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
-        const eta = Number.isFinite(Number(item.etaSec)) && Number(item.etaSec) >= 0 ? formatEta(item.etaSec) : '';
-        return { left: transferred + (speed ? ' · ' + speed : ''), right: (eta ? eta + ' · ' : '') + '<b>' + shownDownloadPercent(item) + '%</b>' };
+        return {
+          left: transferred + (speed !== '--' ? ' · ' + speed : ''),
+          right: (eta !== '--' ? eta + ' · ' : '') + '<b>' + shownDownloadPercent(item) + '%</b>'
+        };
       };
-      window.onNativeDownloadProgress = function (id, progress, speedLabel, stage, bytesRead, downloadedBytes, totalBytes, speedBps, etaSec) {
+      window.onNativeDownloadProgress = function (
+        id, progress, speedLabel, stage, bytesRead, downloadedBytes, totalBytes,
+        speedBps, etaSec, speedText, etaText, exactTotalBytes, verifiedCompletion
+      ) {
         const item = state.activeDownloads.find((d) => d.id === id);
         if (!item) return;
         const normalizedStage = String(stage || '').toUpperCase();
@@ -1485,7 +1483,13 @@
         const previousBytesRead = Math.max(0, Number(item.bytesRead) || 0);
         item.downloadedBytes = Math.max(previousDownloadedBytes, Math.max(0, Number(downloadedBytes ?? bytesRead) || 0));
         item.bytesRead = Math.max(previousBytesRead, Math.max(0, Number(bytesRead) || 0), item.downloadedBytes);
-        item.totalBytes = Math.max(Number(item.totalBytes) || 0, Math.max(0, Number(totalBytes) || 0));
+        const incomingTotalBytes = Math.max(0, Number(totalBytes) || 0);
+        if (incomingTotalBytes > 0 && exactTotalBytes === true) {
+          item.totalBytes = incomingTotalBytes;
+          item.size = formatBytes(incomingTotalBytes);
+        } else if (incomingTotalBytes > 0) {
+          item.totalBytes = Math.max(Number(item.totalBytes) || 0, incomingTotalBytes);
+        }
         const receivedFirstByte = previousDownloadedBytes > 0 || item.downloadedBytes > 0;
         const previousStage = String(item.stage || '').toUpperCase();
         item.stage = previousStage === 'MERGING'
@@ -1495,17 +1499,13 @@
             : (['PREPARING', 'CONNECTING', 'DOWNLOADING', 'MERGING'].includes(normalizedStage)
               ? normalizedStage
               : (Number(progress) > 0 ? 'DOWNLOADING' : 'PREPARING')));
-        const now = Date.now(), previousBytes = Number(item._speedSampleBytes ?? item.downloadedBytes) || 0, previousAt = Number(item._speedSampleAt ?? now) || now;
-        const elapsedMs = Math.max(1, now - previousAt), deltaBytes = Math.max(0, item.downloadedBytes - previousBytes);
-        if (deltaBytes > 0) {
-          const instant = deltaBytes * 1000 / elapsedMs, alpha = 1 - Math.exp(-elapsedMs / 1800);
-          item._smoothedSpeedBps = item._smoothedSpeedBps > 0 ? item._smoothedSpeedBps + alpha * (instant - item._smoothedSpeedBps) : instant;
-          item._speedSampleBytes = item.downloadedBytes; item._speedSampleAt = now;
-        }
-        item.speedBps = Math.max(0, Number(speedBps) || item._smoothedSpeedBps || 0);
-        item.etaSec = Number.isFinite(Number(etaSec)) && Number(etaSec) >= 0 ? Number(etaSec) :
-          (item.totalBytes > item.downloadedBytes && item.speedBps > 0 ? (item.totalBytes - item.downloadedBytes) / item.speedBps : -1);
-        const realPercent = clampDownloadPercent(progress);
+        item.speedBps = Math.max(0, Number(speedBps) || 0);
+        item.speedText = String(speedText || '--');
+        item.etaSec = Number.isFinite(Number(etaSec)) ? Number(etaSec) : -1;
+        item.etaText = String(etaText || '--');
+        const safePercent = verifiedCompletion === true && Number(progress) === 100
+          ? 100
+          : Math.min(99, clampDownloadPercent(progress));
         if (item.bytesRead > 0 && (item.stage === 'PREPARING' || item.stage === 'CONNECTING')) item.stage = 'DOWNLOADING';
         if (isPreByteDownload(item)) {
           item.status = 'preparing';
@@ -1517,15 +1517,15 @@
         if (item.stage === 'MERGING') {
           item.status = 'merging';
           item.speed = 'Merging...';
-          item.progress = Math.max(clampDownloadPercent(item.progress), Math.min(99, realPercent || 99));
-        } else if (item.stage === 'DOWNLOADING' && item.bytesRead > 0) {
+          item.progress = Math.max(clampDownloadPercent(item.progress), safePercent);
+        } else if (item.stage === 'DOWNLOADING' && (item.bytesRead > 0 || incomingTotalBytes > 0)) {
           item.status = 'downloading';
           item.speed = speedLabel || 'Downloading...';
-          item.progress = Math.max(clampDownloadPercent(item.progress), clampDownloadPercent(Math.max(1, realPercent)));
+          item.progress = Math.max(clampDownloadPercent(item.progress), safePercent);
         } else {
           item.status = 'preparing';
           item.speed = speedLabel || 'Connecting...';
-          item.progress = 0;
+          item.progress = Math.max(clampDownloadPercent(item.progress), safePercent);
         }
         renderDownloads();
       };      window.onNativeDownloadPaused = function (id) {

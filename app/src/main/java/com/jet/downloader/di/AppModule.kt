@@ -10,6 +10,9 @@ import com.jet.downloader.network.JetOkHttpDownloader
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Dns
+import okhttp3.Dispatcher
+import okhttp3.ConnectionPool
+import okhttp3.Protocol
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 import java.util.concurrent.TimeUnit
@@ -29,14 +32,21 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 
 val appModule = module {
     single {
+        val dispatcher = Dispatcher().apply {
+            maxRequests = 16
+            maxRequestsPerHost = 16
+        }
         OkHttpClient.Builder()
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .dispatcher(dispatcher)
+            .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
             .dns(object : Dns {
                 override fun lookup(hostname: String): List<java.net.InetAddress> =
                     Dns.SYSTEM.lookup(hostname).sortedBy { if (it is Inet4Address) 0 else 1 }
             })
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .followRedirects(true)
             .build()
     }
