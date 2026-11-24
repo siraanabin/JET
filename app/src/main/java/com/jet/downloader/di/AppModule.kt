@@ -39,7 +39,7 @@ val appModule = module {
         OkHttpClient.Builder()
             .protocols(listOf(Protocol.HTTP_1_1))
             .dispatcher(dispatcher)
-            .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
+            .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
             .dns(object : Dns {
                 override fun lookup(hostname: String): List<java.net.InetAddress> =
                     Dns.SYSTEM.lookup(hostname).sortedBy { if (it is Inet4Address) 0 else 1 }
