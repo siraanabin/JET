@@ -997,7 +997,7 @@ class MainActivity : AppCompatActivity() {
             .forEach { item ->
                 val mediaFile = File(item.filePath)
                 val isVideo = mediaFile.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")
-                val resolvedThumbnail = item.thumbnailUrl.takeIf { it.isNotBlank() } ?: if (isVideo) thumbnailFromDiskCache(mediaFile) else ""
+                val resolvedThumbnail = item.thumbnailUrl.takeIf { it.isNotBlank() } ?: if (isVideo) thumbnailFromDiskCache(mediaFile) else if (isAudioFile(mediaFile)) audioThumbnailFromDiskCache(mediaFile) else ""
                 historyByPath[item.filePath] = DownloadHistoryPayload(
                     item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
                     Uri.fromFile(mediaFile).toString(), resolvedThumbnail, "Saved"
@@ -1017,7 +1017,7 @@ class MainActivity : AppCompatActivity() {
                     file.absolutePath,
                     Uri.fromFile(file).toString(),
                     saved?.thumbnailUrl?.takeIf { it.isNotBlank() }
-                        ?: if (file.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) thumbnailFromDiskCache(file) else "",
+                        ?: if (file.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) thumbnailFromDiskCache(file) else if (isAudioFile(file)) audioThumbnailFromDiskCache(file) else "",
                     "Saved"
                 )
             }
