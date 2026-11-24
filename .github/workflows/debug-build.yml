@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: jet-debug-\${{ github.ref }}
+  group: jet-debug-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -41,8 +41,8 @@ jobs:
 
           for weight in 400 500 600 700 800; do
             curl --fail --location --retry 3 --retry-delay 2 \
-              "https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@5.1.0/files/plus-jakarta-sans-latin-\${weight}-normal.woff2" \
-              -o "$ASSETS/fonts/plus-jakarta-sans-\${weight}.woff2"
+              "https://cdn.jsdelivr.net/npm/@fontsource/plus-jakarta-sans@5.1.0/files/plus-jakarta-sans-latin-${weight}-normal.woff2" \
+              -o "$ASSETS/fonts/plus-jakarta-sans-${weight}.woff2"
           done
 
           cat > "$ASSETS/fonts/fonts.css" <<'CSS'
@@ -116,7 +116,7 @@ jobs:
             -o ./app/src/main/assets/css/tailwind.min.css \
             --minify
           test -s app/src/main/assets/css/tailwind.min.css
-          if grep -E 'cdn\\.tailwindcss|unpkg\\.com/lucide|fonts\\.googleapis' app/src/main/assets/index.html; then
+          if grep -E 'cdn\.tailwindcss|unpkg\.com/lucide|fonts\.googleapis' app/src/main/assets/index.html; then
             echo "A remote UI CDN reference remains in index.html" >&2
             exit 1
           fi
@@ -129,14 +129,14 @@ jobs:
 
       - name: Decode release keystore for matching Debug signature
         env:
-          KEYSTORE_B64: \${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          if [ -z "\${KEYSTORE_B64}" ]; then
+          if [ -z "${KEYSTORE_B64}" ]; then
             echo "::error::Missing keystore secret. Configure ANDROID_KEYSTORE_BASE64 (or KEYSTORE_BASE64)."
             exit 1
           fi
-          printf '%s' "\${KEYSTORE_B64}" | base64 --decode > app/jet-release.jks
+          printf '%s' "${KEYSTORE_B64}" | base64 --decode > app/jet-release.jks
           test -s app/jet-release.jks
           chmod 600 app/jet-release.jks
 
@@ -148,17 +148,17 @@ jobs:
           from pathlib import Path
           v = json.loads(Path('version.json').read_text())
           g = Path('app/build.gradle.kts').read_text()
-          code = int(re.search(r'versionCode\\s*=\\s*(\\d+)', g).group(1))
-          name = re.search(r'versionName\\s*=\\s*"([^"]+)"', g).group(1)
+          code = int(re.search(r'versionCode\s*=\s*(\d+)', g).group(1))
+          name = re.search(r'versionName\s*=\s*"([^"]+)"', g).group(1)
           assert code == 404, code
           assert name == '3.9.14', name
           assert v['versionCode'] == code, (code, v['versionCode'])
           assert v['versionName'] == name, (name, v['versionName'])
           assert v['apkUrl'].endswith('/debug-v3.9.14/JET-debug.apk'), v['apkUrl']
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"version_name={name}\\n")
-              f.write(f"version_code={code}\\n")
-              f.write("tag_name=debug-v3.9.14\\n")
+              f.write(f"version_name={name}\n")
+              f.write(f"version_code={code}\n")
+              f.write("tag_name=debug-v3.9.14\n")
           print(f"JET Debug {name} (versionCode {code})")
           PY
 
@@ -169,9 +169,9 @@ jobs:
 
       - name: Build signed Debug APK with Release signing key
         env:
-          ANDROID_KEYSTORE_PASSWORD: \${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: \${{ secrets.ANDROID_KEY_ALIAS || secrets.KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: \${{ secrets.ANDROID_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.KEY_PASSWORD }}
         run: ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Stage universal Debug APK
@@ -205,10 +205,10 @@ jobs:
       - name: Publish or update Debug pre-release
         uses: softprops/action-gh-release@v2
         with:
-          token: \${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}
           tag_name: debug-v3.9.14
           name: JET Debug v3.9.14
-          target_commitish: \${{ github.sha }}
+          target_commitish: ${{ github.sha }}
           files: JET-debug.apk
           overwrite_files: true
           fail_on_unmatched_files: true
