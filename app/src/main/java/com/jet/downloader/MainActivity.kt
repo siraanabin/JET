@@ -2052,7 +2052,7 @@ class MainActivity : AppCompatActivity() {
             listOf("aud-70" to 70L, "aud-128" to 128L, "aud-160" to 160L, "aud-320" to 320L)
                 .forEach { (id, bitrateKbps) ->
                     val bytes = (bitrateKbps * 1000L * durationSec) / 8L
-                    streamSizes[id] = StreamSizePayload("~ " + formatBytes(bytes), bytes, true)
+                    streamSizes[id] = StreamSizePayload(sizeText = "~ " + formatBytes(bytes), sizeBytes = bytes, available = true)
                     logSizeResult(id, bytes, "estimate", 0L)
                 }
 
@@ -2065,8 +2065,9 @@ class MainActivity : AppCompatActivity() {
             var audioBytes = audioMeta.bytes.takeIf { it > 0L } ?: audioEstimate
             if (audioMeta.bytes <= 0L) logSizeResult("Audio", audioBytes, "estimate", audioMeta.elapsedMs)
             streamSizes["aud-fast"] = StreamSizePayload(
-                if (audioMeta.bytes > 0L) formatBytes(audioBytes) else "~ " + formatBytes(audioBytes),
-                audioBytes, audioBytes > 0L
+                sizeText = if (audioMeta.bytes > 0L) formatBytes(audioBytes) else "~ " + formatBytes(audioBytes),
+                sizeBytes = audioBytes,
+                available = audioBytes > 0L
             )
 
             data class VideoEntry(
@@ -2158,7 +2159,7 @@ class MainActivity : AppCompatActivity() {
                     if (result.bytes > 0L) {
                         if (task.audio) {
                             audioBytes = result.bytes
-                            streamSizes["aud-fast"] = StreamSizePayload(formatBytes(audioBytes), audioBytes, true)
+                            streamSizes["aud-fast"] = StreamSizePayload(sizeText = formatBytes(audioBytes), sizeBytes = audioBytes, available = true)
                         } else {
                             entries.firstOrNull { it.id == task.id }?.bytes = result.bytes
                         }
