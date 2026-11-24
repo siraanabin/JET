@@ -2433,8 +2433,11 @@ class MainActivity : AppCompatActivity() {
                 } else null
                 if (audio != null) check(audio.getItag() > 0) { "Selected audio stream has no valid itag" }
                 if (output.exists()) output.delete()
-                if (videoPart.exists()) videoPart.delete()
-                if (audioPart.exists()) audioPart.delete()
+                val checkpointFile = File(cacheDir, "jet-" + downloadId + ".chunks.ckpt")
+                if (!checkpointFile.exists()) {
+                    if (videoPart.exists()) videoPart.delete()
+                    if (audioPart.exists()) audioPart.delete()
+                }
 
                 val selectedUrl = selected.url ?: return null
                 val audioUrl = if (audio != null) audio.url ?: return null else null
@@ -2569,13 +2572,13 @@ class MainActivity : AppCompatActivity() {
                                 totalDownloadedBytes.set(0L)
                                 videoAccess.close()
                                 audioAccess?.close()
-                                videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId)
-                                audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId) else 0L
+                                videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId, totalDownloadedBytes)
+                                audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId, totalDownloadedBytes) else 0L
                                 totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
                             }
                         } else {
-                            videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId)
-                            audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId) else 0L
+                            videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId, totalDownloadedBytes)
+                            audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId, totalDownloadedBytes) else 0L
                             totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
                         }
                         emitTransferProgress()
@@ -2687,14 +2690,16 @@ class MainActivity : AppCompatActivity() {
             } finally {
                 activeNewPipeProcesses.remove(downloadId)
                 runCatching { process?.destroy() }
-                runCatching { videoPart.delete() }
-                runCatching { audioPart.delete() }
+                if (!File(cacheDir, "jet-" + downloadId + ".chunks.ckpt").exists()) {
+                    runCatching { videoPart.delete() }
+                    runCatching { audioPart.delete() }
+                }
             }
         }
 
         private class RangeUnsupportedException(message: String) : IOException(message)
 
-        private fun downloadSequentialStream(streamUrl: String, target: File, downloadId: String): Long {
+        private fun downloadSequentialStream(streamUrl: String, target: File, downloadId: String, downloaded: AtomicLong): Long {
             val request = Request.Builder().url(streamUrl).get()
                 .header("Accept-Encoding", "identity")
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
