@@ -1,7 +1,7 @@
 {
-  "versionCode": 385,
-  "versionName": "3.8.5",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.5/JET-debug.apk",
+  "versionCode": 386,
+  "versionName": "3.8.6",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.6/JET-debug.apk",
   "changelog": [
     "Fixed PiP UI cast crash and improved player title marquee and progress styling",
     "Persisted Library snapshots and deferred scans for instant tab display",
@@ -11,6 +11,12 @@
     "Fixed music seeking and smooth playback progress updates",
     "Prevented clipboard auto-paste from opening download dialogs",
     "Replaced flashing blue library thumbnail placeholders with dark placeholders",
-    "Added the JET Downloader cold-start intro animation"
+    "Added the JET Downloader cold-start intro animation",
+    "Added silent 24-hour yt-dlp engine auto-update checks",
+    "Restored video player gradient scrims and rounded full-width seek bar",
+    "Stopped background music playback when starting a video and improved audio focus handling",
+    "Made swipe-seek HUD transparent and softened the dark-mode URL input border",
+    "Added draggable fast scrolling to Library and Downloads",
+    "Preserved rotating track artwork during music playback"
   ]
 }
