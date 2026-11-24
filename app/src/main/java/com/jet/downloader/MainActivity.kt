@@ -2037,8 +2037,10 @@ class MainActivity : AppCompatActivity() {
             )
             val videoEntries = mutableListOf<VideoSizeEntry>()
             val pending = mutableListOf<PendingSizeLookup>()
-            if (audioExtracted.bytes <= 0L && !bestAudio?.url.isNullOrBlank()) {
-                pending.add(PendingSizeLookup("aud-fast", "Audio", bestAudio!!.url, true))
+            if (audioExtracted.bytes <= 0L) {
+                bestAudio?.url?.takeIf { it.isNotBlank() }?.let {
+                    pending.add(PendingSizeLookup("aud-fast", "Audio", it, true))
+                }
             }
 
             val actualVideos = (info.videoOnlyStreams + info.videoStreams)
@@ -2065,7 +2067,9 @@ class MainActivity : AppCompatActivity() {
                     videoEntries.add(VideoSizeEntry(id, quality, video, needsAudio, videoBytes))
                     if (extracted.bytes <= 0L) {
                         logSizeResult(quality, videoBytes + if (needsAudio) bestAudioBytes else 0L, "estimate", extracted.elapsedMs)
-                        if (!video.url.isNullOrBlank()) pending.add(PendingSizeLookup(id, quality, video.url, false))
+                        video.url?.takeIf { it.isNotBlank() }?.let {
+                            pending.add(PendingSizeLookup(id, quality, it, false))
+                        }
                     }
                 }
 
