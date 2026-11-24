@@ -2418,11 +2418,15 @@ class MainActivity : AppCompatActivity() {
                     runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, 0, "Preparing...", resolvedThumbnailUrl) }
 
                     downloadFallbackReasons.remove(downloadId)
-                    val newPipeFile = if (!isAudio) downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight) else null
-                    val fallbackReason = if (isAudio) "audio_custom_path_skipped" else downloadFallbackReasons.remove(downloadId) ?: "custom_engine_failed"
+                    val newPipeFile = if (isAudio) {
+                        downloadAudioWithNewPipe(downloadId, url, outDir, audioExt, audioBitrate)
+                    } else {
+                        downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight)
+                    }
+                    val fallbackReason = downloadFallbackReasons.remove(downloadId) ?: "custom_engine_failed"
                     if (newPipeFile != null) {
                         Log.d("ENGINE_DEBUG", "downloadId=$downloadId engine=custom reason=custom_download_succeeded")
-                        finishDownloadSuccess(downloadId, url, newPipeFile, "video", resolvedThumbnailUrl, selectedResolution)
+                        finishDownloadSuccess(downloadId, url, newPipeFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl, selectedResolution)
                     } else {
                         Log.d("ENGINE_DEBUG", "downloadId=$downloadId engine=yt-dlp reason=$fallbackReason")
                         if (pauseRequestedDownloads.remove(downloadId)) {
@@ -2546,7 +2550,9 @@ class MainActivity : AppCompatActivity() {
                         val ytDlpAvgSpeed = String.format(Locale.US, "%.2f", ytDlpBytes / (1024.0 * 1024.0) / ytDlpTotalSec.coerceAtLeast(0.001))
                         val ytDlpDlLabel = String.format(Locale.US, "%.2f", ytDlpDownloadSec)
                         val ytDlpMuxLabel = String.format(Locale.US, "%.2f", ytDlpMuxSec)
-                        val ytDlpSummary = "engine=yt-dlp-managed fallbackReason=${fallbackReason} conn=n/a chunk=n/a download=${ytDlpDlLabel}s avg=${ytDlpAvgSpeed} MB/s\nretries=${ytDlpRetryCount} blocks=${ytDlpBlockCount} merge=${ytDlpMuxLabel}s"
+                        val ytDlpConvertLabel = if (isAudio) ytDlpMuxLabel else "0.00"
+                        val ytDlpMergeLabel = if (isAudio) "0.00" else ytDlpMuxLabel
+                        val ytDlpSummary = "engine=yt-dlp-managed fallbackReason=${fallbackReason} conn=n/a chunk=n/a download=${ytDlpDlLabel}s convert=${ytDlpConvertLabel}s avg=${ytDlpAvgSpeed} MB/s\nretries=${ytDlpRetryCount} blocks=${ytDlpBlockCount} merge=${ytDlpMergeLabel}s"
                         downloadTelemetrySummaries[downloadId] = ytDlpSummary to "yt-dlp • ${ytDlpDlLabel}s • ${ytDlpAvgSpeed} MB/s"
                         if (!isAudio && !containsVideoTrack(newFile)) {
                             newFile.delete()
@@ -2583,6 +2589,312 @@ class MainActivity : AppCompatActivity() {
                     runCatching { if (downloadWifiLock?.isHeld == true) downloadWifiLock?.release() }
                     releaseDownloadSlot()
                 }
+            }
+        }
+
+        private fun downloadAudioWithNewPipe(
+            downloadId: String, url: String, outDir: File, requestedExt: String, audioBitrate: String
+        ): File? {
+            val targetExt = if (requestedExt.equals("mp3", ignoreCase = true)) "mp3" else "m4a"
+            val audioPart = File(cacheDir, "jet-" + downloadId + "-audio.part")
+            val checkpointFile = File(cacheDir, "jet-" + downloadId + ".chunks.ckpt")
+            val output = File(outDir, "jet-newpipe-" + downloadId + "." + targetExt)
+            var ffmpegProcess: Process? = null
+            val downloadStartedAtMs = SystemClock.elapsedRealtime()
+            var downloadSec = 0.0
+            var convertSec = 0.0
+            val retryCount = AtomicInteger(0)
+            val blockCount = AtomicInteger(0)
+            val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
+            val connectionHistory = java.util.Collections.synchronizedList(mutableListOf(DEFAULT_MAX_CONNECTIONS))
+
+            fun logAudioDebug(prefix: String, value: String) {
+                val chunkSize = 900
+                if (value.isEmpty()) {
+                    Log.d("ENGINE_DEBUG", prefix + "=")
+                    return
+                }
+                var offset = 0
+                var part = 1
+                while (offset < value.length) {
+                    val end = (offset + chunkSize).coerceAtMost(value.length)
+                    Log.d("ENGINE_DEBUG", prefix + " part=" + part + " text=" + value.substring(offset, end))
+                    offset = end
+                    part++
+                }
+            }
+            fun normalized(value: String): String =
+                value.replace("\r\n", "\n").replace('\r', '\n').replace("\n", " ⏎ ")
+            fun fallback(reason: String): File? {
+                val fullReason = normalized(reason)
+                downloadFallbackReasons[downloadId] = fullReason
+                logAudioDebug("downloadId=" + downloadId + " engine=yt-dlp fallbackReason", fullReason)
+                return null
+            }
+
+            try {
+                val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
+                val audio = info.audioStreams
+                    .filter { it.isUrl && it.format?.suffix.equals("m4a", ignoreCase = true) }
+                    .maxByOrNull { it.averageBitrate }
+                    ?: return fallback("m4a_audio_stream_not_found")
+                val streamUrl = audio.url ?: return fallback("audio_url_missing")
+                val audioItag = audio.getItag()
+                if (audioItag <= 0) return fallback("audio_itag_missing")
+
+                var totalBytes = resolveExactStreamContentLength(streamUrl)
+                val rangeSupported = if (totalBytes > 0L) {
+                    runCatching {
+                        val probe = Request.Builder().url(streamUrl).get()
+                            .header("Range", "bytes=0-0")
+                            .header("Accept-Encoding", "identity")
+                            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                            .build()
+                        JetOkHttpDownloader.withRangeRequestPermit {
+                            okHttpClient.newCall(probe).execute().use { response ->
+                                if (response.code != 206) false
+                                else {
+                                    val rangeTotal = response.header("Content-Range")
+                                        ?.substringAfterLast("/")?.toLongOrNull() ?: 0L
+                                    if (rangeTotal > 0L) totalBytes = rangeTotal
+                                    rangeTotal > 0L
+                                }
+                            }
+                        }
+                    }.getOrDefault(false)
+                } else false
+
+                val downloadedBytes = AtomicLong(0L)
+                audioPart.parentFile?.mkdirs()
+                if (audioPart.exists()) audioPart.delete()
+                callJs(
+                    "onNativeDownloadProgress",
+                    listOf(
+                        JSONObject.quote(downloadId), "0", JSONObject.quote("Downloading..."),
+                        JSONObject.quote("DOWNLOADING"), "0", "0", totalBytes.toString(),
+                        "0", "-1", JSONObject.quote("0.0 KB/s"), JSONObject.quote("--"), "true", "false"
+                    ).joinToString(", ")
+                )
+                if (rangeSupported) {
+                    RandomAccessFile(audioPart, "rw").use { access ->
+                        access.setLength(totalBytes)
+                        try {
+                            runBlocking(Dispatchers.IO) {
+                                downloadSharedGoogleVideoParts(
+                                    downloadId, info.id, audioItag, streamUrl,
+                                    audioPart, totalBytes, access.channel,
+                                    -1, null, audioPart, 0L, null, downloadedBytes,
+                                    retryCount, blockCount, activeConnectionLimit, connectionHistory
+                                )
+                            }
+                        } catch (rangeError: RangeUnsupportedException) {
+                            checkpointFile.delete()
+                            activeConnectionLimit.set(1)
+                            synchronized(connectionHistory) {
+                                if (connectionHistory.lastOrNull() != 1) connectionHistory.add(1)
+                            }
+                            access.setLength(0L)
+                            downloadedBytes.set(0L)
+                            totalBytes = downloadSequentialStream(streamUrl, audioPart, downloadId, downloadedBytes)
+                        }
+                    }
+                } else {
+                    checkpointFile.delete()
+                    activeConnectionLimit.set(1)
+                    synchronized(connectionHistory) {
+                        if (connectionHistory.lastOrNull() != 1) connectionHistory.add(1)
+                    }
+                    totalBytes = downloadSequentialStream(streamUrl, audioPart, downloadId, downloadedBytes)
+                }
+
+                val actualBytes = if (audioPart.isFile) audioPart.length() else 0L
+                if (!audioPart.isFile || actualBytes <= 0L || actualBytes != totalBytes) {
+                    return fallback("audio_output_size_mismatch_expected_" + totalBytes + "_actual_" + actualBytes)
+                }
+                downloadSec = ((SystemClock.elapsedRealtime() - downloadStartedAtMs).coerceAtLeast(1L)) / 1000.0
+                callJs(
+                    "onNativeDownloadProgress",
+                    listOf(
+                        JSONObject.quote(downloadId), "100", JSONObject.quote("Downloading..."),
+                        JSONObject.quote("DOWNLOADING"), actualBytes.toString(), actualBytes.toString(),
+                        actualBytes.toString(), "0", "0", JSONObject.quote("0.0 KB/s"),
+                        JSONObject.quote("0s"), "true", "false"
+                    ).joinToString(", ")
+                )
+                output.parentFile?.mkdirs()
+                if (output.exists()) output.delete()
+
+                if (targetExt == "m4a") {
+                    // The selected source is already M4A: preserve its bytes without re-encoding.
+                    if (!audioPart.copyTo(output, overwrite = true).isFile || output.length() != actualBytes) {
+                        return fallback("m4a_direct_save_failed")
+                    }
+                } else {
+                    callJs(
+                        "onNativeDownloadProgress",
+                        listOf(
+                            JSONObject.quote(downloadId), "0", JSONObject.quote("Converting to MP3..."),
+                            JSONObject.quote("CONVERTING"), actualBytes.toString(), actualBytes.toString(),
+                            actualBytes.toString(), "0", "-1", JSONObject.quote("--"),
+                            JSONObject.quote("--"), "true", "false"
+                        ).joinToString(", ")
+                    )
+                    ensureYtDlpInitialized()
+                    val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
+                    check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
+                    val nativeLibraryDir = File(applicationInfo.nativeLibraryDir)
+                    val packagesDir = File(noBackupFilesDir, "youtubedl-android/packages")
+                    val libraryDirs = listOf(
+                        nativeLibraryDir,
+                        File(packagesDir, "python/usr/lib"),
+                        File(packagesDir, "ffmpeg/usr/lib"),
+                        File(packagesDir, "aria2c/usr/lib")
+                    )
+                    val ldLibraryPath = libraryDirs.joinToString(File.pathSeparator) { it.absolutePath }
+                    libraryDirs.forEach { directory ->
+                        Log.d(
+                            "ENGINE_DEBUG",
+                            "downloadId=" + downloadId + " ffmpeg_library_directory path=" +
+                                directory.absolutePath + " exists=" + directory.isDirectory
+                        )
+                    }
+                    val bundledSoFiles = libraryDirs
+                        .filter { it.isDirectory }
+                        .flatMap { directory ->
+                            directory.walkTopDown()
+                                .filter { it.isFile && it.name.endsWith(".so", ignoreCase = true) }
+                                .map { it.absolutePath }
+                                .toList()
+                        }
+                        .distinct()
+                        .sorted()
+                    logAudioDebug(
+                        "downloadId=" + downloadId + " ffmpeg_bundled_so_files count=" + bundledSoFiles.size,
+                        bundledSoFiles.joinToString("\n")
+                    )
+                    val bitrateKbps = Regex("[0-9]+").find(audioBitrate)?.value?.toIntOrNull()
+                        ?.coerceIn(64, 320) ?: 192
+                    val args = listOf(
+                        ffmpeg.absolutePath, "-y", "-hide_banner", "-i", audioPart.absolutePath,
+                        "-map", "0:a:0", "-vn", "-c:a", "libmp3lame",
+                        "-b:a", bitrateKbps.toString() + "k", "-progress", "pipe:1", "-nostats",
+                        output.absolutePath
+                    )
+                    val started = SystemClock.elapsedRealtime()
+                    val runningProcess = ProcessBuilder(args)
+                        .redirectErrorStream(false)
+                        .apply {
+                            environment()["LD_LIBRARY_PATH"] = ldLibraryPath
+                            environment()["PATH"] = System.getenv("PATH").orEmpty() +
+                                File.pathSeparator + nativeLibraryDir.absolutePath
+                        }
+                        .start()
+                    ffmpegProcess = runningProcess
+                    activeNewPipeProcesses[downloadId] = runningProcess
+                    val stderrOutput = StringBuilder()
+                    val readers = Executors.newFixedThreadPool(2) { runnable ->
+                        Thread(runnable, "JET-Audio-FFmpeg-Reader").apply { isDaemon = true }
+                    }
+                    val stdoutFuture = readers.submit(Callable {
+                        try {
+                            runningProcess.inputStream.bufferedReader().useLines { lines ->
+                                lines.forEach { line ->
+                                    if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                                        runningProcess.destroyForcibly()
+                                        throw CancellationException("Download paused or cancelled")
+                                    }
+                                    if (line.startsWith("progress=")) {
+                                        val percent = if (line.substringAfter("=") == "end") 99 else 50
+                                        callJs(
+                                            "onNativeDownloadProgress",
+                                            listOf(
+                                                JSONObject.quote(downloadId), percent.toString(),
+                                                JSONObject.quote("Converting to MP3..."), JSONObject.quote("CONVERTING"),
+                                                actualBytes.toString(), actualBytes.toString(), actualBytes.toString(),
+                                                "0", "-1", JSONObject.quote("--"), JSONObject.quote("--"), "true", "false"
+                                            ).joinToString(", ")
+                                        )
+                                    }
+                                }
+                            }
+                        } catch (error: Throwable) {
+                            runningProcess.destroyForcibly()
+                            throw error
+                        }
+                    })
+                    val stderrFuture = readers.submit(Callable {
+                        try {
+                            runningProcess.errorStream.bufferedReader().useLines { lines ->
+                                lines.forEach { line ->
+                                    stderrOutput.append(line).append('\n')
+                                    logAudioDebug("downloadId=" + downloadId + " ffmpeg_stderr", line)
+                                }
+                            }
+                        } catch (error: Throwable) {
+                            runningProcess.destroyForcibly()
+                            throw error
+                        }
+                    })
+                    val exitCode = try {
+                        val code = runningProcess.waitFor()
+                        var readerFailure: Throwable? = null
+                        try { stdoutFuture.get() } catch (error: Exception) { readerFailure = error.cause ?: error }
+                        try { stderrFuture.get() } catch (error: Exception) {
+                            if (readerFailure == null) readerFailure = error.cause ?: error
+                        }
+                        if (readerFailure != null) {
+                            throw (readerFailure as? Exception ?: RuntimeException(readerFailure))
+                        }
+                        code
+                    } finally {
+                        readers.shutdownNow()
+                    }
+                    convertSec = ((SystemClock.elapsedRealtime() - started).coerceAtLeast(0L)) / 1000.0
+                    activeNewPipeProcesses.remove(downloadId, runningProcess)
+                    if (exitCode != 0) {
+                        val detail = normalized(stderrOutput.toString()).ifBlank { "<empty stderr>" }
+                        return fallback("ffmpeg_mp3_conversion_failed_exit_" + exitCode + ": " + detail)
+                    }
+                    if (!output.isFile || output.length() <= 0L) {
+                        return fallback("mp3_output_file_missing")
+                    }
+                }
+
+                val finalConnections = activeConnectionLimit.get()
+                val connectionPath = synchronized(connectionHistory) { connectionHistory.joinToString("->") }
+                val chunks = (totalBytes + CHUNK_SIZE_BYTES - 1L) / CHUNK_SIZE_BYTES
+                val avgSpeed = String.format(
+                    Locale.US, "%.2f", downloadedBytes.get() / (1024.0 * 1024.0) / downloadSec.coerceAtLeast(0.001)
+                )
+                val telemetrySummary = "engine=custom fallbackReason=none connections=" + finalConnections +
+                    " connectionPath=" + connectionPath + " chunks=" + chunks +
+                    " chunkSize=" + (CHUNK_SIZE_BYTES / (1024 * 1024)) + "MB download=" +
+                    String.format(Locale.US, "%.2f", downloadSec) + "s convert=" +
+                    String.format(Locale.US, "%.2f", convertSec) + "s merge=0s avg=" + avgSpeed +
+                    " MB/s retries=" + retryCount.get() + " blocks=" + blockCount.get()
+                downloadTelemetrySummaries[downloadId] = telemetrySummary to
+                    (finalConnections.toString() + " conn • " +
+                        String.format(Locale.US, "%.1f", downloadSec) + "s • " + avgSpeed + " MB/s")
+                Log.d("DL_DEBUG", telemetrySummary)
+                downloadFallbackReasons.remove(downloadId)
+                return output
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                activeNewPipeProcesses.remove(downloadId)?.let { runCatching { it.destroyForcibly() } }
+                output.delete()
+                val detail = error.message ?: error.javaClass.simpleName
+                return fallback("custom_audio_download_failed: " + detail)
+            } finally {
+                activeNewPipeProcesses.remove(downloadId)
+                runCatching { ffmpegProcess?.destroy() }
+                checkpointFile.delete()
+                val bytesBeforeDelete = if (audioPart.isFile) audioPart.length() else 0L
+                val deleted = runCatching { !audioPart.exists() || audioPart.delete() }.getOrDefault(false)
+                Log.d(
+                    "ENGINE_DEBUG",
+                    "downloadId=" + downloadId + " tempFile=audio actualBytes=" + bytesBeforeDelete + " deleted=" + deleted
+                )
             }
         }
 
@@ -3409,15 +3721,16 @@ class MainActivity : AppCompatActivity() {
             fun metricInt(pattern: String, fallback: Int): Int =
                 Regex(pattern, RegexOption.IGNORE_CASE).find(previousSummary)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: fallback
             val downloadSec = metric("""download=([0-9]+(?:\.[0-9]+)?)s""", fallbackSec).coerceAtLeast(0.001)
+            val convertSec = metric("""convert=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
             val muxSec = metric("""merge=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
-            val totalSec = downloadSec + muxSec
+            val totalSec = downloadSec + convertSec + muxSec
             val netSpeed = displaySizeBytes / (1024.0 * 1024.0) / downloadSec
             val avgSpeed = displaySizeBytes / (1024.0 * 1024.0) / totalSec.coerceAtLeast(0.001)
-            val connections = Regex("""conn=([^\s]+)""", RegexOption.IGNORE_CASE)
+            val connections = Regex("""(?:connections|conn)=([^\s]+)""", RegexOption.IGNORE_CASE)
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
-            val chunkSize = Regex("""chunk=([^\s]+)""", RegexOption.IGNORE_CASE)
+            val chunkSize = Regex("""(?:chunkSize|chunk)=([^\s]+)""", RegexOption.IGNORE_CASE)
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
-            val fallbackReason = Regex("""fallbackReason=(.*?)(?=\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val fallbackReason = Regex("""fallbackReason=(.*?)(?=\s(?:connections|conn|connectionPath|chunks|chunkSize|download|convert|merge|avg|retries|blocks)=|\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "none"
             val retries = metricInt("""retries=([0-9]+)""", 0)
             val blocks = metricInt("""blocks=([0-9]+)""", 0)
@@ -3428,7 +3741,7 @@ class MainActivity : AppCompatActivity() {
             val netSpeedText = speed(netSpeed)
             val container = file.extension.lowercase(Locale.US).ifBlank { "unknown" }
             val engine = if (previousSummary.contains("engine=yt-dlp-managed", ignoreCase = true)) "yt-dlp-managed" else "newpipe-okhttp-ffmpeg"
-            val rawLog = "engine=${engine} title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} fallbackReason=${fallbackReason} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
+            val rawLog = "engine=${engine} title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} convertSec=${seconds(convertSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} fallbackReason=${fallbackReason} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
             Log.d("DL_DEBUG", rawLog)
             val telemetryJson = JSONObject().apply {
                 put("engine", engine)
@@ -3438,6 +3751,7 @@ class MainActivity : AppCompatActivity() {
                 put("sizeText", sizeStr)
                 put("bytes", displaySizeBytes)
                 put("downloadSec", seconds(downloadSec))
+                put("convertSec", seconds(convertSec))
                 put("muxSec", seconds(muxSec))
                 put("totalSec", seconds(totalSec))
                 put("avgSpeedText", avgSpeedText)
