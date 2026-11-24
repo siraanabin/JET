@@ -2451,7 +2451,7 @@ class MainActivity : AppCompatActivity() {
             val videoPart = File(cacheDir, "jet-" + downloadId + "-video.part")
             val audioPart = File(cacheDir, "jet-" + downloadId + "-audio.part")
             var process: Process? = null
-            val downloadStartedAtMs = SystemClock.elapsedRealtime()
+            var downloadStartedAtMs = SystemClock.elapsedRealtime()
             var downloadDurationSec = 0.0
             val downloadRetryCount = AtomicInteger(0)
             val downloadBlockCount = AtomicInteger(0)
@@ -2601,6 +2601,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
+                    downloadStartedAtMs = SystemClock.elapsedRealtime()
                     callJs(
                         "onNativeDownloadProgress",
                         listOf(
@@ -3051,6 +3052,7 @@ class MainActivity : AppCompatActivity() {
             selectedResolution: String
         ) {
             MediaScannerConnection.scanFile(applicationContext, arrayOf(file.absolutePath), null, null)
+            val displayTitle = realDownloadSpecs[downloadId]?.title?.takeIf { it.isNotBlank() } ?: file.nameWithoutExtension
             verifiedNewPipeSourceSizes.remove(downloadId)
             val displaySizeBytes = file.length().coerceAtLeast(0L)
             val sizeStr = formatBytes(displaySizeBytes)
@@ -3060,7 +3062,7 @@ class MainActivity : AppCompatActivity() {
             downloadDao.upsert(
                 DownloadEntity(
                     id = downloadId,
-                    title = file.nameWithoutExtension,
+                    title = displayTitle,
                     url = url,
                     formatLabel = file.extension.uppercase(Locale.US),
                     filePath = file.absolutePath,
@@ -3073,7 +3075,7 @@ class MainActivity : AppCompatActivity() {
 
             val payload = DownloadCompletePayload(
                 id = downloadId,
-                title = file.nameWithoutExtension,
+                title = displayTitle,
                 size = sizeStr,
                 filePath = file.absolutePath,
                 fileUri = Uri.fromFile(file).toString(),
@@ -3084,7 +3086,7 @@ class MainActivity : AppCompatActivity() {
             realDownloadSpecs.remove(downloadId)
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)
-            runCatching { DownloadNotificationService.completed(this@MainActivity, downloadId, file.nameWithoutExtension, sizeStr, thumbnailUrl) }
+            runCatching { DownloadNotificationService.completed(this@MainActivity, downloadId, displayTitle, sizeStr, thumbnailUrl) }
             val completedPayloadJson = JSONObject(json.encodeToString(payload))
             val telemetry = downloadTelemetrySummaries.remove(downloadId)
             val elapsedMs = (System.currentTimeMillis() -
@@ -3112,10 +3114,10 @@ class MainActivity : AppCompatActivity() {
             val avgSpeedText = speed(avgSpeed)
             val netSpeedText = speed(netSpeed)
             val container = file.extension.lowercase(Locale.US).ifBlank { "unknown" }
-            val rawLog = "title=${file.nameWithoutExtension} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
+            val rawLog = "title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
             Log.d("DL_DEBUG", rawLog)
             val telemetryJson = JSONObject().apply {
-                put("title", file.nameWithoutExtension)
+                put("title", displayTitle)
                 put("resolution", resolution.ifBlank { "audio" })
                 put("container", container)
                 put("sizeText", sizeStr)
