@@ -2771,13 +2771,14 @@ class MainActivity : AppCompatActivity() {
                                 if (count == 0) continue
                                 output.write(buffer, 0, count)
                                 countTotal += count.toLong()
+                                downloaded.addAndGet(count.toLong())
                             }
                             output.fd.sync()
                         }
                     }
                     countTotal
                 }
-            }.also { downloaded.addAndGet(it) }
+            }
         }
 
         private fun downloadSharedGoogleVideoParts(
@@ -2818,7 +2819,10 @@ class MainActivity : AppCompatActivity() {
                     checkpoint.writeText(JSONObject()
                         .put("videoSize", videoSize).put("audioSize", audioSize)
                         .put("videoItag", videoItag).put("audioItag", audioItag)
-                        .put("completed", JSONArray().apply { completed.sorted().forEach { put(it) } })
+                        .put("completed", JSONArray().apply {
+                            val snapshot = synchronized(completed) { completed.toList().sorted() }
+                            snapshot.forEach { put(it) }
+                        })
                         .toString())
                 }
             }
@@ -2921,9 +2925,9 @@ class MainActivity : AppCompatActivity() {
                                             val written = channel.write(bytes, position)
                                             if (written <= 0) throw IOException("FileChannel positional write stalled")
                                             position += written.toLong()
+                                            offset = position
                                             downloaded.addAndGet(written.toLong())
                                         }
-                                        offset = position
                                     }
                                     if (position != last + 1L) throw IOException("Range response ended early")
                                 }
