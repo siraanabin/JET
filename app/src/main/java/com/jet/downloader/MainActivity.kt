@@ -2603,6 +2603,11 @@ class MainActivity : AppCompatActivity() {
             val downloadStartedAtMs = SystemClock.elapsedRealtime()
             var downloadSec = 0.0
             var convertSec = 0.0
+            var ffInitSec = 0.0
+            var ffPrepSec = 0.0
+            var ffExecSec = 0.0
+            var ffMoveSec = 0.0
+            var ffSpeedLine = "n/a"
             val retryCount = AtomicInteger(0)
             val blockCount = AtomicInteger(0)
             val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
@@ -2739,7 +2744,10 @@ class MainActivity : AppCompatActivity() {
                             JSONObject.quote("--"), "true", "false"
                         ).joinToString(", ")
                     )
+                    val ffInitStartedAtMs = SystemClock.elapsedRealtime()
                     ensureYtDlpInitialized()
+                    ffInitSec = ((SystemClock.elapsedRealtime() - ffInitStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                    val ffPrepStartedAtMs = SystemClock.elapsedRealtime()
                     val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                     check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
                     val nativeLibraryDir = File(applicationInfo.nativeLibraryDir)
@@ -2789,9 +2797,13 @@ class MainActivity : AppCompatActivity() {
                                 File.pathSeparator + nativeLibraryDir.absolutePath
                         }
                         .start()
+                    ffPrepSec = ((SystemClock.elapsedRealtime() - ffPrepStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                    val ffExecStartedAtMs = SystemClock.elapsedRealtime()
                     ffmpegProcess = runningProcess
                     activeNewPipeProcesses[downloadId] = runningProcess
                     val stderrOutput = StringBuilder()
+                    var lastProgressTime = "n/a"
+                    var lastProgressSpeed = "n/a"
                     val readers = Executors.newFixedThreadPool(2) { runnable ->
                         Thread(runnable, "JET-Audio-FFmpeg-Reader").apply { isDaemon = true }
                     }
@@ -2799,6 +2811,10 @@ class MainActivity : AppCompatActivity() {
                         try {
                             runningProcess.inputStream.bufferedReader().useLines { lines ->
                                 lines.forEach { line ->
+                                    if (line.startsWith("out_time=")) lastProgressTime = line.substringAfter("=")
+                                    if (line.startsWith("speed=")) lastProgressSpeed = line.substringAfter("=")
+                                    Regex("""time=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { lastProgressTime = it }
+                                    Regex("""speed=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { lastProgressSpeed = it }
                                     if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
                                         runningProcess.destroyForcibly()
                                         throw CancellationException("Download paused or cancelled")
@@ -2827,6 +2843,8 @@ class MainActivity : AppCompatActivity() {
                             runningProcess.errorStream.bufferedReader().useLines { lines ->
                                 lines.forEach { line ->
                                     stderrOutput.append(line).append('\n')
+                                    Regex("""time=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { lastProgressTime = it }
+                                    Regex("""speed=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { lastProgressSpeed = it }
                                     logAudioDebug("downloadId=" + downloadId + " ffmpeg_stderr", line)
                                 }
                             }
@@ -2837,6 +2855,7 @@ class MainActivity : AppCompatActivity() {
                     })
                     val exitCode = try {
                         val code = runningProcess.waitFor()
+                        ffExecSec = ((SystemClock.elapsedRealtime() - ffExecStartedAtMs).coerceAtLeast(0L)) / 1000.0
                         var readerFailure: Throwable? = null
                         try { stdoutFuture.get() } catch (error: Exception) { readerFailure = error.cause ?: error }
                         try { stderrFuture.get() } catch (error: Exception) {
@@ -2845,19 +2864,25 @@ class MainActivity : AppCompatActivity() {
                         if (readerFailure != null) {
                             throw (readerFailure as? Exception ?: RuntimeException(readerFailure))
                         }
+                        ffSpeedLine = "time=" + lastProgressTime + "|speed=" + lastProgressSpeed
+                        Log.d("ENGINE_DEBUG", "downloadId=" + downloadId + " ffSpeedLine=" + ffSpeedLine)
                         code
                     } finally {
                         readers.shutdownNow()
                     }
                     convertSec = ((SystemClock.elapsedRealtime() - started).coerceAtLeast(0L)) / 1000.0
                     activeNewPipeProcesses.remove(downloadId, runningProcess)
+                    val ffMoveStartedAtMs = SystemClock.elapsedRealtime()
                     if (exitCode != 0) {
+                        ffMoveSec = ((SystemClock.elapsedRealtime() - ffMoveStartedAtMs).coerceAtLeast(0L)) / 1000.0
                         val detail = normalized(stderrOutput.toString()).ifBlank { "<empty stderr>" }
                         return fallback("ffmpeg_mp3_conversion_failed_exit_" + exitCode + ": " + detail)
                     }
                     if (!output.isFile || output.length() <= 0L) {
+                        ffMoveSec = ((SystemClock.elapsedRealtime() - ffMoveStartedAtMs).coerceAtLeast(0L)) / 1000.0
                         return fallback("mp3_output_file_missing")
                     }
+                    ffMoveSec = ((SystemClock.elapsedRealtime() - ffMoveStartedAtMs).coerceAtLeast(0L)) / 1000.0
                 }
 
                 val finalConnections = activeConnectionLimit.get()
@@ -2870,8 +2895,12 @@ class MainActivity : AppCompatActivity() {
                     " connectionPath=" + connectionPath + " chunks=" + chunks +
                     " chunkSize=" + (CHUNK_SIZE_BYTES / (1024 * 1024)) + "MB download=" +
                     String.format(Locale.US, "%.2f", downloadSec) + "s convert=" +
-                    String.format(Locale.US, "%.2f", convertSec) + "s merge=0s avg=" + avgSpeed +
-                    " MB/s retries=" + retryCount.get() + " blocks=" + blockCount.get()
+                    String.format(Locale.US, "%.2f", convertSec) + "s merge=0s ffInit=" +
+                    String.format(Locale.US, "%.3f", ffInitSec) + "s ffPrep=" +
+                    String.format(Locale.US, "%.3f", ffPrepSec) + "s ffExec=" +
+                    String.format(Locale.US, "%.3f", ffExecSec) + "s ffMove=" +
+                    String.format(Locale.US, "%.3f", ffMoveSec) + "s ffSpeedLine=" + ffSpeedLine +
+                    " avg=" + avgSpeed + " MB/s retries=" + retryCount.get() + " blocks=" + blockCount.get()
                 downloadTelemetrySummaries[downloadId] = telemetrySummary to
                     (finalConnections.toString() + " conn • " +
                         String.format(Locale.US, "%.1f", downloadSec) + "s • " + avgSpeed + " MB/s")
@@ -2891,6 +2920,14 @@ class MainActivity : AppCompatActivity() {
                 checkpointFile.delete()
                 val bytesBeforeDelete = if (audioPart.isFile) audioPart.length() else 0L
                 val deleted = runCatching { !audioPart.exists() || audioPart.delete() }.getOrDefault(false)
+                Log.d(
+                    "ENGINE_DEBUG",
+                    "downloadId=" + downloadId + " ffInitSec=" + String.format(Locale.US, "%.3f", ffInitSec) +
+                        " ffPrepSec=" + String.format(Locale.US, "%.3f", ffPrepSec) +
+                        " ffExecSec=" + String.format(Locale.US, "%.3f", ffExecSec) +
+                        " ffMoveSec=" + String.format(Locale.US, "%.3f", ffMoveSec) +
+                        " ffSpeedLine=" + ffSpeedLine
+                )
                 Log.d(
                     "ENGINE_DEBUG",
                     "downloadId=" + downloadId + " tempFile=audio actualBytes=" + bytesBeforeDelete + " deleted=" + deleted
@@ -3722,6 +3759,12 @@ class MainActivity : AppCompatActivity() {
                 Regex(pattern, RegexOption.IGNORE_CASE).find(previousSummary)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: fallback
             val downloadSec = metric("""download=([0-9]+(?:\.[0-9]+)?)s""", fallbackSec).coerceAtLeast(0.001)
             val convertSec = metric("""convert=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
+            val ffInitSec = metric("""ffInit=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
+            val ffPrepSec = metric("""ffPrep=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
+            val ffExecSec = metric("""ffExec=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
+            val ffMoveSec = metric("""ffMove=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
+            val ffSpeedLine = Regex("""ffSpeedLine=([^\s]+)""", RegexOption.IGNORE_CASE)
+                .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
             val muxSec = metric("""merge=([0-9]+(?:\.[0-9]+)?)s""", 0.0).coerceAtLeast(0.0)
             val totalSec = downloadSec + convertSec + muxSec
             val netSpeed = displaySizeBytes / (1024.0 * 1024.0) / downloadSec
@@ -3741,7 +3784,7 @@ class MainActivity : AppCompatActivity() {
             val netSpeedText = speed(netSpeed)
             val container = file.extension.lowercase(Locale.US).ifBlank { "unknown" }
             val engine = if (previousSummary.contains("engine=yt-dlp-managed", ignoreCase = true)) "yt-dlp-managed" else "newpipe-okhttp-ffmpeg"
-            val rawLog = "engine=${engine} title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} convertSec=${seconds(convertSec)} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} fallbackReason=${fallbackReason} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
+            val rawLog = "engine=${engine} title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} convertSec=${seconds(convertSec)} ffInitSec=${seconds(ffInitSec)} ffPrepSec=${seconds(ffPrepSec)} ffExecSec=${seconds(ffExecSec)} ffMoveSec=${seconds(ffMoveSec)} ffSpeedLine=${ffSpeedLine} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} fallbackReason=${fallbackReason} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
             Log.d("DL_DEBUG", rawLog)
             val telemetryJson = JSONObject().apply {
                 put("engine", engine)
@@ -3752,6 +3795,11 @@ class MainActivity : AppCompatActivity() {
                 put("bytes", displaySizeBytes)
                 put("downloadSec", seconds(downloadSec))
                 put("convertSec", seconds(convertSec))
+                put("ffInitSec", seconds(ffInitSec))
+                put("ffPrepSec", seconds(ffPrepSec))
+                put("ffExecSec", seconds(ffExecSec))
+                put("ffMoveSec", seconds(ffMoveSec))
+                put("ffSpeedLine", ffSpeedLine)
                 put("muxSec", seconds(muxSec))
                 put("totalSec", seconds(totalSec))
                 put("avgSpeedText", avgSpeedText)
