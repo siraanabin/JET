@@ -2177,7 +2177,7 @@ class MainActivity : AppCompatActivity() {
                             }.coerceAtMost(99)
                             val speedLabel = when { merging -> "Merging..."; lastBytesRead == 0L -> "Connecting..."; speedText != null -> speedText; else -> "Downloading..." }
                             val etaSeconds = if (lastTotalBytes > lastBytesRead && smoothedSpeedBps > 0.0) ((lastTotalBytes - lastBytesRead) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else etaInSeconds.toLong().coerceAtLeast(-1L)
-                            callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}, ${JSONObject.quote(stage)}, $lastBytesRead, $lastBytesRead, $lastTotalBytes, ${smoothedSpeedBps.toLong().coerceAtLeast(0L)}, $etaSeconds)
+                            callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}, ${JSONObject.quote(stage)}, $lastBytesRead, $lastBytesRead, $lastTotalBytes, ${smoothedSpeedBps.toLong().coerceAtLeast(0L)}, $etaSeconds")
                             runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, pct, speedLabel, resolvedThumbnailUrl) }
                         }
                     }
@@ -2291,7 +2291,7 @@ class MainActivity : AppCompatActivity() {
                 ensureYtDlpInitialized()
                 val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                 check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
-                callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 96, " + JSONObject.quote("Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1)
+                callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 96, " + JSONObject.quote("Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
                 val args = mutableListOf(ffmpeg.absolutePath, "-y", "-hide_banner", "-i", videoPart.absolutePath)
                 if (audio != null) args += listOf("-i", audioPart.absolutePath, "-map", "0:v:0", "-map", "1:a:0")
                 else args += listOf("-map", "0:v:0", "-map", "0:a?")
@@ -2313,14 +2313,14 @@ class MainActivity : AppCompatActivity() {
                             val finished = line.substringAfter("=") == "end"
                             val pct = if (finished) 100 else if (durationMicros > 0L) (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99) else 96
                             lastPercent = maxOf(lastPercent, pct)
-                            callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastPercent + ", " + JSONObject.quote(if (finished) "Finalizing..." else "Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1)
+                            callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastPercent + ", " + JSONObject.quote(if (finished) "Finalizing..." else "Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
                         }
                     }
                 }
                 val exitCode = runningProcess.waitFor()
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
-                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 100, " + JSONObject.quote("Complete") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", 0)
+                    callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", 100, " + JSONObject.quote("Complete") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoDownloadedBytes + audioDownloadedBytes) + ", " + (videoTotalBytes + audioTotalBytes) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", 0")
                     return output
                 }
                 output.delete()
