@@ -23,6 +23,7 @@ class PlayerPlaybackService : MediaSessionService() {
         const val EXTRA_SLEEP_TIMER_MINUTES = "music_sleep_timer_minutes"
         const val ACTION_SET_QUEUE = "com.jet.downloader.action.SET_MUSIC_QUEUE"
         const val ACTION_SLEEP_TIMER = "com.jet.downloader.action.MUSIC_SLEEP_TIMER"
+        const val ACTION_STOP_FOR_VIDEO = "com.jet.downloader.action.STOP_MUSIC_FOR_VIDEO"
     }
 
     private var player: ExoPlayer? = null
@@ -40,7 +41,7 @@ class PlayerPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         try {
-            val exo = ExoPlayer.Builder(this).build()
+            val exo = ExoPlayer.Builder(this).build().apply { setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA).setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC).build(), true) }
             player = exo
             session = MediaSession.Builder(this, exo).build()
         } catch (t: Throwable) {
@@ -62,6 +63,7 @@ class PlayerPlaybackService : MediaSessionService() {
             }
 
             when (intent?.action) {
+                ACTION_STOP_FOR_VIDEO -> { timerHandler.removeCallbacksAndMessages(null); runCatching { player?.stop(); player?.clearMediaItems() }; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(startId) }
                 ACTION_SLEEP_TIMER -> {
                     timerHandler.removeCallbacks(sleepTimer)
                     val minutes = intent.getIntExtra(EXTRA_SLEEP_TIMER_MINUTES, 0).coerceIn(0, 240)

@@ -178,6 +178,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             finish(); return
         }
         currentPath = path
+        runCatching { ContextCompat.startForegroundService(this, Intent(this, PlayerPlaybackService::class.java).apply { action = PlayerPlaybackService.ACTION_STOP_FOR_VIDEO }) }.onFailure { android.util.Log.w("JET-Video", "Unable to stop background audio before video playback", it) }
         updatePlayerTitle(intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension })
         playerPrefs = PlayerPrefsManager(this)
         volumePercent = playerPrefs.savedVolumePercent
@@ -199,7 +200,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             .setBufferDurationsMs(15_000, 50_000, 1_500, 3_000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-        val exo = ExoPlayer.Builder(this, renderersFactory).setLoadControl(loadControl).build()
+        val exo = ExoPlayer.Builder(this, renderersFactory).setLoadControl(loadControl).build().apply { setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA).setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE).build(), true) }
         player = exo
         playerView.player = exo
         playerView.useController = false
@@ -876,6 +877,8 @@ class VideoPlayerActivity : AppCompatActivity() {
         Toast.makeText(this, "Background audio ON", Toast.LENGTH_SHORT).show()
         finish()
     }
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); recreate() }
+
     private fun enterPip() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val params = PictureInPictureParams.Builder()
