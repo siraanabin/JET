@@ -1,8 +1,9 @@
 {
-  "versionCode": 402,
-  "versionName": "3.9.12",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.12/JET-debug.apk",
+  "versionCode": 403,
+  "versionName": "3.9.13",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.13/JET-debug.apk",
   "changelog": [
+    "Added separate 0–100% network download and 0–100% audio/video mux progress phases with phase-specific speed and ETA UI",
     "Fixed foreground playback startup timeout and added persistent background media notification controls with live playback handoff",
     "Added two-way background audio/video playback position handoff with per-media resume persistence and notification re-open support",
     "Added bounded 8-worker parallel video/audio range downloads with exact byte totals, positional writes, native EMA speed and live ETA",
