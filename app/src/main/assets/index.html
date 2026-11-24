@@ -485,7 +485,7 @@
                 <div class="overflow-x-auto overscroll-x-contain">
                   <table class="w-full min-w-[900px] table-fixed border-collapse text-left">
                     <thead><tr class="border-y border-app-border text-[10px] uppercase tracking-wide text-app-muted">
-                      <th class="w-[31%] px-3 py-2">File</th><th class="w-[23%] px-3 py-2">Timing (DL / Mux / Total)</th><th class="w-[20%] px-3 py-2">Speed</th><th class="w-[26%] px-3 py-2">Engine / Health</th>
+                      <th class="w-[31%] px-3 py-2">File</th><th class="w-[23%] px-3 py-2">Timing (DL / Convert / Mux / Total)</th><th class="w-[20%] px-3 py-2">Speed</th><th class="w-[26%] px-3 py-2">Engine / Health</th>
                     </tr></thead>
                     <tbody id="download-telemetry-table-body"></tbody>
                   </table>
@@ -1097,7 +1097,7 @@
           const fileMeta = [item.resolution || '', item.container || '', item.sizeText || '', item.timestamp || ''].filter(Boolean).map(telemetryEscape).join(' • ');
           return '<tr data-telemetry-row="' + index + '" class="border-b border-app-border last:border-b-0 cursor-pointer hover:bg-app-elevated/70 active:bg-app-elevated">' +
             '<td class="px-3 py-3 align-top"><p class="truncate text-[11px] font-bold text-app-text" title="' + title + '">' + title + '</p><p class="mt-1 truncate text-[10px] text-app-secondary">' + fileMeta + '</p></td>' +
-            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>DL: ' + telemetryEscape(item.downloadSec || '—') + '</div><div>Mux: ' + telemetryEscape(item.muxSec || '—') + '</div><div class="font-bold text-app-text">Total: ' + telemetryEscape(item.totalSec || '—') + '</div></td>' +
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>DL: ' + telemetryEscape(item.downloadSec || '—') + '</div><div>Convert: ' + telemetryEscape(item.convertSec || '—') + '</div><div>Mux: ' + telemetryEscape(item.muxSec || '—') + '</div><div class="font-bold text-app-text">Total: ' + telemetryEscape(item.totalSec || '—') + '</div></td>' +
             '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Net: ' + telemetryEscape(item.netSpeedText || '—') + '</div><div>Avg: ' + telemetryEscape(item.avgSpeedText || '—') + '</div></td>' +
             '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Engine: ' + telemetryEscape(item.engine || 'n/a') + '</div><div>Conn: ' + telemetryEscape(item.connections || 'n/a') + ' (' + telemetryEscape(item.chunkSize || 'n/a') + ')</div><div>Retries: ' + telemetryEscape(item.retries == null ? '—' : item.retries) + '</div><div>Blocks: ' + telemetryEscape(item.blocks == null ? '—' : item.blocks) + '</div><div class="mt-1 whitespace-normal break-all">Fallback: ' + telemetryEscape(item.fallbackReason || 'none') + '</div></td></tr>';
         }).join('');
