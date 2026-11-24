@@ -31,6 +31,7 @@ object JetFfmpegRuntime {
             initialized = true
             val elapsedMs = (SystemClock.elapsedRealtime() - startedAtMs).coerceAtLeast(0L)
             Log.i("JET-FFmpeg", "Bundled FFmpeg support files initialized successfully; initMs=" + elapsedMs)
+            Log.d("ENGINE_DEBUG", "ffmpeg_runtime_init_ms=" + elapsedMs)
             return elapsedMs
         } catch (error: Exception) {
             Log.e("JET-FFmpeg", "Bundled FFmpeg initialization failed", error)
