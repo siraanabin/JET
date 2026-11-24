@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import coil.Coil
@@ -22,12 +23,15 @@ object JetFfmpegRuntime {
     @Volatile private var initialized = false
 
     @Synchronized
-    fun initialize(context: android.content.Context) {
-        if (initialized) return
+    fun initialize(context: android.content.Context): Long {
+        if (initialized) return 0L
+        val startedAtMs = SystemClock.elapsedRealtime()
         try {
             FFmpeg.getInstance().init(context.applicationContext)
             initialized = true
-            Log.i("JET-FFmpeg", "Bundled FFmpeg support files initialized successfully")
+            val elapsedMs = (SystemClock.elapsedRealtime() - startedAtMs).coerceAtLeast(0L)
+            Log.i("JET-FFmpeg", "Bundled FFmpeg support files initialized successfully; initMs=" + elapsedMs)
+            return elapsedMs
         } catch (error: Exception) {
             Log.e("JET-FFmpeg", "Bundled FFmpeg initialization failed", error)
             throw IllegalStateException(
