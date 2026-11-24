@@ -1378,7 +1378,7 @@
         const candidate = String(rawUrl || '').trim();
         if (!normalizeMediaInfoUrl(candidate)) return;
         clearTimeout(mediaInfoPrefetchTimer);
-        mediaInfoPrefetchTimer = setTimeout(() => prefetchMediaInfoSilently(candidate), 450);
+        mediaInfoPrefetchTimer = setTimeout(() => prefetchMediaInfoSilently(candidate), 120);
       }
       function handleUrlInputChanged() {
         updatePasteButtonState();
@@ -1504,13 +1504,13 @@
           const metadata = info.streams?.[stream.id] || {};
           if (stream.group === 'music') {
             stream.sizeBytes = Number(metadata.sizeBytes) || 0;
-            stream.sizeText = metadata.available && stream.sizeBytes > 0 ? formatFileSize(stream.sizeBytes) : 'Size N/A';
+            stream.sizeText = metadata.available && stream.sizeBytes > 0 ? ((String(metadata.sizeText || '').startsWith('~') ? '~ ' : '') + formatFileSize(stream.sizeBytes)) : 'Size N/A';
             stream.available = metadata.available !== false;
             return;
           }
           stream.available = metadata.available === true && Number(metadata.shortSide) > 0;
           stream.sizeBytes = Number(metadata.sizeBytes) || 0;
-          stream.sizeText = stream.available ? formatFileSize(stream.sizeBytes) : 'N/A';
+          stream.sizeText = stream.available ? ((String(metadata.sizeText || '').startsWith('~') ? '~ ' : '') + formatFileSize(stream.sizeBytes)) : 'N/A';
           stream.itag = Number(metadata.itag) || -1;
           stream.height = Number(metadata.height) || 0;
           stream.maxHeight = stream.height || stream.maxHeight;
@@ -1545,17 +1545,23 @@
         const key=normalizeMediaInfoUrl(rawUrl);
         if(!key)return;
         const entry=mediaInfoPrefetchCache.get(key);
-        if(!entry||entry.status!=='inFlight')return;
+        if(!entry)return;
         let payload=info;
         if(typeof payload==='string'){try{payload=JSON.parse(payload);}catch(_){mediaInfoPrefetchCache.delete(key);return;}}
         if(!payload||!payload.ok){mediaInfoPrefetchCache.delete(key);return;}
+        const wasInFlight=entry.status==='inFlight';
         entry.status='ready';entry.payload=payload;entry.expiresAt=Date.now()+MEDIA_INFO_PREFETCH_TTL_MS;
         mediaInfoPrefetchCache.set(key,entry);
-        maybeAutoOpenPrefetchedClipboard();
+        if(!wasInFlight && !$('format-modal').classList.contains('hidden') &&
+           normalizeMediaInfoUrl(state.pendingUrl)===key) applyMediaInfoPayload(payload);
+        if(wasInFlight) maybeAutoOpenPrefetchedClipboard();
       };
       window.onNativePrefetchFailed=function(rawUrl){
         const key=normalizeMediaInfoUrl(rawUrl),entry=mediaInfoPrefetchCache.get(key);
         if(entry&&entry.status==='inFlight')mediaInfoPrefetchCache.delete(key);
+        if(!$('format-modal').classList.contains('hidden') &&
+           normalizeMediaInfoUrl(state.pendingUrl)===key &&
+           hasAndroid() && window.JetAndroid.fetchMediaInfo) window.JetAndroid.fetchMediaInfo(rawUrl);
       };
       const clampDownloadPercent = (percent) => Math.min(100, Math.max(0, Math.floor(Number(percent) || 0)));
       const isPreByteDownload = (item) => ['PREPARING', 'CONNECTING'].includes(String(item.stage || '').toUpperCase()) && Number(item.bytesRead) <= 0;
@@ -1924,6 +1930,7 @@
           applyMediaInfoPayload(prefetchEntry.payload);
           return;
         }
+        if(prefetchEntry&&prefetchEntry.expiresAt>Date.now()&&prefetchEntry.status==='inFlight') return;
         if(hasAndroid()&&window.JetAndroid.fetchMediaInfo){
           // Native getOrFetchStreamInfo joins the existing prefetch job.
           window.JetAndroid.fetchMediaInfo(cleanUrl);
