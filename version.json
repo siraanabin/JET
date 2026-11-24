@@ -1,7 +1,7 @@
 {
-  "versionCode": 387,
-  "versionName": "3.8.7",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.7/JET-debug.apk",
+  "versionCode": 388,
+  "versionName": "3.8.8",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.8/JET-debug.apk",
   "changelog": [
     "Fixed PiP UI cast crash and improved player title marquee and progress styling",
     "Persisted Library snapshots and deferred scans for instant tab display",
@@ -19,6 +19,7 @@
     "Added draggable fast scrolling to Library and Downloads",
     "Preserved rotating track artwork during music playback",
     "Restored high-contrast URL borders and transparent video overlays",
-    "Added asynchronous latest-file thumbnail hydration and stopped music when video playback starts"
+    "Added asynchronous latest-file thumbnail hydration and stopped music when video playback starts",
+    "Kept player controls, progress bar, and gesture HUDs visible throughout active touch, swipe, and scrubbing interactions"
   ]
 }
