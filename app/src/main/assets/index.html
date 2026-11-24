@@ -105,8 +105,8 @@
     .feedback-field{width:100%;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-primary);border-radius:16px;padding:13px 14px;outline:none;font:inherit;font-size:13px}
     .feedback-field:focus{border-color:var(--accent-primary)}.feedback-send:disabled{opacity:.42}
     .feedback-media-tile{border:1px dashed var(--border-subtle);border-radius:14px;min-height:78px;background:var(--bg-elevated)}
-    #url-input-shell{border:1px solid var(--border-subtle);padding-right:8px;transition:border-color .18s ease,box-shadow .18s ease}html.dark #url-input-shell{border-color:rgba(255,255,255,.10)}#url-input-shell:focus-within{border-color:var(--accent-primary);box-shadow:0 0 0 2px rgba(79,124,255,.12)}#url-input-shell #url-input{padding-right:4px;min-width:0}
-    #jet-fast-scroll-track{position:fixed;z-index:9998;top:8px;right:3px;bottom:calc(82px + env(safe-area-inset-bottom));width:14px;opacity:0;pointer-events:none;transition:opacity .22s ease;touch-action:none}#jet-fast-scroll-track.visible{opacity:1;pointer-events:auto}#jet-fast-scroll-thumb{position:absolute;top:0;right:4px;width:5px;min-height:28px;border-radius:999px;background:rgba(100,116,139,.72);box-shadow:0 1px 5px rgba(0,0,0,.24);transform:translateY(0);will-change:transform,height;touch-action:none}html.dark #jet-fast-scroll-thumb{background:rgba(148,163,184,.68)}
+    #url-input-shell{border:1.5px solid #334155;padding-right:12px;transition:border-color .18s ease,box-shadow .18s ease}html.dark #url-input-shell{border-color:rgba(255,255,255,.78)}html:not(.dark) #url-input-shell{border-color:#1E293B}#url-input-shell:focus-within{border-color:var(--accent-primary);box-shadow:0 0 0 2px rgba(79,124,255,.12)}#url-input-shell #url-input{padding-right:8px;min-width:0}
+    #jet-fast-scroll-track{position:fixed;z-index:9998;top:8px;right:0;bottom:calc(82px + env(safe-area-inset-bottom));width:20px;opacity:0;pointer-events:none;transition:opacity .22s ease;touch-action:none}#jet-fast-scroll-track.visible{opacity:1;pointer-events:auto}#jet-fast-scroll-thumb{position:absolute;top:0;right:5px;width:6px;min-height:30px;border-radius:999px;background:rgba(71,85,105,.78);transform:translateY(0);will-change:transform,height;touch-action:none}html.dark #jet-fast-scroll-thumb{background:rgba(203,213,225,.78)}
   
 #music-player-overlay{position:fixed;inset:0;z-index:10000;display:none;flex-direction:column;overflow:hidden;color:#F8FAFC;background:radial-gradient(ellipse at 50% 22%,rgba(73,104,177,.30),transparent 42%),radial-gradient(ellipse at 12% 85%,rgba(39,79,145,.22),transparent 42%),linear-gradient(160deg,#10192B 0%,#080B12 55%,#05070C 100%);padding:env(safe-area-inset-top) 22px env(safe-area-inset-bottom)}
 #music-player-overlay:not(.hidden){display:flex}#music-player-overlay:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.035),transparent 30%,rgba(0,0,0,.16))}
@@ -1392,6 +1392,33 @@
         if (item) { item.status = 'paused'; item.speed = 'Paused'; renderDownloads(); }
       };
 
+      function renderLatestSavedPreview(item) {
+        if (!item) return;
+        const card = $('latest-download-card');
+        const preview = card && card.querySelector('.relative');
+        if (!preview) return;
+        const record = { title:item.title||'', filePath:item.filePath||'', fileUri:item.fileUri||'',
+          thumbnailUrl:item.thumbnailUrl||item.thumbnail||'', type:item.type||'video',
+          meta:item.meta||((item.size||'Saved')+' · '+(item.format||'Media')) };
+        card.dataset.filePath=record.filePath; card.dataset.fileUri=record.fileUri; card.dataset.mediaType=record.type;
+        try { localStorage.setItem('jet-latest-saved-file-v1',JSON.stringify(record)); } catch (_) {}
+        if (record.thumbnailUrl) {
+          if (record.type==='audio') preview.innerHTML=vinylDiscMarkup(record.thumbnailUrl,'w-12 h-12');
+          else { const img=document.createElement('img'); img.alt=''; img.decoding='async'; img.className='absolute inset-0 w-full h-full object-cover'; img.src=record.thumbnailUrl; img.onerror=()=>img.remove(); preview.replaceChildren(img); }
+        } else if (record.filePath||record.fileUri) {
+          const key=record.filePath||record.fileUri;
+          if (card.dataset.thumbnailRequest!==key) { card.dataset.thumbnailRequest=key;
+            if (hasAndroid()&&window.JetAndroid&&window.JetAndroid.requestFileThumbnail) window.JetAndroid.requestFileThumbnail(record.filePath,record.fileUri);
+          }
+        }
+      }
+      function hydrateLatestSavedFromCache() {
+        try { const cached=JSON.parse(localStorage.getItem('jet-latest-saved-file-v1')||'null'); if(!cached)return;
+          $('latest-title').textContent=cached.title||'Latest saved file'; $('latest-meta').textContent=cached.meta||'Saved';
+          renderLatestSavedPreview(cached);
+        } catch (_) {}
+      }
+
       window.onNativeDownloadComplete = function (data) {
         state.retryDownloadArgs = null;
         state.retryDownloadRecord = null;
@@ -1401,7 +1428,7 @@
         if (idx >= 0) state.activeDownloads.splice(idx, 1);
 
         const title = data.title || (existing ? existing.title : 'JET Download');
-        const thumbnailUrl = (existing && existing.thumbnailUrl) || '';
+        const thumbnailUrl = data.thumbnailUrl || data.thumbnail || (existing && existing.thumbnailUrl) || '';
         const fmtLabel = existing ? existing.format : 'Media';
         state.doneDownloads.unshift({
           id: data.id,
@@ -1418,6 +1445,7 @@
         $('latest-meta').textContent = `${data.size || 'Saved'} · ${fmtLabel}`;
         $('latest-download-card').dataset.filePath = data.filePath || '';
         $('latest-download-card').dataset.fileUri = data.fileUri || '';
+        renderLatestSavedPreview({title,filePath:data.filePath||'',fileUri:data.fileUri||'',thumbnailUrl,type:existing&&existing.type||'video',size:data.size||'Saved',format:fmtLabel});
 
         renderDownloads();
         showToast(`Saved: ${title}`);
@@ -1431,6 +1459,13 @@
         const item = state.activeDownloads.find((d) => d.id === data.id);
         if (item) { item.status = 'failed'; item.speed = data.error || 'Download failed'; renderDownloads(); }
         showToast(`Error: ${data.error || 'Download failed'}`);
+      };
+
+      window.onNativeFileThumbnail = function (filePath, thumbnailUrl) {
+        const card=$('latest-download-card'); if(!thumbnailUrl||(filePath&&card.dataset.filePath!==filePath))return;
+        let cached={}; try{cached=JSON.parse(localStorage.getItem('jet-latest-saved-file-v1')||'{}')||{};}catch(_){}
+        cached.thumbnailUrl=thumbnailUrl; try{localStorage.setItem('jet-latest-saved-file-v1',JSON.stringify(cached));}catch(_){}
+        renderLatestSavedPreview(cached);
       };
 
       window.onNativeLibraryPermissionState = function (permissionState) {
@@ -1486,6 +1521,7 @@
           $('latest-meta').textContent = first.meta;
           $('latest-download-card').dataset.filePath = first.filePath || '';
           $('latest-download-card').dataset.fileUri = first.fileUri || '';
+          renderLatestSavedPreview(first);
           const preview = $('latest-download-card').querySelector('.relative');
           if (preview) {
             preview.className = 'relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden';
@@ -2182,6 +2218,7 @@
       window.addEventListener('resize',updateMusicMarquee,{passive:true});
       $('music-artwork').onerror=function(){this.onerror=null;this.dataset.hasTrackArtwork='';this.src='file:///android_asset/images/music-placeholder.svg';};
       $('music-mini-art').onerror=function(){this.onerror=null;this.src='file:///android_asset/images/music-placeholder.svg';};
+      window.onNativeVideoPlaybackStarted=function(){applyMusicState({isPlaying:false});};
       window.onNativeMusicStateChanged=applyMusicState;
       window.onNativeMusicArtwork=uri=>setMusicArtwork(uri);
       window.onNativeMusicProgress=(p,d)=>{musicDurationMs=Math.max(0,Number(d)||0);musicPositionMs=Math.max(0,Number(p)||0);const shown=musicScrubbing?musicScrubPositionMs:musicPositionMs;$('music-current-time').textContent=musicTime(shown);$('music-duration-time').textContent=musicTime(musicDurationMs);if(!musicScrubbing)updateMusicSeekbar(musicPositionMs,musicDurationMs);};
@@ -2267,6 +2304,7 @@
       }
       renderDownloads();
       renderLibrary();
+      hydrateLatestSavedFromCache();
       if (hasAndroid() && window.JetAndroid.getDownloadSettingsJson) {
         try { window.onNativeDownloadSettings(JSON.parse(window.JetAndroid.getDownloadSettingsJson())); } catch (_) {}
       }

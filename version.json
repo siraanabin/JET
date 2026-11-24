@@ -1,7 +1,7 @@
 {
-  "versionCode": 386,
-  "versionName": "3.8.6",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.6/JET-debug.apk",
+  "versionCode": 387,
+  "versionName": "3.8.7",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.7/JET-debug.apk",
   "changelog": [
     "Fixed PiP UI cast crash and improved player title marquee and progress styling",
     "Persisted Library snapshots and deferred scans for instant tab display",
@@ -17,6 +17,8 @@
     "Stopped background music playback when starting a video and improved audio focus handling",
     "Made swipe-seek HUD transparent and softened the dark-mode URL input border",
     "Added draggable fast scrolling to Library and Downloads",
-    "Preserved rotating track artwork during music playback"
+    "Preserved rotating track artwork during music playback",
+    "Restored crisp URL borders and removed video overlay scrims and text shadows",
+    "Added asynchronous latest-file thumbnail hydration and stopped music when video playback starts"
   ]
 }

@@ -178,7 +178,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             finish(); return
         }
         currentPath = path
-        runCatching { startService(Intent(this, PlayerPlaybackService::class.java).apply { action = PlayerPlaybackService.ACTION_STOP_FOR_VIDEO }) }.onFailure { android.util.Log.w("JET-Video", "Unable to stop background audio before video playback", it) }
+        stopBackgroundAudioForVideo()
         updatePlayerTitle(intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension })
         playerPrefs = PlayerPrefsManager(this)
         volumePercent = playerPrefs.savedVolumePercent
@@ -877,7 +877,13 @@ class VideoPlayerActivity : AppCompatActivity() {
         Toast.makeText(this, "Background audio ON", Toast.LENGTH_SHORT).show()
         finish()
     }
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); recreate() }
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); stopBackgroundAudioForVideo(); recreate() }
+
+    private fun stopBackgroundAudioForVideo() {
+        runCatching { startService(Intent(this, PlayerPlaybackService::class.java).apply { action = PlayerPlaybackService.ACTION_STOP_FOR_VIDEO }) }
+            .onFailure { android.util.Log.w("JET-Video", "Unable to stop background audio before video playback", it) }
+        sendBroadcast(Intent("com.jet.downloader.action.VIDEO_PLAYBACK_STARTED").setPackage(packageName))
+    }
 
     private fun enterPip() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

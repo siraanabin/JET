@@ -13,6 +13,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadataRetriever
+import android.media.ThumbnailUtils
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -155,6 +156,12 @@ class MainActivity : AppCompatActivity() {
     private var pendingSharedUrl: String? = null
     private var lastDeliveredClipboardUrl: String? = null
     private var musicController: MediaController? = null
+    private val videoPlaybackStartedReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            runCatching { musicController?.pause(); musicController?.clearMediaItems() }
+            if (::webView.isInitialized) callJs("onNativeVideoPlaybackStarted", "")
+        }
+    }
     private var musicControllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
     private var musicSourceLabel = "Library"
     private var lastMusicVolume = 1f
@@ -406,6 +413,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled", "AllowFileAccessFromFileURLs")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(this, videoPlaybackStartedReceiver, android.content.IntentFilter("com.jet.downloader.action.VIDEO_PLAYBACK_STARTED"), ContextCompat.RECEIVER_NOT_EXPORTED)
 
         // Preserve the app's three-part layout; system bars remain outside WebView content.
         val initialThemeMode = runBlocking { preferencesManager.migrateLegacyThemePreference() }
@@ -643,6 +651,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyMusicSleepTimer(minutes:Int){val i=Intent(this,PlayerPlaybackService::class.java).apply{action=PlayerPlaybackService.ACTION_SLEEP_TIMER;putExtra(PlayerPlaybackService.EXTRA_SLEEP_TIMER_MINUTES,minutes.coerceIn(0,240))};runCatching{ContextCompat.startForegroundService(this,i)}.onFailure{Log.w("JET-Music","Sleep timer update failed",it)}}
     override fun onDestroy() {
         mediaRefreshHandler.removeCallbacksAndMessages(null)
+        runCatching { unregisterReceiver(videoPlaybackStartedReceiver) }
         musicProgressHandler.removeCallbacksAndMessages(null)
         mediaStoreObserver?.let { runCatching { contentResolver.unregisterContentObserver(it) } }
         mediaStoreObserver = null
@@ -976,7 +985,7 @@ class MainActivity : AppCompatActivity() {
             val cover = embedded?.let { bytes ->
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             }
-            val bitmap = cover ?: if (isAudio) null else {
+            var bitmap = cover ?: if (isAudio) null else {
                 val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                     ?.toLongOrNull() ?: 0L
                 val durationUs = durationMs * 1_000L
@@ -986,13 +995,17 @@ class MainActivity : AppCompatActivity() {
                     retriever.getFrameAtTime(durationUs / 2, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                         ?: firstFrame
                 } else firstFrame
-            } ?: return if (isAudio) "file:///android_asset/images/music-placeholder.svg" else ""
-            val scale = minOf(1.0, 320.0 / bitmap.width, 180.0 / bitmap.height)
-            val width = (bitmap.width * scale).toInt().coerceAtLeast(1)
-            val height = (bitmap.height * scale).toInt().coerceAtLeast(1)
-            val scaled = if (width != bitmap.width || height != bitmap.height) {
-                Bitmap.createScaledBitmap(bitmap, width, height, true).also { if (it !== bitmap) bitmap.recycle() }
-            } else bitmap
+            }
+            if (bitmap == null && !isAudio && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                bitmap = runCatching { ThumbnailUtils.createVideoThumbnail(file, android.util.Size(320, 180)) }.getOrNull()
+            }
+            val frame = bitmap ?: return if (isAudio) "file:///android_asset/images/music-placeholder.svg" else ""
+            val scale = minOf(1.0, 320.0 / frame.width, 180.0 / frame.height)
+            val width = (frame.width * scale).toInt().coerceAtLeast(1)
+            val height = (frame.height * scale).toInt().coerceAtLeast(1)
+            val scaled = if (width != frame.width || height != frame.height) {
+                Bitmap.createScaledBitmap(frame, width, height, true).also { if (it !== frame) frame.recycle() }
+            } else frame
             ByteArrayOutputStream().use { output ->
                 scaled.compress(Bitmap.CompressFormat.JPEG, 72, output)
                 scaled.recycle()
@@ -2118,6 +2131,29 @@ class MainActivity : AppCompatActivity() {
                     pushCompletedDownloadHistoryToWeb(files)
                 } catch (error: Exception) {
                     Log.e("JET-Downloads", "Unable to restore download history", error)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun requestFileThumbnail(filePath: String, fileUri: String) {
+            val path = filePath.trim()
+            val uriText = fileUri.trim()
+            lifecycleScope.launch(Dispatchers.IO) {
+                val thumbnail = runCatching {
+                    val file = path.takeIf { it.isNotBlank() }?.let(::File)
+                    if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
+                    else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
+                        val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
+                        ByteArrayOutputStream().use { output ->
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                            bitmap.recycle()
+                            "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                        }
+                    } else ""
+                }.getOrDefault("")
+                withContext(Dispatchers.Main) {
+                    if (thumbnail.isNotBlank()) callJs("onNativeFileThumbnail", "${JSONObject.quote(path)}, ${JSONObject.quote(thumbnail)}")
                 }
             }
         }
