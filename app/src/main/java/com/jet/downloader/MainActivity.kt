@@ -2421,6 +2421,7 @@ class MainActivity : AppCompatActivity() {
             var process: Process? = null
             var wifiLock: WifiManager.WifiLock? = null
             val downloadStartedAtMs = SystemClock.elapsedRealtime()
+            var downloadDurationSec = 0.0
             val downloadRetryCount = AtomicInteger(0)
             val downloadBlockCount = AtomicInteger(0)
             val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
@@ -2634,6 +2635,7 @@ class MainActivity : AppCompatActivity() {
                 check(totalDownloadedBytes.get() == totalBytes) {
                     "Combined downloaded bytes do not match the exact stream total"
                 }
+                downloadDurationSec = ((SystemClock.elapsedRealtime() - downloadStartedAtMs).coerceAtLeast(1L)) / 1000.0
 
                 callJs(
                     "onNativeDownloadProgress",
@@ -2704,7 +2706,7 @@ class MainActivity : AppCompatActivity() {
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
                 if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
                     verifiedNewPipeSourceSizes[downloadId] = totalBytes
-                    val dlSec = ((muxStartedAtMs - downloadStartedAtMs).coerceAtLeast(1L)) / 1000.0
+                    val dlSec = downloadDurationSec.coerceAtLeast(0.001)
                     val videoMb = String.format(Locale.US, "%.1f", videoTotalBytes / (1024.0 * 1024.0))
                     val audioMb = String.format(Locale.US, "%.1f", audioTotalBytes / (1024.0 * 1024.0))
                     val avgMbps = String.format(Locale.US, "%.2f", totalDownloadedBytes.get() / (1024.0 * 1024.0) / dlSec)
