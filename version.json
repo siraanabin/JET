@@ -1,8 +1,9 @@
 {
-  "versionCode": 395,
-  "versionName": "3.9.5",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.5/JET-debug.apk",
+  "versionCode": 396,
+  "versionName": "3.9.6",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.6/JET-debug.apk",
   "changelog": [
+    "Fixed exact video and audio stream size totals and parallelized stream downloads with monotonic progress",
     "Added bounded 5 MiB IPv4-preferred OkHttp stream downloads, 256 KiB NewPipe prebuffering, local-only FFmpeg remuxing, and integer byte-based progress",
     "Restored single-finger player gestures after pinch zoom, locked seek UI during swipe scrubbing, and added Android system music volume slider with hardware-key sync",
     "Fixed IPv4-preferred OkHttp DNS sorting to compile correctly while preserving IPv4-first connection attempts",
