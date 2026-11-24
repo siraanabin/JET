@@ -22,8 +22,8 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 29
         targetSdk = 34
-        versionCode = 406
-        versionName = "3.9.16"
+        versionCode = 407
+        versionName = "3.9.17"
         buildConfigField("String", "JET_FEEDBACK_HELPER_URL", "\"$feedbackHelperUrl\"")
 
         ndk {
