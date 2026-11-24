@@ -2275,7 +2275,8 @@ class MainActivity : AppCompatActivity() {
                         val downloadedBytes = videoDownloadedBytes.get() + audioDownloadedBytes.get()
                         val videoLength = videoTotalBytes.get()
                         val audioLength = audioTotalBytes.get()
-                        val totalBytes = videoLength + audioLength
+                        val allStreamLengthsKnown = !combined || (videoLength > 0L && audioLength > 0L)
+                        val totalBytes = if (allStreamLengthsKnown) videoLength + audioLength else 0L
                         val elapsedMs = (now - lastSpeedSampleAt).coerceAtLeast(1L)
                         val deltaBytes = (downloadedBytes - lastSpeedSampleBytes).coerceAtLeast(0L)
                         if (deltaBytes > 0L) {
@@ -2285,7 +2286,7 @@ class MainActivity : AppCompatActivity() {
                             lastSpeedSampleAt = now; lastSpeedSampleBytes = downloadedBytes
                         }
                         val rawPercent = if (totalBytes > 0L) (downloadedBytes * 95L / totalBytes).toInt() else 1
-                        val safePercent = if (combined && (videoLength <= 0L || audioLength <= 0L)) minOf(47, rawPercent) else rawPercent
+                        val safePercent = if (combined && !allStreamLengthsKnown) 1 else rawPercent
                         lastTransferPercent = maxOf(lastTransferPercent, safePercent.coerceIn(1, 95))
                         val etaSeconds = if (totalBytes > downloadedBytes && smoothedSpeedBps > 0.0) ((totalBytes - downloadedBytes) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else -1L
                         callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastTransferPercent + ", " + JSONObject.quote("Downloading...") + ", " + JSONObject.quote("DOWNLOADING") + ", " + downloadedBytes + ", " + downloadedBytes + ", " + totalBytes + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", " + etaSeconds)
