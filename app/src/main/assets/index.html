@@ -1482,13 +1482,16 @@
         const previousBytesRead = Math.max(0, Number(item.bytesRead) || 0);
         item.downloadedBytes = Math.max(previousDownloadedBytes, Math.max(0, Number(downloadedBytes ?? bytesRead) || 0));
         item.bytesRead = Math.max(previousBytesRead, Math.max(0, Number(bytesRead) || 0), item.downloadedBytes);
-        item.totalBytes = Math.max(0, Number(totalBytes) || 0);
+        item.totalBytes = Math.max(Number(item.totalBytes) || 0, Math.max(0, Number(totalBytes) || 0));
         const receivedFirstByte = previousDownloadedBytes > 0 || item.downloadedBytes > 0;
-        item.stage = receivedFirstByte && ['PREPARING', 'CONNECTING'].includes(normalizedStage)
-          ? 'DOWNLOADING'
-          : (['PREPARING', 'CONNECTING', 'DOWNLOADING', 'MERGING'].includes(normalizedStage)
-            ? normalizedStage
-            : (Number(progress) > 0 ? 'DOWNLOADING' : 'PREPARING'));
+        const previousStage = String(item.stage || '').toUpperCase();
+        item.stage = previousStage === 'MERGING'
+          ? 'MERGING'
+          : (receivedFirstByte && ['PREPARING', 'CONNECTING'].includes(normalizedStage)
+            ? 'DOWNLOADING'
+            : (['PREPARING', 'CONNECTING', 'DOWNLOADING', 'MERGING'].includes(normalizedStage)
+              ? normalizedStage
+              : (Number(progress) > 0 ? 'DOWNLOADING' : 'PREPARING')));
         const now = Date.now(), previousBytes = Number(item._speedSampleBytes ?? item.downloadedBytes) || 0, previousAt = Number(item._speedSampleAt ?? now) || now;
         const elapsedMs = Math.max(1, now - previousAt), deltaBytes = Math.max(0, item.downloadedBytes - previousBytes);
         if (deltaBytes > 0) {
@@ -1515,7 +1518,7 @@
         } else if (item.stage === 'DOWNLOADING' && item.bytesRead > 0) {
           item.status = 'downloading';
           item.speed = speedLabel || 'Downloading...';
-          item.progress = clampDownloadPercent(Math.max(1, realPercent));
+          item.progress = Math.max(clampDownloadPercent(item.progress), clampDownloadPercent(Math.max(1, realPercent)));
         } else {
           item.status = 'preparing';
           item.speed = speedLabel || 'Connecting...';

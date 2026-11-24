@@ -286,6 +286,18 @@ class MainActivity : AppCompatActivity() {
         return (bitrateBps / 8.0 * durationSeconds).coerceAtMost(Long.MAX_VALUE.toDouble()).toLong().coerceAtLeast(0L)
     }
 
+    private fun resolveExactStreamContentLength(streamUrl: String?): Long {
+        if (streamUrl.isNullOrBlank()) return 0L
+        exactStreamSizeCache[streamUrl]?.takeIf { it > 0L }?.let { return it }
+        val queryLength = runCatching {
+            Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L
+        }.getOrDefault(0L)
+        val resolvedLength = queryLength.takeIf { it > 0L }
+            ?: runCatching { newPipeDownloader.contentLength(streamUrl) }.getOrDefault(0L)
+        if (resolvedLength > 0L) exactStreamSizeCache.putIfAbsent(streamUrl, resolvedLength)
+        return resolvedLength
+    }
+
     private fun videoResolutionId(shortSide: Int): String = when {
         shortSide >= 2160 -> "vid-4k"
         shortSide >= 1440 -> "vid-2k"
@@ -361,6 +373,7 @@ class MainActivity : AppCompatActivity() {
     private val streamInfoInFlight=ConcurrentHashMap<String,CompletableDeferred<StreamInfo>>()
     private val mediaInfoPrefetchJobs=ConcurrentHashMap<String,Job>()
     private val streamInfoCacheTtlMs=15*60*1000L
+    private val exactStreamSizeCache = ConcurrentHashMap<String, Long>()
 
     private fun normalizeMediaInfoUrl(rawUrl:String):String {
         return try {
@@ -1797,11 +1810,7 @@ class MainActivity : AppCompatActivity() {
                     streamSizes[id] = StreamSizePayload(sizeText = formatBytes(bytes), sizeBytes = bytes, available = true)
                 }
 
-            fun exactStreamContentLength(streamUrl: String?): Long {
-                if (streamUrl.isNullOrBlank()) return 0L
-                return runCatching { Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L }.getOrDefault(0L)
-            }
-            val bestAudioBytes = exactStreamContentLength(bestAudio?.url).takeIf { it > 0L }
+            val bestAudioBytes = resolveExactStreamContentLength(bestAudio?.url).takeIf { it > 0L }
                 ?: estimateBytesFromBitrateKbps(bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0, durationSec)
             streamSizes["aud-fast"] = StreamSizePayload(
                 sizeText = formatBytes(bestAudioBytes), sizeBytes = bestAudioBytes, available = bestAudioBytes > 0L
@@ -1819,7 +1828,7 @@ class MainActivity : AppCompatActivity() {
                         )
                     ) ?: return@forEach
                     val short = shortSide(video.width, video.height)
-                    val videoBytes = exactStreamContentLength(video.url).takeIf { it > 0L }
+                    val videoBytes = resolveExactStreamContentLength(video.url).takeIf { it > 0L }
                         ?: if (video.bitrate > 0) estimateBytesFromBitrateBps(video.bitrate.toDouble(), durationSec)
                         else estimateBytesFromBitrateKbps(fallbackVideoBitrateKbps(short), durationSec)
                     val totalBytes = videoBytes + if (video.isVideoOnly || video.bitrate <= 0) bestAudioBytes else 0L
@@ -1912,11 +1921,6 @@ class MainActivity : AppCompatActivity() {
                         val durationSec = info.duration.toLong()
                         val formats = info.formats.orEmpty()
 
-                        fun exactUrlContentLength(streamUrl: String?): Long {
-                            if (streamUrl.isNullOrBlank()) return 0L
-                            return runCatching { Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L }.getOrDefault(0L)
-                        }
-
                         fun formatBytes(
                             exactBytes: Long,
                             approximateBytes: Long,
@@ -1948,7 +1952,7 @@ class MainActivity : AppCompatActivity() {
                             (it.abr.takeIf { bitrate -> bitrate > 0 } ?: it.tbr).toLong()
                         }
                         val bestAudioBytes = bestAudioFormat?.let { audioFormat ->
-                            exactUrlContentLength(audioFormat.url).takeIf { it > 0L } ?: formatBytes(
+                            resolveExactStreamContentLength(audioFormat.url).takeIf { it > 0L } ?: formatBytes(
                                 audioFormat.fileSize,
                                 audioFormat.fileSizeApproximate,
                                 (audioFormat.abr.takeIf { bitrate -> bitrate > 0 } ?: audioFormat.tbr).toDouble(),
@@ -2004,7 +2008,7 @@ class MainActivity : AppCompatActivity() {
                                     )
                                 ) ?: return@forEach
                                 val short = shortSide(videoFormat.width, videoFormat.height)
-                                val videoBytes = exactUrlContentLength(videoFormat.url).takeIf { it > 0L }
+                                val videoBytes = resolveExactStreamContentLength(videoFormat.url).takeIf { it > 0L }
                                     ?: formatBytes(
                                         videoFormat.fileSize, videoFormat.fileSizeApproximate,
                                         videoFormat.tbr.toDouble(), durationSec
@@ -2264,12 +2268,8 @@ class MainActivity : AppCompatActivity() {
                 val audioDownloadedBytes = AtomicLong(0L)
                 val videoTotalBytes = AtomicLong(0L)
                 val audioTotalBytes = AtomicLong(0L)
-                fun contentLengthFromUrl(streamUrl: String?): Long {
-                    if (streamUrl.isNullOrBlank()) return 0L
-                    return runCatching { Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L }.getOrDefault(0L)
-                }
-                videoTotalBytes.set(contentLengthFromUrl(selectedUrl))
-                audioTotalBytes.set(contentLengthFromUrl(audioUrl))
+                videoTotalBytes.set(resolveExactStreamContentLength(selectedUrl))
+                audioTotalBytes.set(resolveExactStreamContentLength(audioUrl))
                 val progressLock = Any()
                 var lastSpeedSampleAt = System.currentTimeMillis()
                 var lastSpeedSampleBytes = 0L
@@ -2336,8 +2336,8 @@ class MainActivity : AppCompatActivity() {
                         if (line.startsWith("out_time_ms=")) outTimeMicros = maxOf(outTimeMicros, line.substringAfter("=").toLongOrNull() ?: 0L)
                         if (line.startsWith("progress=")) {
                             val finished = line.substringAfter("=") == "end"
-                            val pct = if (finished) 100 else if (durationMicros > 0L) (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99) else 96
-                            lastPercent = maxOf(lastPercent, pct)
+                            val pct = if (finished) 99 else if (durationMicros > 0L) (96 + (outTimeMicros * 4L / durationMicros).toInt()).coerceIn(96, 99) else 96
+                            lastPercent = maxOf(lastPercent, pct).coerceAtMost(99)
                             callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastPercent + ", " + JSONObject.quote(if (finished) "Finalizing..." else "Remuxing...") + ", " + JSONObject.quote("MERGING") + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoDownloadedBytes.get() + audioDownloadedBytes.get()) + ", " + (videoTotalBytes.get() + audioTotalBytes.get()) + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", -1")
                         }
                     }

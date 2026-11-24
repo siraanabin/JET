@@ -17,6 +17,48 @@ class JetOkHttpDownloader(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
     }
 
+    /**
+     * Resolve the full stream size with the shared IPv4-preferred OkHttp client.
+     * HEAD is preferred; a one-byte Range request exposes the total via Content-Range.
+     */
+    fun contentLength(url: String): Long {
+        fun requestBuilder(): okhttp3.Request.Builder {
+            val builder = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept-Encoding", "identity")
+            val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull().orEmpty()
+            if (host == "googlevideo.com" || host.endsWith(".googlevideo.com")) {
+                builder.header("Origin", "https://www.youtube.com")
+                    .header("Referer", "https://www.youtube.com/")
+            }
+            return builder
+        }
+
+        val headLength = runCatching {
+            client.newCall(requestBuilder().head().build()).execute().use { response ->
+                if (!response.isSuccessful) 0L
+                else (response.header("Content-Length")?.toLongOrNull()
+                    ?: response.body?.contentLength() ?: 0L).takeIf { it > 0L } ?: 0L
+            }
+        }.getOrDefault(0L)
+        if (headLength > 0L) return headLength
+
+        return runCatching {
+            client.newCall(requestBuilder().get().header("Range", "bytes=0-0").build()).execute().use { response ->
+                val rangeLength = response.header("Content-Range")
+                    ?.substringAfterLast("/")
+                    ?.toLongOrNull()
+                    ?.takeIf { it > 0L } ?: 0L
+                if (rangeLength > 0L) rangeLength
+                else if (response.code == 200) {
+                    (response.header("Content-Length")?.toLongOrNull()
+                        ?: response.body?.contentLength() ?: 0L).takeIf { it > 0L } ?: 0L
+                } else 0L
+            }
+        }.getOrDefault(0L)
+    }
+
     @Throws(IOException::class, ReCaptchaException::class)
     override fun execute(request: Request): Response {
         val httpMethod = request.httpMethod()
