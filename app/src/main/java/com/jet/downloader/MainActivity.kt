@@ -3102,7 +3102,30 @@ class MainActivity : AppCompatActivity() {
                             }
 
                             var streamInterrupted = false
-                            okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
+                            val response = try {
+                                okHttpClient.newCall(requestBuilder.build()).execute()
+                            } catch (networkError: java.io.IOException) {
+                                streamInterrupted = true
+                                null
+                            }
+                            if (response == null) {
+                                if (retryCount >= 3) {
+                                    throw IllegalStateException(
+                                        "APK connection failed after 3 resume retries",
+                                        java.io.IOException("Connection interrupted")
+                                    )
+                                }
+                                retryCount++
+                                val retryPercent = if (totalBytes > 0L) {
+                                    ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(0, 99)
+                                } else 0
+                                callJs(
+                                    "onNativeAppUpdateProgress",
+                                    "$retryPercent, ${JSONObject.quote("Connection interrupted · retrying download (retry $retryCount/3)…")}"
+                                )
+                                continue
+                            }
+                            response.use { response ->
                                 if (!response.isSuccessful) {
                                     throw IllegalStateException("APK download failed (HTTP ${response.code})")
                                 }
@@ -3111,6 +3134,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                                 val body = response.body
                                     ?: throw IllegalStateException("APK download response was empty")
+                                var expectedSegmentBytes = 0L
 
                                 if (response.code == 206) {
                                     val range = Regex("^bytes (\\d+)-(\\d+)/(\\d+)$")
@@ -3126,8 +3150,8 @@ class MainActivity : AppCompatActivity() {
                                         throw IllegalStateException("APK size changed while resuming the download")
                                     }
                                     totalBytes = rangeTotal
-                                    val expectedSegmentBytes = rangeEnd - rangeStart + 1L
-                                    if (body.contentLength() > 0L && body.contentLength() != expectedSegmentBytes) {
+                                    expectedSegmentBytes = rangeEnd - rangeStart + 1L
+                                    if (body.contentLength() >= 0L && body.contentLength() != expectedSegmentBytes) {
                                         throw IllegalStateException("APK response length did not match Content-Range")
                                     }
                                 } else if (response.code == 200) {
@@ -3137,14 +3161,16 @@ class MainActivity : AppCompatActivity() {
                                     if (totalBytes <= 0L) {
                                         throw IllegalStateException("APK server did not provide a valid Content-Length")
                                     }
+                                    expectedSegmentBytes = totalBytes
                                 } else {
                                     throw IllegalStateException("APK server returned unsupported HTTP ${response.code}")
                                 }
 
-                                if (totalBytes <= 0L) {
+                                if (totalBytes <= 0L || expectedSegmentBytes <= 0L) {
                                     throw IllegalStateException("APK server did not provide a valid total size")
                                 }
 
+                                var responseBytesRead = 0L
                                 body.byteStream().use { input ->
                                     FileOutputStream(apkFile, downloadedBytes > 0L).use { output ->
                                         while (true) {
@@ -3156,9 +3182,10 @@ class MainActivity : AppCompatActivity() {
                                             }
                                             if (count == -1) break
                                             output.write(buffer, 0, count)
+                                            responseBytesRead += count
                                             downloadedBytes += count
-                                            if (downloadedBytes > totalBytes) {
-                                                throw IllegalStateException("APK download exceeded the advertised file size")
+                                            if (responseBytesRead > expectedSegmentBytes || downloadedBytes > totalBytes) {
+                                                throw IllegalStateException("APK download exceeded the advertised response size")
                                             }
 
                                             val percent = ((downloadedBytes * 100L) / totalBytes)
@@ -3173,12 +3200,14 @@ class MainActivity : AppCompatActivity() {
                                         output.flush()
                                     }
                                 }
+                                if (responseBytesRead < expectedSegmentBytes) streamInterrupted = true
                             }
 
                             if (downloadedBytes == totalBytes) break
                             if (downloadedBytes > totalBytes) {
                                 throw IllegalStateException("Downloaded APK size exceeded the expected total")
                             }
+                            if (!streamInterrupted) continue
                             if (retryCount >= 3) {
                                 val reason = if (streamInterrupted) "connection repeatedly closed" else "server ended the response early"
                                 throw IllegalStateException(
