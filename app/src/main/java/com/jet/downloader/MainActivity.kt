@@ -3417,7 +3417,7 @@ class MainActivity : AppCompatActivity() {
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
             val chunkSize = Regex("""chunk=([^\s]+)""", RegexOption.IGNORE_CASE)
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
-            val fallbackReason = Regex("""fallbackReason=(.*?)(?=\\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val fallbackReason = Regex("""fallbackReason=(.*?)(?=\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "none"
             val retries = metricInt("""retries=([0-9]+)""", 0)
             val blocks = metricInt("""blocks=([0-9]+)""", 0)
