@@ -3578,6 +3578,19 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun checkForAppUpdate(isManual: Boolean) {
+            if (BuildConfig.DEBUG) {
+                callJs(
+                    "onNativeAppUpdateResult",
+                    JSONObject().apply {
+                        put("ok", true)
+                        put("manual", isManual)
+                        put("hasUpdate", false)
+                        put("currentVersion", BuildConfig.VERSION_NAME)
+                    }.toString()
+                )
+                return
+            }
+
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val isDebugApp = packageName.endsWith(".debug")
