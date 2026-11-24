@@ -992,7 +992,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         val p = player ?: return
         val duration = p.duration.takeIf { it > 0 } ?: C.TIME_UNSET
         seek.setDuration(duration)
-        if (!scrubbing && !seekCommitPending) {
+        if (!isScrubbing && !seekCommitPending) {
             seek.setPosition(p.currentPosition.coerceAtLeast(0L))
             seek.setBufferedPosition(p.bufferedPosition.coerceAtLeast(0L))
             currentTime.text = time(p.currentPosition)
