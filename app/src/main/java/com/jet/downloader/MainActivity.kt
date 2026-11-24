@@ -253,13 +253,13 @@ class MainActivity : AppCompatActivity() {
     private val engineUpdateCooldownMs = 24L * 60L * 60L * 1000L
     private val engineUpdateTimestampKey = "last_engine_update_check_ms"
 
-    private fun ensureYtDlpInitialized() {
-        synchronized(ytDlpEngineLock) {
+    private fun ensureYtDlpInitialized(): Long {
+        return synchronized(ytDlpEngineLock) {
             if (!ytDlpReady) {
                 // Match the youtubedl-android 0.18.1 initialization contract:
                 // initialize yt-dlp first, then extract FFmpeg's bundled support files.
                 YoutubeDL.getInstance().init(applicationContext)
-                JetFfmpegRuntime.initialize(applicationContext)
+                val ffmpegInitMs = JetFfmpegRuntime.initialize(applicationContext)
 
                 // YoutubeDL 0.18.1 itself adds
                 // --ffmpeg-location=<nativeLibraryDir>/libffmpeg.so to every execute().
@@ -288,6 +288,9 @@ class MainActivity : AppCompatActivity() {
                     "Bundled FFmpeg support files were not extracted: ${ffmpegSupportDir.absolutePath}"
                 }
                 ytDlpReady = true
+                ffmpegInitMs
+            } else {
+                0L
             }
         }
     }
@@ -2744,9 +2747,8 @@ class MainActivity : AppCompatActivity() {
                             JSONObject.quote("--"), "true", "false"
                         ).joinToString(", ")
                     )
-                    val ffInitStartedAtMs = SystemClock.elapsedRealtime()
-                    ensureYtDlpInitialized()
-                    ffInitSec = ((SystemClock.elapsedRealtime() - ffInitStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                    val ffmpegInitMs = ensureYtDlpInitialized()
+                    ffInitSec = ffmpegInitMs.coerceAtLeast(0L) / 1000.0
                     val ffPrepStartedAtMs = SystemClock.elapsedRealtime()
                     val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                     check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
