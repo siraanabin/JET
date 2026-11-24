@@ -3,6 +3,7 @@
   "versionName": "3.9.15",
   "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.15/JET-debug.apk",
   "changelog": [
+    "Added a Settings telemetry table for the latest four downloads with complete DL/mux timing, network and average speeds, connection health, retries, blocks, and copyable DL_DEBUG logs; removed telemetry pills from Done cards",
     "Fixed download speed telemetry on all completed cards, including yt-dlp fallback and progressive MP4 downloads",
     "Added optional Download Speed Stats setting with copyable telemetry on completed download cards",
     "Added separate 0–100% network download and 0–100% audio/video mux progress phases with phase-specific speed and ETA UI",
