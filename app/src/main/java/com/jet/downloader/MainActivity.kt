@@ -2595,6 +2595,10 @@ class MainActivity : AppCompatActivity() {
             var process: Process? = null
             var downloadStartedAtMs = SystemClock.elapsedRealtime()
             var downloadDurationSec = 0.0
+            var customVidSec = 0.0
+            var customAudSec = 0.0
+            var customMuxSec = 0.0
+            var activeCustomFailureReason = "custom_video_download_failed"
             val downloadRetryCount = AtomicInteger(0)
             val downloadBlockCount = AtomicInteger(0)
             val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
@@ -2688,6 +2692,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val totalDownloadedBytes = AtomicLong(0L)
+                val customTransferStartedAtMs = SystemClock.elapsedRealtime()
                 videoPart.parentFile?.mkdirs()
                 val videoAccess = RandomAccessFile(videoPart, "rw")
                 var audioAccess: RandomAccessFile? = null
@@ -2789,16 +2794,28 @@ class MainActivity : AppCompatActivity() {
                                 totalDownloadedBytes.set(0L)
                                 videoAccess.close()
                                 audioAccess?.close()
+                                activeCustomFailureReason = "custom_video_download_failed"
+                                val videoStartedAtMs = SystemClock.elapsedRealtime()
                                 videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId, totalDownloadedBytes)
+                                customVidSec = ((SystemClock.elapsedRealtime() - videoStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                                activeCustomFailureReason = "custom_audio_download_failed"
+                                val audioStartedAtMs = SystemClock.elapsedRealtime()
                                 audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId, totalDownloadedBytes) else 0L
+                                customAudSec = if (audioUrl != null) ((SystemClock.elapsedRealtime() - audioStartedAtMs).coerceAtLeast(0L)) / 1000.0 else 0.0
                                 totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
                             }
                         } else {
                             checkpointFile.delete()
                             activeConnectionLimit.set(1)
                             synchronized(connectionHistory) { if (connectionHistory.lastOrNull() != 1) connectionHistory.add(1) }
+                            activeCustomFailureReason = "custom_video_download_failed"
+                            val videoStartedAtMs = SystemClock.elapsedRealtime()
                             videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId, totalDownloadedBytes)
+                            customVidSec = ((SystemClock.elapsedRealtime() - videoStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                            activeCustomFailureReason = "custom_audio_download_failed"
+                            val audioStartedAtMs = SystemClock.elapsedRealtime()
                             audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId, totalDownloadedBytes) else 0L
+                            customAudSec = if (audioUrl != null) ((SystemClock.elapsedRealtime() - audioStartedAtMs).coerceAtLeast(0L)) / 1000.0 else 0.0
                             totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
                         }
                         emitTransferProgress()
@@ -2810,18 +2827,27 @@ class MainActivity : AppCompatActivity() {
                     runCatching { videoAccess.close() }
                 }
 
-                check(videoPart.isFile && videoPart.length() == videoTotalBytes) {
-                    "Downloaded video stream size does not match Content-Length"
+                val actualVideoBytes = if (videoPart.isFile) videoPart.length() else 0L
+                if (!videoPart.isFile || actualVideoBytes != videoTotalBytes) {
+                    Log.w("ENGINE_DEBUG", "downloadId=" + downloadId + " fallbackReason=output_size_mismatch stream=video expected=" + videoTotalBytes + " actual=" + actualVideoBytes)
+                    return fallback("output_size_mismatch:video_expected_" + videoTotalBytes + "_actual_" + actualVideoBytes)
                 }
                 if (audio != null) {
-                    check(audioPart.isFile && audioPart.length() == audioTotalBytes) {
-                        "Downloaded audio stream size does not match Content-Length"
+                    val actualAudioBytes = if (audioPart.isFile) audioPart.length() else 0L
+                    if (!audioPart.isFile || actualAudioBytes != audioTotalBytes) {
+                        Log.w("ENGINE_DEBUG", "downloadId=" + downloadId + " fallbackReason=output_size_mismatch stream=audio expected=" + audioTotalBytes + " actual=" + actualAudioBytes)
+                        return fallback("output_size_mismatch:audio_expected_" + audioTotalBytes + "_actual_" + actualAudioBytes)
                     }
                 }
                 check(totalDownloadedBytes.get() == totalBytes) {
                     "Combined downloaded bytes do not match the exact stream total"
                 }
                 downloadDurationSec = ((SystemClock.elapsedRealtime() - downloadStartedAtMs).coerceAtLeast(1L)) / 1000.0
+                if (rangeSupported) {
+                    val sharedElapsed = ((SystemClock.elapsedRealtime() - customTransferStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                    customVidSec = sharedElapsed
+                    customAudSec = if (audio != null) sharedElapsed else 0.0
+                }
 
                 callJs(
                     "onNativeDownloadProgress",
@@ -2858,8 +2884,11 @@ class MainActivity : AppCompatActivity() {
                 var outTimeMicros = 0L
                 var lastPercent = 0
                 val muxStartedAtMs = SystemClock.elapsedRealtime()
+                val combinedOutputTail = java.util.ArrayDeque<String>()
                 runningProcess.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
+                        combinedOutputTail.addLast(line)
+                        if (combinedOutputTail.size > 20) combinedOutputTail.removeFirst()
                         if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
                             runningProcess.destroyForcibly()
                             throw CancellationException("Download paused or cancelled")
@@ -2888,9 +2917,21 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 val exitCode = runningProcess.waitFor()
-                val mergeSec = ((SystemClock.elapsedRealtime() - muxStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                customMuxSec = ((SystemClock.elapsedRealtime() - muxStartedAtMs).coerceAtLeast(0L)) / 1000.0
+                val mergeSec = customMuxSec
                 activeNewPipeProcesses.remove(downloadId, runningProcess)
-                if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) {
+                if (exitCode != 0) {
+                    val tail = combinedOutputTail.toList()
+                    val lastLine = tail.lastOrNull().orEmpty().take(240)
+                    Log.e("ENGINE_DEBUG", "downloadId=" + downloadId + " fallbackReason=ffmpeg_merge_failed exitCode=" + exitCode + " lastLine=" + lastLine)
+                    tail.forEach { Log.e("ENGINE_DEBUG", "downloadId=" + downloadId + " ffmpeg_output=" + it) }
+                    return fallback("ffmpeg_merge_failed_exit_" + exitCode + "_" + lastLine)
+                }
+                if (!output.isFile || output.length() <= 0L) {
+                    Log.w("ENGINE_DEBUG", "downloadId=" + downloadId + " fallbackReason=output_file_missing")
+                    return fallback("output_file_missing")
+                }
+                if (containsVideoTrack(output)) {
                     verifiedNewPipeSourceSizes[downloadId] = totalBytes
                     val dlSec = downloadDurationSec.coerceAtLeast(0.001)
                     val videoMb = String.format(Locale.US, "%.1f", videoTotalBytes / (1024.0 * 1024.0))
@@ -2900,7 +2941,10 @@ class MainActivity : AppCompatActivity() {
                     val connectionPath = synchronized(connectionHistory) { connectionHistory.joinToString("->") }
                     val retryCount = downloadRetryCount
                     val blockCount = downloadBlockCount
-                    val telemetrySummary = "engine=custom fallbackReason=none conn=${connectionPath} chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=${retryCount.get()} blocks=${blockCount.get()} merge=${mergeSec}s"
+                    val videoChunks = (videoTotalBytes + CHUNK_SIZE_BYTES - 1L) / CHUNK_SIZE_BYTES
+                    val audioChunks = if (audio != null) (audioTotalBytes + CHUNK_SIZE_BYTES - 1L) / CHUNK_SIZE_BYTES else 0L
+                    val chunkCount = videoChunks + audioChunks
+                    val telemetrySummary = "engine=custom fallbackReason=none connections=" + finalConn + " connectionPath=" + connectionPath + " chunks=" + chunkCount + " chunkSize=" + (CHUNK_SIZE_BYTES / (1024 * 1024)) + "MB customVidSec=" + String.format(Locale.US, "%.2f", customVidSec) + " customAudSec=" + String.format(Locale.US, "%.2f", customAudSec) + " customMuxSec=" + String.format(Locale.US, "%.2f", customMuxSec) + " video=" + videoMb + "MB audio=" + audioMb + "MB download=" + dlSec + "s avg=" + avgMbps + " MB/s retries=" + retryCount.get() + " blocks=" + blockCount.get() + " merge=" + mergeSec + "s"
                     val displaySeconds = String.format(Locale.US, "%.1f", dlSec)
                     val displayAvgMbps = String.format(Locale.US, "%.1f", totalDownloadedBytes.get() / (1024.0 * 1024.0) / dlSec)
                     downloadTelemetrySummaries[downloadId] = telemetrySummary to "$finalConn conn • ${displaySeconds}s • ${displayAvgMbps} MB/s"
@@ -2918,19 +2962,27 @@ class MainActivity : AppCompatActivity() {
                     return output
                 }
                 output.delete()
-                return fallback("custom_output_invalid_or_ffmpeg_failed")
+                return fallback("output_file_missing")
             } catch (error: Exception) {
                 verifiedNewPipeSourceSizes.remove(downloadId)
                 activeNewPipeProcesses.remove(downloadId)?.let { runCatching { it.destroyForcibly() } }
                 output.delete()
                 Log.w("JET-NewPipe", "Local parallel NewPipe download/remux failed; falling back to yt-dlp", error)
-                return fallback("exception:${error.message ?: error.javaClass.simpleName}")
+                val detail = error.message ?: error.javaClass.simpleName
+                val reason = if (detail.contains("audio", ignoreCase = true)) "custom_audio_download_failed" else activeCustomFailureReason
+                return fallback(reason + ":" + detail.take(120))
             } finally {
                 activeNewPipeProcesses.remove(downloadId)
                 runCatching { process?.destroy() }
                 if (!File(cacheDir, "jet-" + downloadId + ".chunks.ckpt").exists()) {
-                    runCatching { videoPart.delete() }
-                    runCatching { audioPart.delete() }
+                    val videoBytesBeforeDelete = if (videoPart.isFile) videoPart.length() else 0L
+                    val audioBytesBeforeDelete = if (audioPart.isFile) audioPart.length() else 0L
+                    val videoDeleted = runCatching { !videoPart.exists() || videoPart.delete() }.getOrDefault(false)
+                    val audioDeleted = runCatching { !audioPart.exists() || audioPart.delete() }.getOrDefault(false)
+                    Log.d("ENGINE_DEBUG", "downloadId=" + downloadId + " tempFile=video actualBytes=" + videoBytesBeforeDelete + " deleted=" + videoDeleted)
+                    Log.d("ENGINE_DEBUG", "downloadId=" + downloadId + " tempFile=audio actualBytes=" + audioBytesBeforeDelete + " deleted=" + audioDeleted)
+                } else {
+                    Log.w("ENGINE_DEBUG", "downloadId=" + downloadId + " tempFilesRetained=true reason=checkpoint_exists videoActualBytes=" + (if (videoPart.isFile) videoPart.length() else 0L) + " audioActualBytes=" + (if (audioPart.isFile) audioPart.length() else 0L))
                 }
             }
         }
@@ -3158,7 +3210,16 @@ class MainActivity : AppCompatActivity() {
                             }
                             val preferAudio = worker < 2 && audioUrl != null
                             val task = poll(preferAudio) ?: poll(!preferAudio) ?: break
-                            runTask(task)
+                            try {
+                                runTask(task)
+                            } catch (error: RangeUnsupportedException) {
+                                throw error
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                val reason = if (task.audio) "custom_audio_download_failed" else "custom_video_download_failed"
+                                throw IOException(reason + ": " + (error.message ?: error.javaClass.simpleName), error)
+                            }
                         }
                     })
                 }

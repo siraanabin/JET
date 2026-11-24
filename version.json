@@ -1,8 +1,9 @@
 {
-  "versionCode": 408,
-  "versionName": "3.9.18",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.18/JET-debug.apk",
+  "versionCode": 409,
+  "versionName": "3.9.19",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.19/JET-debug.apk",
   "changelog": [
+    "Added detailed custom download, FFmpeg, timing, connection, chunk and temporary-file cleanup telemetry",
     "Added ENGINE_DEBUG fallback-reason logging and copyable fallbackReason telemetry for Debug download engine diagnosis",
     "Enforced an isolated 3-second call timeout for Range size fallback requests",
     "Accelerated format size display with extractor content lengths, clen metadata, parallel priority lookups, progressive updates, and a media-quality LRU cache",
