@@ -157,7 +157,7 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             val c = musicController ?: return
             pushMusicProgressToWeb()
-            if (c.isPlaying) musicProgressHandler.postDelayed(this, 500L)
+            if (c.isPlaying) musicProgressHandler.postDelayed(this, 100L)
         }
     }
     private val musicPlayerListener = object : Player.Listener {
@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
             if (events.contains(Player.EVENT_TIMELINE_CHANGED) || events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) pushMusicQueueToWeb()
             musicProgressHandler.removeCallbacks(musicProgressRunnable)
             pushMusicProgressToWeb()
-            if (player.isPlaying) musicProgressHandler.postDelayed(musicProgressRunnable, 500L)
+            if (player.isPlaying) musicProgressHandler.postDelayed(musicProgressRunnable, 100L)
         }
     }
 

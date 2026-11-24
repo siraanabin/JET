@@ -1,10 +1,12 @@
 {
-  "versionCode": 382,
-  "versionName": "3.8.2",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.2/JET-debug.apk",
+  "versionCode": 383,
+  "versionName": "3.8.3",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.3/JET-debug.apk",
   "changelog": [
-    "Hardened background music service startup and playback queue handling",
-    "Fixed video playlist drawer visibility after gesture controls",
-    "Replaced music player control glyphs with crisp inline SVG icons"
+    "Improved video library header spacing and player controls",
+    "Fixed music seeking and smooth playback progress updates",
+    "Prevented clipboard auto-paste from opening download dialogs",
+    "Replaced flashing blue library thumbnail placeholders with dark placeholders",
+    "Added the JET Downloader cold-start intro animation"
   ]
 }

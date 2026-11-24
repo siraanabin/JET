@@ -158,7 +158,6 @@ class VideoPlayerActivity : AppCompatActivity() {
         seekPill = findViewById(R.id.player_seek_pill)
         bottomIcons = findViewById(R.id.player_bottom_icons)
         titleView.isSelected = true
-        seek.post { titleView.maxWidth = (seek.width * 0.62f).roundToInt().coerceAtLeast(dp(80)) }
 
         val path = intent.getStringExtra(EXTRA_FILE_PATH).orEmpty()
         if (path.isBlank() || !File(path).isFile) {
@@ -236,6 +235,21 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun setupControls() {
         findViewById<ImageButton>(R.id.player_close).setOnClickListener { finish() }
+        findViewById<ImageButton>(R.id.player_more).setOnClickListener { anchor ->
+            PopupMenu(this, anchor).apply {
+                menu.add(Menu.NONE, 1, 0, "Playback speed")
+                menu.add(Menu.NONE, 2, 1, "Picture-in-picture")
+                menu.add(Menu.NONE, 3, 2, "Background audio")
+                setOnMenuItemClickListener { item ->
+                    when (item.itemId) {
+                        1 -> showSpeed()
+                        2 -> enterPip()
+                        3 -> backgroundAudio()
+                    }
+                    true
+                }
+            }.show()
+        }
         playlistToggle.setOnClickListener { togglePlaylistDrawer(true) }
         findViewById<ImageButton>(R.id.player_playlist_close).setOnClickListener { togglePlaylistDrawer(false) }
         playlistScrim.setOnClickListener { togglePlaylistDrawer(false) }
@@ -269,7 +283,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             requestedOrientation = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
-        listOf(R.id.player_close, R.id.player_rewind, R.id.player_play, R.id.player_forward,
+        listOf(R.id.player_close, R.id.player_more, R.id.player_rewind, R.id.player_play, R.id.player_forward,
             R.id.player_lock, R.id.player_mute, R.id.player_pip,
             R.id.player_aspect, R.id.player_speed, R.id.player_background, R.id.player_rotate)
             .forEach { id -> findViewById<View>(id).setOnTouchListener { v, e ->
