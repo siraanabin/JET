@@ -1552,7 +1552,7 @@
         const wasInFlight=entry.status==='inFlight';
         entry.status='ready';entry.payload=payload;entry.expiresAt=Date.now()+MEDIA_INFO_PREFETCH_TTL_MS;
         mediaInfoPrefetchCache.set(key,entry);
-        if(!wasInFlight && !$('format-modal').classList.contains('hidden') &&
+        if(!$('format-modal').classList.contains('hidden') &&
            normalizeMediaInfoUrl(state.pendingUrl)===key) applyMediaInfoPayload(payload);
         if(wasInFlight) maybeAutoOpenPrefetchedClipboard();
       };
