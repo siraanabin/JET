@@ -2,7 +2,8 @@
   "versionCode": 410,
   "versionName": "3.9.20",
   "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.20/JET-debug.apk",
-  "changelog": [\n    "Fixed custom FFmpeg runtime library search path and preserved full FFmpeg stderr diagnostics",
+  "changelog": [
+    "Fixed custom FFmpeg runtime library search path and preserved full FFmpeg stderr diagnostics",
     "Added detailed custom download, FFmpeg, timing, connection, chunk and temporary-file cleanup telemetry",
     "Added ENGINE_DEBUG fallback-reason logging and copyable fallbackReason telemetry for Debug download engine diagnosis",
     "Enforced an isolated 3-second call timeout for Range size fallback requests",
