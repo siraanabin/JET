@@ -76,6 +76,11 @@ import com.jet.downloader.model.OpenSourceLicenseItem
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -251,13 +256,6 @@ class MainActivity : AppCompatActivity() {
         else -> 12_000.0
     }
 
-    private fun isNewPipeFailureCached(url: String): Boolean {
-        val failedAt = streamInfoFailureAt[url] ?: return false
-        if (System.currentTimeMillis() - failedAt < 60_000L) return true
-        streamInfoFailureAt.remove(url, failedAt)
-        return false
-    }
-
     private fun isEngineUpdateRequired(error: Throwable): Boolean {
         val messages = generateSequence(error) { it.cause }
             .mapNotNull { it.message }
@@ -278,31 +276,57 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Reuse extracted stream metadata across prefetch and modal-open requests.
-    private val streamInfoCache = LruCache<String, StreamInfo>(8)
-    private val streamInfoInFlight = ConcurrentHashMap<String, CompletableDeferred<StreamInfo>>()
+    // Three-minute normalized-URL cache shared by silent prefetch and explicit Download.
+    private val streamInfoCache=LruCache<String,StreamInfo>(8)
+    private val streamInfoCacheAt=ConcurrentHashMap<String,Long>()
+    private val streamInfoInFlight=ConcurrentHashMap<String,CompletableDeferred<StreamInfo>>()
+    private val mediaInfoPrefetchJobs=ConcurrentHashMap<String,Job>()
+    private val streamInfoCacheTtlMs=3*60*1000L
 
-    private suspend fun getOrFetchStreamInfo(url: String): StreamInfo {
-        synchronized(streamInfoCache) {
-            streamInfoCache.get(url)?.let { return it }
+    private fun normalizeMediaInfoUrl(rawUrl:String):String {
+        return try {
+            val parsed=Uri.parse(rawUrl.trim())
+            val scheme=parsed.scheme?.lowercase(Locale.ROOT)
+            val host=parsed.host?.lowercase(Locale.ROOT)
+            if((scheme!="http"&&scheme!="https")||host.isNullOrBlank()) ""
+            else {
+                val authority=parsed.encodedAuthority?.replace(parsed.host.orEmpty(),host,ignoreCase=true)
+                val builder=parsed.buildUpon().scheme(scheme).encodedAuthority(authority).fragment(null)
+                if((scheme=="http"&&parsed.port==80)||(scheme=="https"&&parsed.port==443))builder.port(-1)
+                builder.build().toString()
+            }
+        } catch(_:Exception) { "" }
+    }
+
+    private suspend fun getOrFetchStreamInfo(url:String):StreamInfo {
+        val cacheKey=normalizeMediaInfoUrl(url)
+        require(cacheKey.isNotBlank()){"Only valid HTTP/HTTPS URLs can be inspected"}
+        val now=System.currentTimeMillis()
+        synchronized(streamInfoCache){
+            val cached=streamInfoCache.get(cacheKey)
+            val cachedAt=streamInfoCacheAt[cacheKey]?:0L
+            if(cached!=null&&now-cachedAt in 0..streamInfoCacheTtlMs)return cached
+            if(cached!=null)streamInfoCache.remove(cacheKey)
+            streamInfoCacheAt.remove(cacheKey)
         }
-        if (isNewPipeFailureCached(url)) {
-            throw IllegalStateException("NewPipe extraction recently failed for this URL")
-        }
-        val pending = CompletableDeferred<StreamInfo>()
-        val existing = streamInfoInFlight.putIfAbsent(url, pending)
-        if (existing != null) return existing.await()
-        try {
-            val info = extractStreamInfoWithReloadRetry(url)
-            synchronized(streamInfoCache) { streamInfoCache.put(url, info) }
+        val pending=CompletableDeferred<StreamInfo>()
+        val existing=streamInfoInFlight.putIfAbsent(cacheKey,pending)
+        if(existing!=null)return existing.await()
+        try{
+            val info=extractStreamInfoWithReloadRetry(url)
+            currentCoroutineContext().ensureActive()
+            synchronized(streamInfoCache){
+                streamInfoCache.put(cacheKey,info)
+                streamInfoCacheAt[cacheKey]=System.currentTimeMillis()
+            }
             pending.complete(info)
             return info
-        } catch (error: Exception) {
-            streamInfoFailureAt[url] = System.currentTimeMillis()
+        }catch(error:Exception){
+            // Failed/unsupported URL results are never retained.
             pending.completeExceptionally(error)
             throw error
-        } finally {
-            streamInfoInFlight.remove(url, pending)
+        }finally{
+            streamInfoInFlight.remove(cacheKey,pending)
         }
     }
 
@@ -328,12 +352,11 @@ class MainActivity : AppCompatActivity() {
             synchronized(newPipeInitLock) {
                 NewPipe.init(newPipeDownloader)
             }
-            synchronized(streamInfoCache) { streamInfoCache.remove(url) }
+            synchronized(streamInfoCache) { streamInfoCache.remove(normalizeMediaInfoUrl(url)); streamInfoCacheAt.remove(normalizeMediaInfoUrl(url)) }
             StreamInfo.getInfo(url)
         }
     }
 
-    private val streamInfoFailureAt = ConcurrentHashMap<String, Long>()
 
     // Notification and legacy startup permissions remain separate from Library media access.
     private val permissionLauncher = registerForActivityResult(
@@ -1457,16 +1480,110 @@ class MainActivity : AppCompatActivity() {
             return json.encodeToString(list)
         }
 
+        private fun buildNewPipeMediaInfoPayload(info: StreamInfo): MediaInfoPayload {
+            val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
+            val durationSec = info.duration.toLong()
+            // Estimate sizes from cached NewPipe stream metadata and local bitrates only.
+            val bestAudio = info.audioStreams
+                .filter { it.isUrl }
+                .maxByOrNull { it.averageBitrate }
+    
+            fun sizeText(bytes: Long): String =
+                if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Approx. unavailable"
+    
+            fun shortSide(width: Int, height: Int): Int =
+                if (width > 0) minOf(width, height) else height
+    
+            val streamSizes = mutableMapOf<String, StreamSizePayload>()
+            listOf(
+                "aud-70" to 70L,
+                "aud-128" to 128L,
+                "aud-160" to 160L,
+                "aud-320" to 320L
+            ).forEach { (id, bitrateKbps) ->
+                val estimatedMp3Bytes = (bitrateKbps * 1000L * durationSec) / 8L
+                streamSizes[id] = StreamSizePayload(sizeText = sizeText(estimatedMp3Bytes))
+            }
+    
+            // Use the smallest video dimension as the resolution class. This supports
+            // landscape, cinematic and portrait/Shorts formats without height equality checks.
+            // Estimate locally from duration and bitrate; never wait for HTTP probes.
+            val bestAudioBytes = estimateBytesFromBitrateKbps(
+                bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0,
+                durationSec
+            )
+            streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
+    
+            listOf(
+                "vid-144" to 144,
+                "vid-240" to 240,
+                "vid-360" to 360,
+                "vid-480" to 480,
+                "vid-720" to 720,
+                "vid-1080" to 1080,
+                "vid-2k" to 1440,
+                "vid-4k" to 2160
+            ).forEach { (id, targetShortSide) ->
+                val video = info.videoStreams
+                    .filter {
+                        it.isUrl && shortSide(it.width, it.height) in 1..targetShortSide
+                    }
+                    .maxWithOrNull(
+                        compareBy<org.schabi.newpipe.extractor.stream.VideoStream>(
+                            { shortSide(it.width, it.height) },
+                            { it.bitrate }
+                        )
+                    )
+    
+                val actualShortSide = video?.let { shortSide(it.width, it.height) } ?: targetShortSide
+                val videoKbps = video?.bitrate?.takeIf { it > 0 }?.toDouble()
+                    ?: fallbackVideoBitrateKbps(actualShortSide)
+                val videoBytes = estimateBytesFromBitrateKbps(videoKbps, durationSec)
+                val needsAudio = video == null || video.isVideoOnly || video.bitrate <= 0
+                val totalBytes = videoBytes + if (needsAudio) bestAudioBytes else 0L
+                streamSizes[id] = StreamSizePayload(sizeText = sizeText(totalBytes))
+            }
+    
+            val payload = MediaInfoPayload(
+                ok = true,
+                title = info.name ?: "JET Media Stream",
+                duration = formatDuration(info.duration.toInt()),
+                thumbnail = bestThumb,
+                uploader = info.uploaderName ?: "",
+                extractor = "NewPipe Extractor",
+                streams = streamSizes
+            )
+    
+            return payload
+        }
+
         @JavascriptInterface
         fun prefetchMediaInfo(url: String) {
-            if (!url.startsWith("http")) return
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    getOrFetchStreamInfo(url)
-                } catch (_: Exception) {
-                    // The foreground fetch reports errors when the user opens the format modal.
+            val cacheKey=normalizeMediaInfoUrl(url)
+            if(cacheKey.isBlank())return
+            val job=lifecycleScope.launch(Dispatchers.IO,start=CoroutineStart.LAZY){
+                try{
+                    val info=getOrFetchStreamInfo(url)
+                    val payload=buildNewPipeMediaInfoPayload(info)
+                    callJs("onNativePrefetchedMediaInfo",JSONObject.quote(cacheKey)+","+JSONObject.quote(json.encodeToString(payload)))
+                }catch(_:CancellationException){
+                    // Clearing/editing the URL invalidates this silent request.
+                }catch(_:Exception){
+                    // Unsupported URLs/network errors are deliberately silent and uncached.
+                    callJs("onNativePrefetchFailed",JSONObject.quote(cacheKey))
+                }finally{
+                    mediaInfoPrefetchJobs.remove(cacheKey,currentCoroutineContext()[Job])
                 }
             }
+            val existing=mediaInfoPrefetchJobs.putIfAbsent(cacheKey,job)
+            if(existing==null)job.start() else job.cancel()
+        }
+
+        @JavascriptInterface
+        fun cancelMediaInfoPrefetch(url: String) {
+            val cacheKey=normalizeMediaInfoUrl(url)
+            if(cacheKey.isBlank())return
+            mediaInfoPrefetchJobs.remove(cacheKey)?.cancel()
         }
 
         @JavascriptInterface
@@ -1475,78 +1592,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     // A prefetched StreamInfo is reused; concurrent requests share one extraction.
                     val info = getOrFetchStreamInfo(url)
-                    val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
-                    val durationSec = info.duration.toLong()
-                    // Estimate sizes from cached NewPipe stream metadata and local bitrates only.
-                    val bestAudio = info.audioStreams
-                        .filter { it.isUrl }
-                        .maxByOrNull { it.averageBitrate }
-
-                    fun sizeText(bytes: Long): String =
-                        if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Approx. unavailable"
-
-                    fun shortSide(width: Int, height: Int): Int =
-                        if (width > 0) minOf(width, height) else height
-
-                    val streamSizes = mutableMapOf<String, StreamSizePayload>()
-                    listOf(
-                        "aud-70" to 70L,
-                        "aud-128" to 128L,
-                        "aud-160" to 160L,
-                        "aud-320" to 320L
-                    ).forEach { (id, bitrateKbps) ->
-                        val estimatedMp3Bytes = (bitrateKbps * 1000L * durationSec) / 8L
-                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(estimatedMp3Bytes))
-                    }
-
-                    // Use the smallest video dimension as the resolution class. This supports
-                    // landscape, cinematic and portrait/Shorts formats without height equality checks.
-                    // Estimate locally from duration and bitrate; never wait for HTTP probes.
-                    val bestAudioBytes = estimateBytesFromBitrateKbps(
-                        bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0,
-                        durationSec
-                    )
-                    streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
-
-                    listOf(
-                        "vid-144" to 144,
-                        "vid-240" to 240,
-                        "vid-360" to 360,
-                        "vid-480" to 480,
-                        "vid-720" to 720,
-                        "vid-1080" to 1080,
-                        "vid-2k" to 1440,
-                        "vid-4k" to 2160
-                    ).forEach { (id, targetShortSide) ->
-                        val video = info.videoStreams
-                            .filter {
-                                it.isUrl && shortSide(it.width, it.height) in 1..targetShortSide
-                            }
-                            .maxWithOrNull(
-                                compareBy<org.schabi.newpipe.extractor.stream.VideoStream>(
-                                    { shortSide(it.width, it.height) },
-                                    { it.bitrate }
-                                )
-                            )
-
-                        val actualShortSide = video?.let { shortSide(it.width, it.height) } ?: targetShortSide
-                        val videoKbps = video?.bitrate?.takeIf { it > 0 }?.toDouble()
-                            ?: fallbackVideoBitrateKbps(actualShortSide)
-                        val videoBytes = estimateBytesFromBitrateKbps(videoKbps, durationSec)
-                        val needsAudio = video == null || video.isVideoOnly || video.bitrate <= 0
-                        val totalBytes = videoBytes + if (needsAudio) bestAudioBytes else 0L
-                        streamSizes[id] = StreamSizePayload(sizeText = sizeText(totalBytes))
-                    }
-
-                    val payload = MediaInfoPayload(
-                        ok = true,
-                        title = info.name ?: "JET Media Stream",
-                        duration = formatDuration(info.duration.toInt()),
-                        thumbnail = bestThumb,
-                        uploader = info.uploaderName ?: "",
-                        extractor = "NewPipe Extractor",
-                        streams = streamSizes
-                    )
+                    val payload=buildNewPipeMediaInfoPayload(info)
                     callJs("onNativeMediaInfo", json.encodeToString(payload))
                 } catch (npError: Exception) {
                     // 2. Fallback to yt-dlp for sites outside NewPipe Extractor

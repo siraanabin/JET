@@ -1161,27 +1161,57 @@
       }
 
       let mediaInfoPrefetchTimer = null;
-      let lastPrefetchedUrl = '';
-
-      function scheduleMediaInfoPrefetch(rawUrl) {
-        const candidate = (rawUrl || '').trim();
-        if (!candidate.startsWith('http') || candidate === lastPrefetchedUrl) return;
-        clearTimeout(mediaInfoPrefetchTimer);
-        mediaInfoPrefetchTimer = setTimeout(() => {
-          if (hasAndroid() && window.JetAndroid.prefetchMediaInfo) {
-            lastPrefetchedUrl = candidate;
-            window.JetAndroid.prefetchMediaInfo(candidate);
-          }
-        }, 450);
+      let activePrefetchUrl = '';
+      const mediaInfoPrefetchCache = new Map();
+      const MEDIA_INFO_PREFETCH_TTL_MS = 3 * 60 * 1000;
+      function normalizeMediaInfoUrl(rawUrl) {
+        try {
+          const parsed = new URL(String(rawUrl || '').trim());
+          if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) return '';
+          parsed.hash = '';
+          parsed.hostname = parsed.hostname.toLowerCase();
+          return parsed.toString();
+        } catch (_) { return ''; }
       }
-
+      function cancelMediaInfoPrefetch(rawUrl) {
+        const key = normalizeMediaInfoUrl(rawUrl);
+        if (!key) return;
+        const entry = mediaInfoPrefetchCache.get(key);
+        if (entry && entry.status === 'inFlight') {
+          mediaInfoPrefetchCache.delete(key);
+          if (hasAndroid() && window.JetAndroid.cancelMediaInfoPrefetch) window.JetAndroid.cancelMediaInfoPrefetch(rawUrl);
+        }
+      }
+      function prefetchMediaInfoSilently(rawUrl) {
+        const candidate = String(rawUrl || '').trim();
+        const key = normalizeMediaInfoUrl(candidate);
+        if (!key || !hasAndroid() || !window.JetAndroid.prefetchMediaInfo) return;
+        const now = Date.now(), cached = mediaInfoPrefetchCache.get(key);
+        if (cached && cached.expiresAt > now && (cached.status === 'ready' || cached.status === 'inFlight')) return;
+        mediaInfoPrefetchCache.delete(key);
+        clearTimeout(mediaInfoPrefetchTimer);
+        activePrefetchUrl = key;
+        mediaInfoPrefetchCache.set(key, {status:'inFlight',expiresAt:now+MEDIA_INFO_PREFETCH_TTL_MS,payload:null});
+        try { window.JetAndroid.prefetchMediaInfo(candidate); }
+        catch (_) { mediaInfoPrefetchCache.delete(key); }
+      }
+      function scheduleMediaInfoPrefetch(rawUrl) {
+        const candidate = String(rawUrl || '').trim();
+        if (!normalizeMediaInfoUrl(candidate)) return;
+        clearTimeout(mediaInfoPrefetchTimer);
+        mediaInfoPrefetchTimer = setTimeout(() => prefetchMediaInfoSilently(candidate), 450);
+      }
       function handleUrlInputChanged() {
         updatePasteButtonState();
-        const candidate = urlInput.value.trim();
+        const candidate = urlInput.value.trim(), nextKey = normalizeMediaInfoUrl(candidate);
+        const previousUrl = urlInput.dataset ? urlInput.dataset.prefetchUrl : '';
+        if (activePrefetchUrl && activePrefetchUrl !== nextKey) cancelMediaInfoPrefetch(previousUrl || activePrefetchUrl);
+        if (urlInput.dataset) urlInput.dataset.prefetchUrl = candidate;
         if (!candidate) {
-          clearTimeout(mediaInfoPrefetchTimer);
-          mediaInfoPrefetchTimer = null;
-          lastPrefetchedUrl = '';
+          clearTimeout(mediaInfoPrefetchTimer); mediaInfoPrefetchTimer = null;
+          if (activePrefetchUrl) cancelMediaInfoPrefetch(previousUrl || activePrefetchUrl);
+          activePrefetchUrl = '';
+          if (urlInput.dataset) delete urlInput.dataset.prefetchUrl;
           state.pendingUrl = '';
           $('fetching-info-bar').classList.add('hidden');
           $('format-modal').classList.add('hidden');
@@ -1256,6 +1286,8 @@
         // Auto-fill only; opening the format sheet requires an explicit Download tap.
         urlInput.value = url;
         handleUrlInputChanged();
+        // Start silently while the cold-start intro is still playing.
+        prefetchMediaInfoSilently(url);
       };
 
       window.onNativeSharedUrl = function (url) {
@@ -1267,28 +1299,43 @@
         openFormatModal(url);
       };
 
-      window.onNativeMediaInfo = function (info) {
-        if ($('format-modal').classList.contains('hidden') || !state.pendingUrl) return;
+      function applyMediaInfoPayload(info) {
         $('fetching-info-bar').classList.add('hidden');
-        if (info && info.ok) hideJetRetryBanner();
-        if (!info || !info.ok) {
-          state.formats.forEach((stream) => { stream.sizeText = 'Size N/A'; });
+        if(info&&info.ok)hideJetRetryBanner();
+        if(!info||!info.ok){
+          state.formats.forEach(stream=>{stream.sizeText='Size N/A';});
           renderFormatLists();
-          $('format-stream-title').textContent = 'Could not fetch media information. Choose a format to retry.';
+          $('format-stream-title').textContent='Could not fetch media information. Choose a format to retry.';
           return;
         }
-        state.fetchedTitle = info.title || state.pendingUrl;
-        state.fetchedThumbnail = info.thumbnail || '';
-        const thumbnail = $('format-stream-thumbnail');
-        thumbnail.src = state.fetchedThumbnail;
-        thumbnail.classList.toggle('hidden', !state.fetchedThumbnail);
-        $('format-stream-title').textContent = `${state.fetchedTitle} (${info.duration || ''}) · ${info.extractor || ''}`;
-        state.formats.forEach((stream) => {
-          stream.sizeText = info.streams?.[stream.id]?.sizeText || 'Size N/A';
-        });
+        state.fetchedTitle=info.title||state.pendingUrl;
+        state.fetchedThumbnail=info.thumbnail||'';
+        const thumbnail=$('format-stream-thumbnail');
+        thumbnail.src=state.fetchedThumbnail;
+        thumbnail.classList.toggle('hidden',!state.fetchedThumbnail);
+        $('format-stream-title').textContent=`${state.fetchedTitle} (${info.duration||''}) · ${info.extractor||''}`;
+        state.formats.forEach(stream=>{stream.sizeText=info.streams?.[stream.id]?.sizeText||'Size N/A';});
         renderFormatLists();
+      }
+      window.onNativeMediaInfo=function(info){
+        if($('format-modal').classList.contains('hidden')||!state.pendingUrl)return;
+        applyMediaInfoPayload(info);
       };
-
+      window.onNativePrefetchedMediaInfo=function(rawUrl,info){
+        const key=normalizeMediaInfoUrl(rawUrl);
+        if(!key)return;
+        const entry=mediaInfoPrefetchCache.get(key);
+        if(!entry||entry.status!=='inFlight')return;
+        let payload=info;
+        if(typeof payload==='string'){try{payload=JSON.parse(payload);}catch(_){mediaInfoPrefetchCache.delete(key);return;}}
+        if(!payload||!payload.ok){mediaInfoPrefetchCache.delete(key);return;}
+        entry.status='ready';entry.payload=payload;entry.expiresAt=Date.now()+MEDIA_INFO_PREFETCH_TTL_MS;
+        mediaInfoPrefetchCache.set(key,entry);
+      };
+      window.onNativePrefetchFailed=function(rawUrl){
+        const key=normalizeMediaInfoUrl(rawUrl),entry=mediaInfoPrefetchCache.get(key);
+        if(entry&&entry.status==='inFlight')mediaInfoPrefetchCache.delete(key);
+      };
       window.onNativeDownloadProgress = function (id, progress, speedLabel) {
         const item = state.activeDownloads.find((d) => d.id === id);
         if (item) {
@@ -1509,7 +1556,14 @@
         $('format-modal').classList.remove('hidden');
         refreshIcons();
 
-        if (hasAndroid() && window.JetAndroid.fetchMediaInfo) {
+        const prefetchKey=normalizeMediaInfoUrl(cleanUrl);
+        const prefetchEntry=mediaInfoPrefetchCache.get(prefetchKey);
+        if(prefetchEntry&&prefetchEntry.expiresAt>Date.now()&&prefetchEntry.status==='ready'&&prefetchEntry.payload){
+          applyMediaInfoPayload(prefetchEntry.payload);
+          return;
+        }
+        if(hasAndroid()&&window.JetAndroid.fetchMediaInfo){
+          // Native getOrFetchStreamInfo joins the existing prefetch job.
           window.JetAndroid.fetchMediaInfo(cleanUrl);
         }
       }
