@@ -138,6 +138,7 @@ class PlayerPlaybackService : MediaSessionService() {
             session = null
             runCatching { player?.release() }
             player = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
@@ -147,12 +148,16 @@ class PlayerPlaybackService : MediaSessionService() {
         startAsForeground()
         try {
             if (initializationFailed || player == null || session == null) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)
                 return START_NOT_STICKY
             }
 
             when (intent?.action) {
-                ACTION_STOP_FOR_VIDEO -> stopPlaybackForVideoHandoff()
+                ACTION_STOP_FOR_VIDEO -> {
+                    stopPlaybackForVideoHandoff()
+                    return START_NOT_STICKY
+                }
                 ACTION_TOGGLE_PLAYBACK -> toggleBackgroundPlayback()
                 ACTION_STOP_PLAYBACK -> {
                     stopBackgroundPlayback(startId)
@@ -201,12 +206,21 @@ class PlayerPlaybackService : MediaSessionService() {
                             timerHandler.removeCallbacks(positionTicker)
                             timerHandler.post(positionTicker)
                             updateMediaNotification()
+                        } else {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf(startId)
+                            return START_NOT_STICKY
                         }
+                    } else {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf(startId)
+                        return START_NOT_STICKY
                     }
                 }
             }
         } catch (t: Throwable) {
             Log.e("JET-MusicService", "Playback start command failed", t)
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf(startId)
             return START_NOT_STICKY
         }
