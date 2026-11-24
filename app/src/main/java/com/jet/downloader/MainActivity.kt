@@ -599,10 +599,23 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+    private var requestedMusicArtworkPath = ""
     private fun pushMusicStateToWeb() {
         val c=musicController?:return;val item=c.currentMediaItem;val meta=item?.mediaMetadata
         val state=JSONObject().apply{put("isPlaying",c.isPlaying);put("title",meta?.title?.toString().orEmpty());put("subtitle",meta?.artist?.toString().orEmpty());put("filePath",item?.mediaId.orEmpty());put("source",musicSourceLabel);put("currentIndex",c.currentMediaItemIndex.coerceAtLeast(0));put("shuffleEnabled",c.shuffleModeEnabled);put("repeatMode",when(c.repeatMode){Player.REPEAT_MODE_ONE->"one";Player.REPEAT_MODE_ALL->"all";else->"off"});put("volume",c.volume.toDouble());put("durationMs",c.duration.coerceAtLeast(0L));put("positionMs",c.currentPosition.coerceAtLeast(0L));put("playbackState",c.playbackState)}
         callJs("onNativeMusicStateChanged",state.toString())
+        val path = item?.mediaId.orEmpty()
+        if (path.isNotBlank() && path != requestedMusicArtworkPath) {
+            requestedMusicArtworkPath = path
+            lifecycleScope.launch(Dispatchers.IO) {
+                val artwork = audioThumbnailFromDiskCache(File(path))
+                withContext(Dispatchers.Main) {
+                    if (musicController?.currentMediaItem?.mediaId == path) {
+                        callJs("onNativeMusicArtwork", JSONObject.quote(artwork))
+                    }
+                }
+            }
+        }
     }
     private fun pushMusicProgressToWeb(){val c=musicController?:return;callJs("onNativeMusicProgress","${c.currentPosition.coerceAtLeast(0L)}, ${c.duration.coerceAtLeast(0L)}")}
     private fun buildMusicQueueJson():String {
@@ -1014,6 +1027,26 @@ class MainActivity : AppCompatActivity() {
         return savedByPath
     }
 
+    private fun audioThumbnailFromDiskCache(file: File): String {
+        val key = (file.absolutePath + "|" + file.length() + "|" + file.lastModified()).hashCode().toUInt().toString(16)
+        val cached = File(libraryThumbnailCacheDir, "audio-$key.txt")
+        if (cached.isFile) return runCatching { cached.readText() }.getOrDefault("")
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val picture = retriever.embeddedPicture ?: return ""
+            val mime = if (picture.size > 3 && picture[0] == 0x89.toByte() && picture[1] == 0x50.toByte()) "image/png" else "image/jpeg"
+            val data = "data:$mime;base64," + Base64.encodeToString(picture, Base64.NO_WRAP)
+            runCatching { cached.writeText(data) }
+            data
+        } catch (error: Exception) {
+            Log.d("JET-Music", "No embedded artwork for " + file.name, error)
+            ""
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
     private fun thumbnailFromDiskCache(file: File): String {
         val key = (file.absolutePath + "|" + file.length() + "|" + file.lastModified()).hashCode().toUInt().toString(16)
         val cached = File(libraryThumbnailCacheDir, "$key.txt")
@@ -1117,7 +1150,7 @@ class MainActivity : AppCompatActivity() {
                                     filePath = file.absolutePath,
                                     fileUri = Uri.fromFile(file).toString(),
                                     // Create compact thumbnails on the background MediaStore scan dispatcher.
-                                    thumbnailUrl = if (type == "video") thumbnailFromDiskCache(file) else "",
+                                    thumbnailUrl = if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") audioThumbnailFromDiskCache(file) else "",
                                     size = formatBytes(size),
                                     format = ext,
                                     dominantColor = "#20242E"
@@ -1153,7 +1186,7 @@ class MainActivity : AppCompatActivity() {
                             filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
                             thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl
                                 ?.takeIf { it.isNotBlank() }
-                                ?: if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") "file:///android_asset/images/music-placeholder.svg" else "",
+                                ?: if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") audioThumbnailFromDiskCache(file).ifBlank { "file:///android_asset/images/music-placeholder.svg" } else "",
                             size = formatBytes(size), format = ext, dominantColor = "#20242E"
                         )
                     )
