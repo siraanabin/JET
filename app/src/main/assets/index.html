@@ -473,7 +473,24 @@
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">DOWNLOADS</p>
               <label class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="hd" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Default quality</span><span class="block text-[11px] text-app-secondary mt-0.5">Preselected format</span></span></span><select id="default-quality-setting" class="max-w-[145px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="vid-360">360p</option><option value="vid-480">480p</option><option value="vid-720">720p</option><option value="vid-1080">1080p</option><option value="vid-2k">2K</option><option value="vid-4k">4K</option><option value="aud-fast">Audio Fast</option><option value="aud-128">MP3 128K</option><option value="aud-320">MP3 320K</option></select></label>
               <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="closed-caption" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
-              <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="gauge" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Show Download Speed Stats</span><span class="block text-[11px] text-app-secondary mt-0.5">Show speed and time on Done cards</span></span></span><button id="show-download-speed-stats-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
+              <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="gauge" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Show Download Speed Stats</span><span class="block text-[11px] text-app-secondary mt-0.5">Show detailed telemetry in Settings</span></span></span><button id="show-download-speed-stats-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
+              <div id="download-telemetry-table-wrap" class="hidden mt-3 rounded-2xl border border-app-border bg-app-elevated/30 overflow-hidden">
+                <div class="flex items-center justify-between gap-2 p-3">
+                  <div class="min-w-0"><p class="text-xs font-bold text-app-text">Recent Download Telemetry</p><p class="text-[10px] text-app-secondary mt-0.5">Latest 4 completed downloads · tap a row to copy its log</p></div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button id="telemetry-copy-all" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-primaryTint text-app-primary text-[10px] font-bold">Copy All (0)</button>
+                    <button id="telemetry-clear" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-elevated text-app-secondary text-[10px] font-bold">Clear Logs</button>
+                  </div>
+                </div>
+                <div class="overflow-x-auto overscroll-x-contain">
+                  <table class="w-full min-w-[900px] table-fixed border-collapse text-left">
+                    <thead><tr class="border-y border-app-border text-[10px] uppercase tracking-wide text-app-muted">
+                      <th class="w-[31%] px-3 py-2">File</th><th class="w-[23%] px-3 py-2">Timing (DL / Mux / Total)</th><th class="w-[20%] px-3 py-2">Speed</th><th class="w-[26%] px-3 py-2">Engine / Health</th>
+                    </tr></thead>
+                    <tbody id="download-telemetry-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
             </div>
             <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">NETWORK</p>
               <label class="flex items-center justify-between gap-3">
@@ -862,6 +879,7 @@
         systemDark: false,
         clipboardAutoDetect: true,
         showDownloadSpeedStats: (() => { try { return localStorage.getItem('jet_show_dl_stats') === 'true'; } catch (_) { return false; } })(),
+        telemetryLast4: (() => { try { const value = JSON.parse(localStorage.getItem('jet-telemetry-last4-v1') || '[]'); return Array.isArray(value) ? value.slice(0, 4) : []; } catch (_) { return []; } })(),
         dlTab: 'active',
         libFilter: 'all',
         libView: 'grid',
@@ -1055,9 +1073,84 @@
           btn.querySelector('.toggle-thumb')?.classList.toggle('translate-x-5', state.showDownloadSpeedStats);
         }
         if (shouldRender) renderDownloads();
+        renderTelemetryTable();
+      }
+
+      function telemetryEscape(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      }
+
+      function renderTelemetryTable() {
+        const wrap = $('download-telemetry-table-wrap');
+        const body = $('download-telemetry-table-body');
+        if (!wrap || !body) return;
+        wrap.classList.toggle('hidden', !state.showDownloadSpeedStats);
+        const rows = Array.isArray(state.telemetryLast4) ? state.telemetryLast4.slice(0, 4) : [];
+        const copyAll = $('telemetry-copy-all');
+        if (copyAll) copyAll.textContent = 'Copy All (' + rows.length + ')';
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="4" class="px-3 py-6 text-center text-[11px] text-app-secondary">No download telemetry yet.</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map((item, index) => {
+          const title = telemetryEscape(item.title || 'Untitled download');
+          const fileMeta = [item.resolution || '', item.container || '', item.sizeText || '', item.timestamp || ''].filter(Boolean).map(telemetryEscape).join(' • ');
+          return '<tr data-telemetry-row="' + index + '" class="border-b border-app-border last:border-b-0 cursor-pointer hover:bg-app-elevated/70 active:bg-app-elevated">' +
+            '<td class="px-3 py-3 align-top"><p class="truncate text-[11px] font-bold text-app-text" title="' + title + '">' + title + '</p><p class="mt-1 truncate text-[10px] text-app-secondary">' + fileMeta + '</p></td>' +
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>DL: ' + telemetryEscape(item.downloadSec || '—') + '</div><div>Mux: ' + telemetryEscape(item.muxSec || '—') + '</div><div class="font-bold text-app-text">Total: ' + telemetryEscape(item.totalSec || '—') + '</div></td>' +
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Net: ' + telemetryEscape(item.netSpeedText || '—') + '</div><div>Avg: ' + telemetryEscape(item.avgSpeedText || '—') + '</div></td>' +
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Conn: ' + telemetryEscape(item.connections || 'n/a') + ' (' + telemetryEscape(item.chunkSize || 'n/a') + ')</div><div>Retries: ' + telemetryEscape(item.retries == null ? '—' : item.retries) + '</div><div>Blocks: ' + telemetryEscape(item.blocks == null ? '—' : item.blocks) + '</div></td></tr>';
+        }).join('');
+      }
+
+      async function copyTelemetryText(value) {
+        if (!value) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const field = document.createElement('textarea');
+          field.value = value; field.setAttribute('readonly', '');
+          field.style.position = 'fixed'; field.style.opacity = '0';
+          document.body.appendChild(field); field.select();
+          const copied = document.execCommand('copy'); field.remove();
+          if (!copied) throw new Error('Clipboard copy failed');
+        }
+      }
+
+      function persistTelemetryLast4(record) {
+        if (!record || !record.rawLog) return;
+        state.telemetryLast4 = [record, ...(state.telemetryLast4 || []).filter((item) => item.rawLog !== record.rawLog)].slice(0, 4);
+        try { localStorage.setItem('jet-telemetry-last4-v1', JSON.stringify(state.telemetryLast4)); } catch (_) {}
+        renderTelemetryTable();
+      }
+
+      const telemetryWrap = $('download-telemetry-table-wrap');
+      if (telemetryWrap && telemetryWrap.dataset.bound !== 'true') {
+        telemetryWrap.dataset.bound = 'true';
+        telemetryWrap.addEventListener('click', async (event) => {
+          const row = event.target.closest('[data-telemetry-row]');
+          if (!row) return;
+          const record = state.telemetryLast4[Number(row.dataset.telemetryRow)];
+          if (!record || !record.rawLog) return;
+          try { await copyTelemetryText(record.rawLog); showToast('Log copied'); }
+          catch (_) { showToast('Could not copy log'); }
+        });
+        $('telemetry-copy-all')?.addEventListener('click', async () => {
+          const logs = (state.telemetryLast4 || []).slice(0, 4).map((item) => item.rawLog).filter(Boolean);
+          if (!logs.length) { showToast('No logs to copy'); return; }
+          try { await copyTelemetryText(logs.join('\n')); showToast('Logs copied'); }
+          catch (_) { showToast('Could not copy logs'); }
+        });
+        $('telemetry-clear')?.addEventListener('click', () => {
+          state.telemetryLast4 = [];
+          try { localStorage.removeItem('jet-telemetry-last4-v1'); } catch (_) {}
+          renderTelemetryTable();
+          showToast('Logs cleared');
+        });
       }
 
       applyDownloadStatsToggle(state.showDownloadSpeedStats, false);
+      renderTelemetryTable();
 
       window.onNativeDownloadSettings = function (settings) {
         if (!settings || typeof settings !== 'object') return;
@@ -1633,6 +1726,7 @@
           telemetryDisplay: data.telemetryDisplay || ''
         });
         try { localStorage.setItem('jet-done-downloads-v1', JSON.stringify(state.doneDownloads.slice(0, 500))); } catch (_) {}
+        if (data.telemetry && typeof data.telemetry === 'object') persistTelemetryLast4(data.telemetry);
 
         $('latest-title').textContent = title;
         const completedMeta = formatVideoMetadata(data.size || 'Saved', data.resolution || '', fmtLabel);
@@ -1948,51 +2042,6 @@
       });
 
       // Downloads Screen
-      function formatDownloadStatsDisplay(summary) {
-        const text = String(summary || '');
-        if (!text) return '';
-        const conn = text.match(/(?:^|\s)conn=([^\s]+)/i);
-        const duration = text.match(/(?:^|\s)download=([0-9]+(?:\.[0-9]+)?)s/i);
-        const speed = text.match(/(?:^|\s)avg=([0-9]+(?:\.[0-9]+)?)\s*MB\/s/i);
-        const parts = [];
-        if (conn) parts.push(conn[1] + ' conn');
-        if (duration) parts.push(duration[1] + 's');
-        if (speed) parts.push(speed[1] + ' MB/s');
-        if (!parts.length && /engine=yt-dlp-managed/i.test(text)) parts.push('yt-dlp stats available');
-        return parts.join(' • ') || 'Download stats available';
-      }
-
-      function renderDownloadStatsBadge(item) {
-        const summary = String(item.telemetrySummary || '');
-        const display = String(item.telemetryDisplay || formatDownloadStatsDisplay(summary));
-        if (!state.showDownloadSpeedStats || (!summary && !display)) return '';
-        return `<button type="button" data-dl-stats-copy="${item.id}" class="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full border border-app-border bg-app-elevated/70 px-2.5 py-1 text-[10px] font-semibold text-app-secondary tabular-nums" aria-label="Copy download speed stats"><span class="truncate">${display}</span><i data-lucide="copy" class="h-3 w-3 shrink-0"></i></button>`;
-      }
-
-      async function copyDownloadStats(item) {
-        const summary = item && (item.telemetrySummary || item.telemetryDisplay);
-        if (!summary) return;
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(summary);
-          } else {
-            const field = document.createElement('textarea');
-            field.value = summary;
-            field.setAttribute('readonly', '');
-            field.style.position = 'fixed';
-            field.style.opacity = '0';
-            document.body.appendChild(field);
-            field.select();
-            const copied = document.execCommand('copy');
-            field.remove();
-            if (!copied) throw new Error('Clipboard copy failed');
-          }
-          showToast('Stats copied');
-        } catch (_) {
-          showToast('Could not copy stats');
-        }
-      }
-
       function renderDownloads() {
         const renderKey = JSON.stringify([state.activeDownloads,state.doneDownloads,state.showDownloadSpeedStats]);
         if (renderKey === lastDownloadsRenderKey) return;
@@ -2053,7 +2102,7 @@
                 ${thumbnail}
                 <div class="min-w-0 flex-1"><p class="text-xs font-bold text-app-text truncate">${item.title}</p>
                   <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}${item.resolution ? ' · ' + item.resolution : ''} · ${item.date}</p>
-                  ${renderDownloadStatsBadge(item)}</div>
+                </div>
                 <button type="button" data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${isAudio ? 'audio' : 'video'}" class="w-9 h-9 rounded-full bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0" aria-label="Play ${item.title}">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play w-4 h-4" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
                 </button>
@@ -2082,12 +2131,6 @@
 
       window.jetCancelledDownloadIds = window.jetCancelledDownloadIds || new Set();
       document.addEventListener('click', (e) => {
-        const statsBtn = e.target.closest('[data-dl-stats-copy]');
-        if (statsBtn) {
-          const item = state.doneDownloads.find((entry) => String(entry.id) === statsBtn.dataset.dlStatsCopy);
-          if (item) void copyDownloadStats(item);
-          return;
-        }
         const pauseBtn = e.target.closest('[data-dl-pause]');
         if (pauseBtn) {
           const id = pauseBtn.dataset.dlPause, item = state.activeDownloads.find((d) => d.id === id);
