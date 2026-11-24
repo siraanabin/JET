@@ -179,7 +179,7 @@ class MainActivity : AppCompatActivity() {
     private var musicVolumeReceiverRegistered = false
     private val musicVolumeReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            val stream = intent?.getIntExtra(AudioManager.EXTRA_VOLUME_STREAM_TYPE, AudioManager.STREAM_MUSIC)
+            val stream = intent?.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", AudioManager.STREAM_MUSIC)
                 ?: AudioManager.STREAM_MUSIC
             if (stream == AudioManager.STREAM_MUSIC) syncMusicVolumeToWeb()
         }
@@ -614,7 +614,7 @@ class MainActivity : AppCompatActivity() {
         if (!musicVolumeReceiverRegistered) {
             ContextCompat.registerReceiver(
                 this, musicVolumeReceiver,
-                android.content.IntentFilter(AudioManager.VOLUME_CHANGED_ACTION),
+                android.content.IntentFilter("android.media.VOLUME_CHANGED_ACTION"),
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
             musicVolumeReceiverRegistered = true
@@ -1834,7 +1834,10 @@ class MainActivity : AppCompatActivity() {
                 ?: (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
                     .maxWithOrNull(compareBy<org.schabi.newpipe.extractor.stream.VideoStream>({ it.getHeight() }, { it.bitrate }))
             val topAudio = info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate }
-            val prewarmStreams = listOfNotNull(topVideo?.let { it.getItag() to it.url }, topAudio?.let { it.getItag() to it.url })
+            val prewarmStreams = listOfNotNull(
+                topVideo?.url?.let { streamUrl -> topVideo.getItag() to streamUrl },
+                topAudio?.url?.let { streamUrl -> topAudio.getItag() to streamUrl }
+            )
             prewarmGoogleVideoUrls(info.id, prewarmStreams)
 
             val payload = MediaInfoPayload(
@@ -2009,10 +2012,7 @@ class MainActivity : AppCompatActivity() {
                                 )
                             }
 
-                        prewarmGoogleVideoUrls(listOfNotNull(
-                            videoCandidates.maxByOrNull { it.tbr }?.url,
-                            bestAudioFormat?.url
-                        ))
+                        // yt-dlp fallback format IDs are not NewPipe itags; only NewPipe streams use this cache.
                         val payload = MediaInfoPayload(
                             ok = true,
                             title = info.title ?: "JET Media Stream",
@@ -2235,9 +2235,11 @@ class MainActivity : AppCompatActivity() {
                 if (output.exists()) output.delete()
                 if (videoPart.exists()) videoPart.delete()
                 if (audioPart.exists()) audioPart.delete()
+                val selectedUrl = selected.url ?: return null
+                val audioUrl = if (audio != null) audio.url ?: return null else null
                 val combined = audio != null
-                downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selected.url, videoPart, 1, if (combined) 47 else 95)
-                if (audio != null) downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audio.url, audioPart, 48, 95)
+                downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart, 1, if (combined) 47 else 95)
+                if (audio != null) downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: return null, audioPart, 48, 95)
                 ensureYtDlpInitialized()
                 val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
                 check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
