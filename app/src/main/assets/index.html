@@ -1479,8 +1479,9 @@
         if (!item) return;
         const normalizedStage = String(stage || '').toUpperCase();
         const previousDownloadedBytes = Math.max(0, Number(item.downloadedBytes) || 0);
-        item.bytesRead = Math.max(0, Number(bytesRead) || 0);
+        const previousBytesRead = Math.max(0, Number(item.bytesRead) || 0);
         item.downloadedBytes = Math.max(previousDownloadedBytes, Math.max(0, Number(downloadedBytes ?? bytesRead) || 0));
+        item.bytesRead = Math.max(previousBytesRead, Math.max(0, Number(bytesRead) || 0), item.downloadedBytes);
         item.totalBytes = Math.max(0, Number(totalBytes) || 0);
         const receivedFirstByte = previousDownloadedBytes > 0 || item.downloadedBytes > 0;
         item.stage = receivedFirstByte && ['PREPARING', 'CONNECTING'].includes(normalizedStage)
