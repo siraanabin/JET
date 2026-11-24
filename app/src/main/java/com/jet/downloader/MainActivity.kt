@@ -1605,25 +1605,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun beginLibraryMutation(action: String, filePath: String, requestedName: String? = null) {
-        if (filePath.isBlank()) { Toast.makeText(this, "File path unavailable", Toast.LENGTH_SHORT).show(); return }
-        pendingLibraryMutation = PendingLibraryMutation(action, filePath, requestedName)
-        val missing = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val ext = File(filePath).extension.lowercase(Locale.ROOT)
-            if (ext in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) {
-                if (!hasVideoReadPermission()) missing.add(Manifest.permission.READ_MEDIA_VIDEO)
-            } else if (ext in setOf("mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "wma")) {
-                if (!hasAudioReadPermission()) missing.add(Manifest.permission.READ_MEDIA_AUDIO)
+        runOnUiThread {
+            if (filePath.isBlank()) { Toast.makeText(this, "File path unavailable", Toast.LENGTH_SHORT).show(); return@runOnUiThread }
+            pendingLibraryMutation = PendingLibraryMutation(action, filePath, requestedName)
+            val missing = mutableListOf<String>()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val ext = File(filePath).extension.lowercase(Locale.ROOT)
+                if (ext in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) {
+                    if (!hasVideoReadPermission()) missing.add(Manifest.permission.READ_MEDIA_VIDEO)
+                } else if (ext in setOf("mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "wma")) {
+                    if (!hasAudioReadPermission()) missing.add(Manifest.permission.READ_MEDIA_AUDIO)
+                } else {
+                    if (!hasVideoReadPermission()) missing.add(Manifest.permission.READ_MEDIA_VIDEO)
+                    if (!hasAudioReadPermission()) missing.add(Manifest.permission.READ_MEDIA_AUDIO)
+                }
             } else {
-                if (!hasVideoReadPermission()) missing.add(Manifest.permission.READ_MEDIA_VIDEO)
-                if (!hasAudioReadPermission()) missing.add(Manifest.permission.READ_MEDIA_AUDIO)
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
-        } else {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            if (missing.isNotEmpty()) libraryMutationPermissionLauncher.launch(missing.distinct().toTypedArray())
+            else continuePendingLibraryMutation()
         }
-        if (missing.isNotEmpty()) libraryMutationPermissionLauncher.launch(missing.distinct().toTypedArray())
-        else continuePendingLibraryMutation()
     }
 
     private fun continuePendingLibraryMutation(skipConsentRequest: Boolean = false) {
