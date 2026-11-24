@@ -2456,6 +2456,7 @@ class MainActivity : AppCompatActivity() {
             val downloadRetryCount = AtomicInteger(0)
             val downloadBlockCount = AtomicInteger(0)
             val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
+            val connectionHistory = java.util.Collections.synchronizedList(mutableListOf(DEFAULT_MAX_CONNECTIONS))
             try {
                 val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
                 val candidates = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
@@ -2624,12 +2625,13 @@ class MainActivity : AppCompatActivity() {
                                         videoPart, videoTotalBytes, videoAccess.channel,
                                         audio?.getItag() ?: -1, audioUrl, audioPart, audioTotalBytes,
                                         audioAccess?.channel, totalDownloadedBytes,
-                                        downloadRetryCount, downloadBlockCount, activeConnectionLimit
+                                        downloadRetryCount, downloadBlockCount, activeConnectionLimit, connectionHistory
                                     )
                                 }
                             } catch (rangeError: RangeUnsupportedException) {
                                 File(cacheDir, "jet-" + downloadId + ".chunks.ckpt").delete()
                                 activeConnectionLimit.set(1)
+                                synchronized(connectionHistory) { if (connectionHistory.lastOrNull() != 1) connectionHistory.add(1) }
                                 totalDownloadedBytes.set(0L)
                                 videoAccess.close()
                                 audioAccess?.close()
@@ -2640,6 +2642,7 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             checkpointFile.delete()
                             activeConnectionLimit.set(1)
+                            synchronized(connectionHistory) { if (connectionHistory.lastOrNull() != 1) connectionHistory.add(1) }
                             videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId, totalDownloadedBytes)
                             audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId, totalDownloadedBytes) else 0L
                             totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
@@ -2740,9 +2743,10 @@ class MainActivity : AppCompatActivity() {
                     val audioMb = String.format(Locale.US, "%.1f", audioTotalBytes / (1024.0 * 1024.0))
                     val avgMbps = String.format(Locale.US, "%.2f", totalDownloadedBytes.get() / (1024.0 * 1024.0) / dlSec)
                     val finalConn = activeConnectionLimit.get()
+                    val connectionPath = synchronized(connectionHistory) { connectionHistory.joinToString("->") }
                     val retryCount = downloadRetryCount
                     val blockCount = downloadBlockCount
-                    val telemetrySummary = "conn=${finalConn} chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=${retryCount.get()} blocks=${blockCount.get()} merge=${mergeSec}s"
+                    val telemetrySummary = "conn=${connectionPath} chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=${retryCount.get()} blocks=${blockCount.get()} merge=${mergeSec}s"
                     val displaySeconds = String.format(Locale.US, "%.1f", dlSec)
                     val displayAvgMbps = String.format(Locale.US, "%.1f", totalDownloadedBytes.get() / (1024.0 * 1024.0) / dlSec)
                     downloadTelemetrySummaries[downloadId] = telemetrySummary to "$finalConn conn • ${displaySeconds}s • ${displayAvgMbps} MB/s"
@@ -2816,7 +2820,8 @@ class MainActivity : AppCompatActivity() {
             videoFile: File, videoSize: Long, videoChannel: FileChannel,
             audioItag: Int, audioUrl: String?, audioFile: File, audioSize: Long,
             audioChannel: FileChannel?, downloaded: AtomicLong,
-            retryCount: AtomicInteger, blockCount: AtomicInteger, activeLimit: AtomicInteger
+            retryCount: AtomicInteger, blockCount: AtomicInteger, activeLimit: AtomicInteger,
+            connectionHistory: MutableList<Int>
         ) {
             data class Task(val audio: Boolean, val start: Long, val end: Long, val index: Int)
             val queue = ConcurrentLinkedQueue<Task>()
@@ -2908,7 +2913,11 @@ class MainActivity : AppCompatActivity() {
                 while (true) {
                     val old = activeLimit.get()
                     val next = when (old) { 8 -> 6; 6 -> 4; else -> 4 }
-                    if (old == next || activeLimit.compareAndSet(old, next)) return
+                    if (old == next) return
+                    if (activeLimit.compareAndSet(old, next)) {
+                        synchronized(connectionHistory) { if (connectionHistory.lastOrNull() != next) connectionHistory.add(next) }
+                        return
+                    }
                 }
             }
             fun runTask(task: Task) {
