@@ -252,21 +252,7 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun setupControls() {
         findViewById<ImageButton>(R.id.player_close).setOnClickListener { finish() }
-        findViewById<ImageButton>(R.id.player_more).setOnClickListener { anchor ->
-            PopupMenu(this, anchor).apply {
-                menu.add(Menu.NONE, 1, 0, "Playback speed")
-                menu.add(Menu.NONE, 2, 1, "Picture-in-picture")
-                menu.add(Menu.NONE, 3, 2, "Background audio")
-                setOnMenuItemClickListener { item ->
-                    when (item.itemId) {
-                        1 -> showSpeed()
-                        2 -> enterPip()
-                        3 -> backgroundAudio()
-                    }
-                    true
-                }
-            }.show()
-        }
+        findViewById<ImageButton>(R.id.player_more).setOnClickListener { anchor -> showModernMoreMenu(anchor) }
         playlistToggle.setOnClickListener { togglePlaylistDrawer(true) }
         findViewById<ImageButton>(R.id.player_playlist_close).setOnClickListener { togglePlaylistDrawer(false) }
         playlistScrim.setOnClickListener { togglePlaylistDrawer(false) }
@@ -607,6 +593,49 @@ class VideoPlayerActivity : AppCompatActivity() {
         handler.removeCallbacks(hideHud); handler.postDelayed({ fadeHud(zoomHud) }, 800L)
         findViewById<ImageButton>(R.id.player_aspect).isSelected = aspect != 0
     }
+    private fun showModernMoreMenu(anchor: View) {
+        val menu = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(0xF21A2232.toInt())
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), 0x553D4B66)
+            }
+            elevation = dp(18).toFloat()
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+        }
+        val popup = PopupWindow(menu, dp(224), ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            isOutsideTouchable = true
+            elevation = dp(18).toFloat()
+        }
+        val actions = listOf(
+            "Playback speed" to { showSpeed() },
+            "Picture-in-picture" to { enterPip() },
+            "Background audio" to { backgroundAudio() }
+        )
+        actions.forEach { (label, action) ->
+            val item = TextView(this).apply {
+                text = label
+                setTextColor(0xFFF1F5F9.toInt())
+                textSize = 14f
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(14), 0, dp(14), 0)
+                minHeight = dp(48)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { popup.dismiss(); action() }
+            }
+            menu.addView(item, LinearLayout.LayoutParams(-1, dp(48)))
+        }
+        popup.showAsDropDown(anchor, -dp(184), dp(5))
+        menu.alpha = 0f
+        menu.scaleX = .94f
+        menu.scaleY = .94f
+        menu.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(150L)
+            .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+    }
+
     private fun showMore() {
         AlertDialog.Builder(this).setItems(arrayOf("Fit", "Crop", "Fill", "Playback speed")) { _, which ->
             when (which) {
