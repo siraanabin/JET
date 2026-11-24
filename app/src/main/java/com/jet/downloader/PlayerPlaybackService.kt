@@ -154,7 +154,10 @@ class PlayerPlaybackService : MediaSessionService() {
             when (intent?.action) {
                 ACTION_STOP_FOR_VIDEO -> stopPlaybackForVideoHandoff()
                 ACTION_TOGGLE_PLAYBACK -> toggleBackgroundPlayback()
-                ACTION_STOP_PLAYBACK -> stopBackgroundPlayback(startId)
+                ACTION_STOP_PLAYBACK -> {
+                    stopBackgroundPlayback(startId)
+                    return START_NOT_STICKY
+                }
                 ACTION_SLEEP_TIMER -> {
                     timerHandler.removeCallbacks(sleepTimer)
                     val minutes = intent.getIntExtra(EXTRA_SLEEP_TIMER_MINUTES, 0).coerceIn(0, 240)
