@@ -9,9 +9,11 @@ import com.jet.downloader.data.PreferencesManager
 import com.jet.downloader.network.JetOkHttpDownloader
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
+import okhttp3.Dns
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 import java.util.concurrent.TimeUnit
+import java.net.Inet4Address
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(database: SupportSQLiteDatabase) {
@@ -28,6 +30,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 val appModule = module {
     single {
         OkHttpClient.Builder()
+            .dns(Dns { hostname -> Dns.SYSTEM.lookup(hostname).sortedBy { if (it is Inet4Address) 0 else 1 } })
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)

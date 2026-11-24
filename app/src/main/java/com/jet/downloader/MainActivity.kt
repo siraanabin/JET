@@ -335,12 +335,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Ten-minute normalized-URL cache shared by Analyze/prefetch and native Download.
+    // Fifteen-minute canonical media cache shared by Analyze/prefetch and native Download.
     private val streamInfoCache=LruCache<String,StreamInfo>(12)
     private val streamInfoCacheAt=ConcurrentHashMap<String,Long>()
     private val streamInfoInFlight=ConcurrentHashMap<String,CompletableDeferred<StreamInfo>>()
     private val mediaInfoPrefetchJobs=ConcurrentHashMap<String,Job>()
-    private val streamInfoCacheTtlMs=10*60*1000L
+    private val streamInfoCacheTtlMs=15*60*1000L
 
     private fun normalizeMediaInfoUrl(rawUrl:String):String {
         return try {
@@ -352,8 +352,18 @@ class MainActivity : AppCompatActivity() {
                 val authority=parsed.encodedAuthority?.replace(parsed.host.orEmpty(),host,ignoreCase=true)
                 val defaultPort=(scheme=="http"&&parsed.port==80)||(scheme=="https"&&parsed.port==443)
                 val normalizedAuthority=if(defaultPort)authority?.removeSuffix(":${parsed.port}") else authority
-                val builder=parsed.buildUpon().scheme(scheme).encodedAuthority(normalizedAuthority).fragment(null)
-                builder.build().toString()
+                val normalized=parsed.buildUpon().scheme(scheme).encodedAuthority(normalizedAuthority).fragment(null).build().toString()
+                val videoId=when {
+                    host=="youtu.be" -> parsed.pathSegments.firstOrNull()
+                    host=="youtube.com" || host.endsWith(".youtube.com") ||
+                        host=="youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com") -> {
+                        parsed.getQueryParameter("v") ?: parsed.pathSegments.let { segments ->
+                            if(segments.firstOrNull() in setOf("shorts","embed","live","v")) segments.getOrNull(1) else null
+                        }
+                    }
+                    else -> null
+                }?.takeIf { Regex("^[A-Za-z0-9_-]{11}$").matches(it) }
+                if(videoId!=null) "youtube:$videoId" else "url:$normalized"
             }
         } catch(_:Exception) { "" }
     }
@@ -1685,6 +1695,40 @@ class MainActivity : AppCompatActivity() {
             return json.encodeToString(list)
         }
 
+        private fun prewarmGoogleVideoUrls(streamUrls: List<String>) {
+            streamUrls.filter { it.isNotBlank() }.distinct().forEach { streamUrl ->
+                val host = runCatching { Uri.parse(streamUrl).host?.lowercase(Locale.ROOT) }.getOrNull().orEmpty()
+                if (host != "googlevideo.com" && !host.endsWith(".googlevideo.com")) return@forEach
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val request = Request.Builder()
+                        .url(streamUrl)
+                        .head()
+                        .header("Range", "bytes=0-")
+                        .header("Accept-Encoding", "identity")
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                        .header("Origin", "https://www.youtube.com")
+                        .header("Referer", "https://www.youtube.com/")
+                        .build()
+                    runCatching {
+                        okHttpClient.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                val rangeRequest = Request.Builder()
+                                    .url(streamUrl)
+                                    .get()
+                                    .header("Range", "bytes=0-")
+                                    .header("Accept-Encoding", "identity")
+                                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                                    .header("Origin", "https://www.youtube.com")
+                                    .header("Referer", "https://www.youtube.com/")
+                                    .build()
+                                okHttpClient.newCall(rangeRequest).execute().use { }
+                            }
+                        }
+                    }.onFailure { Log.d("JET-Prewarm", "Googlevideo prewarm skipped: ${it.message}") }
+                }
+            }
+        }
+
         private fun buildNewPipeMediaInfoPayload(info: StreamInfo): MediaInfoPayload {
             val bestThumb = info.thumbnails.maxByOrNull { it.width }?.url ?: ""
             val durationSec = info.duration.toLong()
@@ -1736,6 +1780,12 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
+            val topVideoUrl = (info.videoOnlyStreams + info.videoStreams)
+                .filter { it.isUrl }
+                .maxWithOrNull(compareBy<org.schabi.newpipe.extractor.stream.VideoStream>({ it.getHeight() }, { it.bitrate }))?.url
+            val topAudioUrl = info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate }?.url
+            prewarmGoogleVideoUrls(listOfNotNull(topVideoUrl, topAudioUrl))
+
             val payload = MediaInfoPayload(
                 ok = true,
                 title = info.name ?: "JET Media Stream",
@@ -1757,12 +1807,12 @@ class MainActivity : AppCompatActivity() {
                 try{
                     val info=getOrFetchStreamInfo(url)
                     val payload=buildNewPipeMediaInfoPayload(info)
-                    callJs("onNativePrefetchedMediaInfo",JSONObject.quote(cacheKey)+","+JSONObject.quote(json.encodeToString(payload)))
+                    callJs("onNativePrefetchedMediaInfo",JSONObject.quote(url)+","+JSONObject.quote(json.encodeToString(payload)))
                 }catch(_:CancellationException){
                     // Clearing/editing the URL invalidates this silent request.
                 }catch(_:Exception){
                     // Unsupported URLs/network errors are deliberately silent and uncached.
-                    callJs("onNativePrefetchFailed",JSONObject.quote(cacheKey))
+                    callJs("onNativePrefetchFailed",JSONObject.quote(url))
                 }finally{
                     mediaInfoPrefetchJobs.remove(cacheKey,currentCoroutineContext()[Job])
                 }
@@ -1908,6 +1958,10 @@ class MainActivity : AppCompatActivity() {
                                 )
                             }
 
+                        prewarmGoogleVideoUrls(listOfNotNull(
+                            videoCandidates.maxByOrNull { it.tbr }?.url,
+                            bestAudioFormat?.url
+                        ))
                         val payload = MediaInfoPayload(
                             ok = true,
                             title = info.title ?: "JET Media Stream",

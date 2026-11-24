@@ -1,8 +1,9 @@
 {
-  "versionCode": 391,
-  "versionName": "3.9.1",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.1/JET-debug.apk",
+  "versionCode": 392,
+  "versionName": "3.9.2",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.2/JET-debug.apk",
   "changelog": [
+    "Fixed canonical YouTube stream caching, added 15-minute cache TTL and Googlevideo prewarming, and replaced fractional pre-byte progress with clean integer percentages",
     "Added translucent Sound/Brightness HUD backdrops and honest staged download progress with cached NewPipe streams",
     "Fixed 1000x size estimates, show only available resolutions, and display actual downloaded video resolution",
     "Added NewPipe itag-based 1080p selection, FFmpeg mux fallback and video-track validation; improved thumbnail, scrollbar, artwork and updater",

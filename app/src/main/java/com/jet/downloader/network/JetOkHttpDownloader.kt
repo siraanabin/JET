@@ -41,6 +41,15 @@ class JetOkHttpDownloader(
             }
         }
 
+        val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull().orEmpty()
+        if (host == "googlevideo.com" || host.endsWith(".googlevideo.com")) {
+            okRequestBuilder
+                .header("Range", "bytes=0-")
+                .header("Accept-Encoding", "identity")
+                .header("Origin", "https://www.youtube.com")
+                .header("Referer", "https://www.youtube.com/")
+        }
+
         client.newCall(okRequestBuilder.build()).execute().use { response ->
             if (response.code == 429) {
                 throw ReCaptchaException("reCaptcha Challenge requested", url)
