@@ -8,12 +8,17 @@ import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
 import java.io.IOException
 
+const val DEFAULT_MAX_CONNECTIONS = 8
+const val CHUNK_SIZE_BYTES = 5L * 1024L * 1024L
+const val DISK_BUFFER_BYTES = 256 * 1024
+const val MAX_RETRIES = 4
+
 class JetOkHttpDownloader(
     private val client: OkHttpClient
 ) : Downloader() {
 
     companion object {
-        private val RANGE_REQUEST_SEMAPHORE = java.util.concurrent.Semaphore(8, true)
+        private val RANGE_REQUEST_SEMAPHORE = java.util.concurrent.Semaphore(DEFAULT_MAX_CONNECTIONS, true)
 
         /**
          * Synchronous OkHttp execute() calls bypass Dispatcher.maxRequests.
