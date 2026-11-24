@@ -20,6 +20,7 @@ data class DownloadEntity(
     val fileSize: String,
     val mediaType: String,
     @ColumnInfo(defaultValue = "''") val thumbnailUrl: String = "",
+    @ColumnInfo(defaultValue = "''") val resolution: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -35,7 +36,7 @@ interface DownloadDao {
     suspend fun deleteById(id: String)
 }
 
-@Database(entities = [DownloadEntity::class], version = 2, exportSchema = false)
+@Database(entities = [DownloadEntity::class], version = 3, exportSchema = false)
 abstract class JetDatabase : RoomDatabase() {
     abstract fun downloadDao(): DownloadDao
 }

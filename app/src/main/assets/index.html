@@ -855,6 +855,7 @@
         libSearch: '',
         ccEnabled: false,
         selectedFormatId: 'vid-1080',
+        videoStreamsReady: false,
         clipboardUrl: '',
         lastAutoOpenedClipboardUrl: '',
         pendingUrl: '',
@@ -866,14 +867,14 @@
           { id: 'aud-128', group: 'music', name: 'Classic MP3 (128K)', desc: 'Supports Bluetooth speakers, phones, car stereos', sizeText: 'Calculating…', ext: 'mp3', bitrate: '128K', maxHeight: 0, compact: false },
           { id: 'aud-160', group: 'music', name: 'Classic MP3', desc: 'MP3 (160K), support Bluetooth speaker, phone, watch', sizeText: 'Calculating…', ext: 'mp3', bitrate: '160K', maxHeight: 0, compact: true },
           { id: 'aud-320', group: 'music', name: 'Classic MP3 (320K)', badge: 'HQ', desc: 'High bitrate studio audio for headphones', sizeText: 'Calculating…', ext: 'mp3', bitrate: '320K', maxHeight: 0, compact: false },
-          { id: 'vid-144', group: 'video', name: 'Fast (144p)', badge: 'Low', desc: 'Smallest file size', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 144, compact: false },
-          { id: 'vid-240', group: 'video', name: 'Fast (240p)', desc: 'Low quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 240, compact: false },
-          { id: 'vid-360', group: 'video', name: 'Fast (360p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 360, compact: true },
-          { id: 'vid-480', group: 'video', name: 'Fast (480p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 480, compact: false },
-          { id: 'vid-720', group: 'video', name: 'High quality (720p)', desc: 'HD clear view', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 720, compact: false },
-          { id: 'vid-1080', group: 'video', name: 'High quality (1080p)', desc: 'Full HD details for full screen play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1080, compact: true },
-          { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false },
-          { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false }
+          { id: 'vid-144', group: 'video', name: 'Fast (144p)', badge: 'Low', desc: 'Smallest file size', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 144, compact: false, available: null },
+          { id: 'vid-240', group: 'video', name: 'Fast (240p)', desc: 'Low quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 240, compact: false, available: null },
+          { id: 'vid-360', group: 'video', name: 'Fast (360p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 360, compact: true, available: null },
+          { id: 'vid-480', group: 'video', name: 'Fast (480p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 480, compact: false, available: null },
+          { id: 'vid-720', group: 'video', name: 'High quality (720p)', desc: 'HD clear view', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 720, compact: false, available: null },
+          { id: 'vid-1080', group: 'video', name: 'High quality (1080p)', desc: 'Full HD details for full screen play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1080, compact: true, available: null },
+          { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false, available: null },
+          { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false, available: null }
         ],
         activeDownloads: [],
         doneDownloads: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-done-downloads-v1') || '[]'); return Array.isArray(cached) ? cached : []; } catch (_) { return []; } })(),
@@ -883,6 +884,19 @@
       };
 
       const hasAndroid = () => typeof window.JetAndroid === 'object' && window.JetAndroid !== null;
+
+      function formatFileSize(bytes) {
+        const value = Number(bytes);
+        if (!Number.isFinite(value) || value < 0) return 'Size N/A';
+        if (value < 1024) return value.toFixed(0) + ' B';
+        if (value < 1048576) return (value / 1024).toFixed(1) + ' KB';
+        if (value < 1073741824) return (value / 1048576).toFixed(1) + ' MB';
+        return (value / 1073741824).toFixed(2) + ' GB';
+      }
+
+      function formatVideoMetadata(size, resolution, format) {
+        return [size, resolution, format].filter(Boolean).join(' · ');
+      }
 
       function refreshIcons() {
         if (window.lucide && window.lucide.createIcons) {
@@ -1339,7 +1353,8 @@
         $('fetching-info-bar').classList.add('hidden');
         if(info&&info.ok)hideJetRetryBanner();
         if(!info||!info.ok){
-          state.formats.forEach(stream=>{stream.sizeText='Size N/A';});
+          state.videoStreamsReady = true;
+          state.formats.forEach(stream=>{stream.sizeText='Size N/A';if(stream.group==='video')stream.available=false;});
           renderFormatLists();
           $('format-stream-title').textContent='Could not fetch media information. Choose a format to retry.';
           return;
@@ -1350,7 +1365,42 @@
         thumbnail.src=state.fetchedThumbnail;
         thumbnail.classList.toggle('hidden',!state.fetchedThumbnail);
         $('format-stream-title').textContent=`${state.fetchedTitle} (${info.duration||''}) · ${info.extractor||''}`;
-        state.formats.forEach(stream=>{const metadata=info.streams?.[stream.id]||{};stream.sizeText=metadata.sizeText||'Size N/A';stream.itag=Number(metadata.itag)||-1;stream.height=Number(metadata.height)||stream.maxHeight||0;});
+        state.videoStreamsReady = true;
+        state.formats.forEach(stream => {
+          const metadata = info.streams?.[stream.id] || {};
+          if (stream.group === 'music') {
+            stream.sizeBytes = Number(metadata.sizeBytes) || 0;
+            stream.sizeText = metadata.available && stream.sizeBytes > 0 ? formatFileSize(stream.sizeBytes) : 'Size N/A';
+            stream.available = metadata.available !== false;
+            return;
+          }
+          stream.available = metadata.available === true && Number(metadata.shortSide) > 0;
+          stream.sizeBytes = Number(metadata.sizeBytes) || 0;
+          stream.sizeText = stream.available ? formatFileSize(stream.sizeBytes) : 'N/A';
+          stream.itag = Number(metadata.itag) || -1;
+          stream.height = Number(metadata.height) || 0;
+          stream.maxHeight = stream.height || stream.maxHeight;
+          stream.shortSide = Number(metadata.shortSide) || 0;
+          stream.resolution = metadata.resolution || '';
+          stream.sourceId = stream.id;
+          if (stream.available) stream.name = (stream.shortSide >= 720 ? 'High quality' : 'Fast') + ' (' + stream.resolution + ')';
+        });
+        const actualVideoFormats = state.formats.filter(stream => stream.group === 'video' && stream.available).sort((a, b) => a.shortSide - b.shortSide);
+        const applyAlias = (aliasId, source) => {
+          const alias = state.formats.find(stream => stream.id === aliasId);
+          if (!alias || !source) return;
+          Object.assign(alias, { available:true, sizeBytes:source.sizeBytes, sizeText:source.sizeText,
+            itag:source.itag, height:source.height, shortSide:source.shortSide, resolution:source.resolution,
+            maxHeight:source.height, sourceId:source.id,
+            name:(aliasId === 'vid-360' ? 'Fast' : 'High quality') + ' (' + source.resolution + ')' });
+        };
+        const fastSource = actualVideoFormats.filter(stream => stream.shortSide <= 360).slice(-1)[0];
+        const highSource = actualVideoFormats.filter(stream => stream.shortSide <= 1080).slice(-1)[0];
+        applyAlias('vid-360', fastSource);
+        applyAlias('vid-1080', highSource);
+        if (!state.formats.some(stream => stream.id === state.selectedFormatId && stream.group === 'video' && stream.available)) {
+          state.selectedFormatId = highSource ? 'vid-1080' : fastSource ? 'vid-360' : (actualVideoFormats[0]?.id || 'aud-fast');
+        }
         renderFormatLists();
       }
       window.onNativeMediaInfo=function(info){
@@ -1399,7 +1449,7 @@
         if (!preview) return;
         const record = { title:item.title||'', filePath:item.filePath||'', fileUri:item.fileUri||'',
           thumbnailUrl:item.thumbnailUrl||item.thumbnail||'', type:item.type||'video',
-          meta:item.meta||((item.size||'Saved')+' · '+(item.format||'Media')) };
+          meta:item.meta||formatVideoMetadata(item.size||'Saved',item.resolution||'',item.format||'Media') };
         card.dataset.filePath=record.filePath; card.dataset.fileUri=record.fileUri; card.dataset.mediaType=record.type;
         try { localStorage.setItem('jet-latest-saved-file-v1',JSON.stringify(record)); } catch (_) {}
         if (record.thumbnailUrl) {
@@ -1429,7 +1479,7 @@
 
         const title = data.title || (existing ? existing.title : 'JET Download');
         const thumbnailUrl = data.thumbnailUrl || data.thumbnail || (existing && existing.thumbnailUrl) || '';
-        const fmtLabel = existing ? existing.format : 'Media';
+        const fmtLabel = data.format || (existing ? existing.format : 'Media');
         state.doneDownloads.unshift({
           id: data.id,
           title: title,
@@ -1438,14 +1488,16 @@
           filePath: data.filePath || '',
           fileUri: data.fileUri || '',
           thumbnailUrl,
-          date: 'Just now'
+          date: 'Just now',
+          resolution: data.resolution || (existing && existing.resolution) || ''
         });
 
         $('latest-title').textContent = title;
-        $('latest-meta').textContent = `${data.size || 'Saved'} · ${fmtLabel}`;
+        const completedMeta = formatVideoMetadata(data.size || 'Saved', data.resolution || '', fmtLabel);
+        $('latest-meta').textContent = completedMeta;
         $('latest-download-card').dataset.filePath = data.filePath || '';
         $('latest-download-card').dataset.fileUri = data.fileUri || '';
-        renderLatestSavedPreview({title,filePath:data.filePath||'',fileUri:data.fileUri||'',thumbnailUrl,type:existing&&existing.type||'video',size:data.size||'Saved',format:fmtLabel});
+        renderLatestSavedPreview({title,filePath:data.filePath||'',fileUri:data.fileUri||'',thumbnailUrl,type:existing&&existing.type||'video',size:data.size||'Saved',format:fmtLabel,resolution:data.resolution||'',meta:completedMeta});
 
         renderDownloads();
         showToast(`Saved: ${title}`);
@@ -1518,7 +1570,7 @@
         if (wasEmpty && state.library.length > 0) {
           const first = state.library[0];
           $('latest-title').textContent = first.title;
-          $('latest-meta').textContent = first.meta;
+          $('latest-meta').textContent = first.meta || formatVideoMetadata(first.size, first.resolution, first.format);
           $('latest-download-card').dataset.filePath = first.filePath || '';
           $('latest-download-card').dataset.fileUri = first.fileUri || '';
           renderLatestSavedPreview(first);
@@ -1597,13 +1649,13 @@
           .filter((f) => f.group === 'music' && f.compact)
           .map((f) => renderFormatRow(f, false)).join('');
         $('compact-video-list').innerHTML = state.formats
-          .filter((f) => f.group === 'video' && f.compact)
+          .filter((f) => f.group === 'video' && f.compact && state.videoStreamsReady && f.available)
           .map((f) => renderFormatRow(f, false)).join('');
         $('full-music-list').innerHTML = state.formats
           .filter((f) => f.group === 'music')
           .map((f) => renderFormatRow(f, true)).join('');
         $('full-video-list').innerHTML = state.formats
-          .filter((f) => f.group === 'video')
+          .filter((f) => f.group === 'video' && state.videoStreamsReady && f.available && !(['vid-360','vid-1080'].includes(f.id) && f.sourceId !== f.id))
           .map((f) => renderFormatRow(f, true)).join('');
         refreshIcons();
       }
@@ -1619,7 +1671,8 @@
         state.fetchedThumbnail = '';
         $('format-stream-thumbnail').removeAttribute('src');
         $('format-stream-thumbnail').classList.add('hidden');
-        state.formats.forEach((stream) => { stream.sizeText = 'Calculating…'; });
+        state.videoStreamsReady = false;
+        state.formats.forEach((stream) => { stream.sizeText = 'Calculating…'; stream.available = null; stream.sourceId = stream.id; });
 
         $('format-stream-title').textContent = cleanUrl;
         $('fetching-info-bar').classList.remove('hidden');
@@ -1687,10 +1740,12 @@
           ? state.fetchedTitle
           : targetUrl;
 
+        const selectedResolution = fmt.resolution || '';
         state.activeDownloads.unshift({
           id: downloadId,
           title: displayTitle,
-          format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
+          format: fmt.ext.toUpperCase(),
+          resolution: selectedResolution,
           size: fmt.sizeText || 'Size N/A',
           progress: 0,
           speed: 'Preparing / extracting streams…',
@@ -1713,9 +1768,9 @@
         state.retryDownloadArgs = requestArgs;
         state.retryDownloadRecord = {
           id: downloadId, title: displayTitle,
-          format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
+          format: fmt.ext.toUpperCase(),
           size: fmt.sizeText || 'Size N/A', progress: 0, speed: 'Preparing retry…', status: 'preparing',
-          thumbnailUrl: state.fetchedThumbnail, requestArgs
+          thumbnailUrl: state.fetchedThumbnail, resolution: selectedResolution, requestArgs
         };
         if (hasAndroid() && window.JetAndroid.startRealDownload) {
           window.JetAndroid.startRealDownload(...requestArgs);
@@ -1766,7 +1821,7 @@
                 <img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-20 h-14 rounded-xl object-cover bg-app-elevated shrink-0 ${item.thumbnailUrl ? "" : "hidden"}">
                 <div class="min-w-0">
                   <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}</p>
+                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}${item.resolution ? ' · ' + item.resolution : ''}</p>
                 </div>
                 <div class="flex items-center gap-1 shrink-0">
                   ${item.status === 'failed'
@@ -1803,7 +1858,7 @@
               <div class="surface-card rounded-2xl p-3.5 flex items-center justify-between gap-3">
                 ${thumbnail}
                 <div class="min-w-0 flex-1"><p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size} · ${item.date}</p></div>
+                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}${item.resolution ? ' · ' + item.resolution : ''} · ${item.date}</p></div>
                 <button type="button" data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${isAudio ? 'audio' : 'video'}" class="w-9 h-9 rounded-full bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0" aria-label="Play ${item.title}">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play w-4 h-4" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
                 </button>
@@ -1911,7 +1966,7 @@
 
         $('library-item-count').textContent = `${filtered.length} files`;
         const container = $('library-items-container');
-        const renderKey = JSON.stringify([state.libView,state.libFilter,state.libSearch,state.libraryGridColumns,filtered.map(item => [item.filePath,item.title,item.size,item.duration,item.thumbnailUrl])]);
+        const renderKey = JSON.stringify([state.libView,state.libFilter,state.libSearch,state.libraryGridColumns,filtered.map(item => [item.filePath,item.title,item.size,item.duration,item.resolution,item.thumbnailUrl])]);
         if (container.dataset.renderKey === renderKey) return;
         container.dataset.renderKey = renderKey;
         const generation = ++libraryRenderGeneration;
@@ -1941,7 +1996,7 @@
                     <p class="text-[9px] font-bold text-app-text truncate">${item.title}</p>
                     <p class="mt-0.5 flex items-center gap-1 text-[8px] text-app-secondary truncate tabular-nums">
                       <span class="shrink-0">${item.type === 'audio' ? '🎵' : item.type === 'document' ? '📄' : '🎬'}</span>
-                      <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}</span>
+                      <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}${item.resolution ? ' | ' + item.resolution : ''}</span>
                     </p>
                   </div>
                   <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-5 h-5 rounded-md bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-3 h-3 pointer-events-none"></i></button>
@@ -1959,7 +2014,7 @@
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
                 <p class="mt-1 flex items-center gap-1.5 text-[11px] text-app-secondary truncate tabular-nums">
                   <span class="shrink-0">${item.type === 'audio' ? '🎵' : item.type === 'document' ? '📄' : '🎬'}</span>
-                  <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}</span>
+                  <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}${item.resolution ? ' | ' + item.resolution : ''}</span>
                 </p>
               </div>
               <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-4 h-4"></i></button>
@@ -2281,7 +2336,8 @@
             filePath: item.filePath,
             fileUri: item.fileUri || '',
             thumbnailUrl: item.thumbnailUrl || '',
-            date: item.date || 'Saved'
+            date: item.date || 'Saved',
+            resolution: item.resolution || ''
           });
         });
         state.doneDownloads = Array.from(restored.values());
@@ -2290,7 +2346,7 @@
         const latest = state.doneDownloads[0];
         if (latest) {
           $('latest-title').textContent = latest.title;
-          $('latest-meta').textContent = `${latest.size} · ${latest.format}`;
+          $('latest-meta').textContent = formatVideoMetadata(latest.size, latest.resolution, latest.format);
           $('latest-download-card').dataset.filePath = latest.filePath;
           $('latest-download-card').dataset.fileUri = latest.fileUri;
         }

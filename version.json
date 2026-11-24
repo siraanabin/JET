@@ -1,8 +1,9 @@
 {
-  "versionCode": 389,
-  "versionName": "3.8.9",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.9/JET-debug.apk",
+  "versionCode": 390,
+  "versionName": "3.9.0",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.0/JET-debug.apk",
   "changelog": [
+    "Fixed 1000x size estimates, show only available resolutions, and display actual downloaded video resolution",
     "Added NewPipe itag-based 1080p selection, FFmpeg mux fallback and video-track validation; improved thumbnail, scrollbar, artwork and updater",
     "Fixed PiP UI cast crash and improved player title marquee and progress styling",
     "Persisted Library snapshots and deferred scans for instant tab display",

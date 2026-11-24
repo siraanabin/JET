@@ -257,10 +257,51 @@ class MainActivity : AppCompatActivity() {
 
     private fun estimateBytesFromBitrateKbps(bitrateKbps: Double, durationSeconds: Long): Long {
         if (bitrateKbps <= 0.0 || durationSeconds <= 0L) return 0L
-        return (bitrateKbps * 1000.0 / 8.0 * durationSeconds)
-            .coerceAtMost(Long.MAX_VALUE.toDouble())
-            .toLong()
-            .coerceAtLeast(0L)
+        return (bitrateKbps * 1000.0 / 8.0 * durationSeconds).coerceAtMost(Long.MAX_VALUE.toDouble()).toLong().coerceAtLeast(0L)
+    }
+
+    // NewPipe VideoStream.bitrate is bits/second; never multiply it by 1000 again.
+    private fun estimateBytesFromBitrateBps(bitrateBps: Double, durationSeconds: Long): Long {
+        if (bitrateBps <= 0.0 || durationSeconds <= 0L) return 0L
+        return (bitrateBps / 8.0 * durationSeconds).coerceAtMost(Long.MAX_VALUE.toDouble()).toLong().coerceAtLeast(0L)
+    }
+
+    private fun videoResolutionId(shortSide: Int): String = when {
+        shortSide >= 2160 -> "vid-4k"
+        shortSide >= 1440 -> "vid-2k"
+        shortSide >= 1080 -> "vid-1080"
+        shortSide >= 720 -> "vid-720"
+        shortSide >= 480 -> "vid-480"
+        shortSide >= 360 -> "vid-360"
+        shortSide >= 240 -> "vid-240"
+        shortSide > 0 -> "vid-144"
+        else -> ""
+    }
+
+    private fun videoResolutionLabel(shortSide: Int): String = when {
+        shortSide >= 2160 -> "4K (2160p)"
+        shortSide >= 1440 -> "2K (1440p)"
+        shortSide >= 1080 -> "1080p"
+        shortSide >= 720 -> "720p"
+        shortSide >= 480 -> "480p"
+        shortSide >= 360 -> "360p"
+        else -> "${shortSide}p"
+    }
+
+    private fun extractVideoResolution(file: File): String {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            val shortSide = if (width > 0 && height > 0) minOf(width, height) else maxOf(width, height)
+            if (shortSide > 0) videoResolutionLabel(shortSide) else ""
+        } catch (error: Exception) {
+            Log.w("JET-Download", "Could not read output video dimensions for ${file.name}", error)
+            ""
+        } finally {
+            runCatching { retriever.release() }
+        }
     }
 
     private fun fallbackVideoBitrateKbps(shortSide: Int): Double = when {
@@ -950,14 +991,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun formatBytes(bytes: Long): String {
-        if (bytes <= 0L) return "Auto"
-        val kb = bytes / 1024.0
-        val mb = kb / 1024.0
-        val gb = mb / 1024.0
+        if (bytes < 0L) return "Auto"
         return when {
-            gb >= 1.0 -> String.format(Locale.US, "%.2f GB", gb)
-            mb >= 1.0 -> String.format(Locale.US, "%.1f MB", mb)
-            else -> String.format(Locale.US, "%.0f KB", kb)
+            bytes < 1024L -> "$bytes B"
+            bytes < 1_048_576L -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
+            bytes < 1_073_741_824L -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+            else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
         }
     }
 
@@ -1109,9 +1148,10 @@ class MainActivity : AppCompatActivity() {
                 val mediaFile = File(item.filePath)
                 val isVideo = mediaFile.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")
                 val resolvedThumbnail = item.thumbnailUrl.takeIf { it.isNotBlank() } ?: if (isVideo) thumbnailFromDiskCache(mediaFile) else if (isAudioFile(mediaFile)) audioThumbnailFromDiskCache(mediaFile) else ""
+                val resolvedResolution = item.resolution.ifBlank { if (isVideo) extractVideoResolution(mediaFile) else "" }
                 historyByPath[item.filePath] = DownloadHistoryPayload(
                     item.id, item.title, item.formatLabel, item.fileSize, item.filePath,
-                    Uri.fromFile(mediaFile).toString(), resolvedThumbnail, "Saved"
+                    Uri.fromFile(mediaFile).toString(), resolvedThumbnail, "Saved", resolvedResolution
                 )
             }
 
@@ -1129,7 +1169,8 @@ class MainActivity : AppCompatActivity() {
                     Uri.fromFile(file).toString(),
                     saved?.thumbnailUrl?.takeIf { it.isNotBlank() }
                         ?: if (file.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) thumbnailFromDiskCache(file) else if (isAudioFile(file)) audioThumbnailFromDiskCache(file) else "",
-                    "Saved"
+                    "Saved",
+                    saved?.resolution ?: if (file.extension.lowercase(Locale.US) in setOf("mp4", "mkv", "webm", "mov", "avi", "3gp", "m4v")) extractVideoResolution(file) else ""
                 )
             }
         }
@@ -1266,12 +1307,13 @@ class MainActivity : AppCompatActivity() {
                             val durationMs = if (durationIndex >= 0) cursor.getLong(durationIndex).coerceAtLeast(0L) else 0L
                             val ext = file.extension.uppercase(Locale.US)
                                 .ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
+                            val resolution = if (type == "video") extractVideoResolution(file) else ""
                             addItem(
                                 LibraryItemPayload(
                                     id = if (idIndex >= 0) cursor.getLong(idIndex).toInt() else file.absolutePath.hashCode(),
                                     title = title.ifBlank { file.nameWithoutExtension.ifBlank { displayName } },
                                     type = type,
-                                    meta = formatBytes(size) + " · " + ext,
+                                    meta = formatBytes(size) + (resolution.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") + " · " + ext,
                                     duration = formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
                                     filePath = file.absolutePath,
                                     fileUri = Uri.fromFile(file).toString(),
@@ -1279,7 +1321,8 @@ class MainActivity : AppCompatActivity() {
                                     thumbnailUrl = if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") audioThumbnailFromDiskCache(file) else "",
                                     size = formatBytes(size),
                                     format = ext,
-                                    dominantColor = "#20242E"
+                                    dominantColor = "#20242E",
+                                    resolution = resolution
                                 )
                             )
                         }
@@ -1308,12 +1351,14 @@ class MainActivity : AppCompatActivity() {
                     addItem(
                         LibraryItemPayload(
                             id = file.name.hashCode(), title = file.nameWithoutExtension, type = type,
-                            meta = formatBytes(size) + " · " + ext, duration = "",
+                            meta = formatBytes(size) + (if (type == "video") (savedByPath[file.absolutePath]?.resolution?.ifBlank { null } ?: extractVideoResolution(file)).takeIf { it.isNotBlank() }?.let { " · $it" } ?: "" else "") + " · " + ext, duration = "",
                             filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
                             thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl
                                 ?.takeIf { it.isNotBlank() }
                                 ?: if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") audioThumbnailFromDiskCache(file).ifBlank { "file:///android_asset/images/music-placeholder.svg" } else "",
-                            size = formatBytes(size), format = ext, dominantColor = "#20242E"
+                            size = formatBytes(size), format = ext, dominantColor = "#20242E",
+                            resolution = savedByPath[file.absolutePath]?.resolution?.ifBlank { null }
+                                ?: if (type == "video") extractVideoResolution(file) else ""
                         )
                     )
                 }
@@ -1648,66 +1693,49 @@ class MainActivity : AppCompatActivity() {
                 .filter { it.isUrl }
                 .maxByOrNull { it.averageBitrate }
     
-            fun sizeText(bytes: Long): String =
-                if (bytes > 0L) String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0)) else "Approx. unavailable"
-    
             fun shortSide(width: Int, height: Int): Int =
-                if (width > 0) minOf(width, height) else height
-    
+                if (width > 0 && height > 0) minOf(width, height) else maxOf(width, height)
+
             val streamSizes = mutableMapOf<String, StreamSizePayload>()
-            listOf(
-                "aud-70" to 70L,
-                "aud-128" to 128L,
-                "aud-160" to 160L,
-                "aud-320" to 320L
-            ).forEach { (id, bitrateKbps) ->
-                val estimatedMp3Bytes = (bitrateKbps * 1000L * durationSec) / 8L
-                streamSizes[id] = StreamSizePayload(sizeText = sizeText(estimatedMp3Bytes))
-            }
-    
-            // Use the smallest video dimension as the resolution class. This supports
-            // landscape, cinematic and portrait/Shorts formats without height equality checks.
-            // Estimate locally from duration and bitrate; never wait for HTTP probes.
+            listOf("aud-70" to 70L, "aud-128" to 128L, "aud-160" to 160L, "aud-320" to 320L)
+                .forEach { (id, bitrateKbps) ->
+                    val bytes = (bitrateKbps * 1000L * durationSec) / 8L
+                    streamSizes[id] = StreamSizePayload(sizeText = formatBytes(bytes), sizeBytes = bytes, available = true)
+                }
+
             val bestAudioBytes = estimateBytesFromBitrateKbps(
-                bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0,
-                durationSec
+                bestAudio?.averageBitrate?.takeIf { it > 0 }?.toDouble() ?: 128.0, durationSec
             )
-            streamSizes["aud-fast"] = StreamSizePayload(sizeText = sizeText(bestAudioBytes))
-    
-            listOf(
-                "vid-144" to 144,
-                "vid-240" to 240,
-                "vid-360" to 360,
-                "vid-480" to 480,
-                "vid-720" to 720,
-                "vid-1080" to 1080,
-                "vid-2k" to 1440,
-                "vid-4k" to 2160
-            ).forEach { (id, targetShortSide) ->
-                val video = (info.videoOnlyStreams + info.videoStreams)
-                    .filter {
-                        it.isUrl && shortSide(it.width, it.height) in 1..targetShortSide
-                    }
-                    .maxWithOrNull(
+            streamSizes["aud-fast"] = StreamSizePayload(
+                sizeText = formatBytes(bestAudioBytes), sizeBytes = bestAudioBytes, available = bestAudioBytes > 0L
+            )
+
+            // Only publish extracted streams. NewPipe VideoStream.bitrate is bits/second.
+            val actualVideos = (info.videoOnlyStreams + info.videoStreams)
+                .filter { it.isUrl && shortSide(it.width, it.height) > 0 }
+            actualVideos.groupBy { videoResolutionId(shortSide(it.width, it.height)) }
+                .filterKeys { it.isNotBlank() }
+                .forEach { (id, candidates) ->
+                    val video = candidates.maxWithOrNull(
                         compareBy<org.schabi.newpipe.extractor.stream.VideoStream>(
-                            { shortSide(it.width, it.height) },
-                            { it.bitrate }
+                            { shortSide(it.width, it.height) }, { it.bitrate }
                         )
+                    ) ?: return@forEach
+                    val short = shortSide(video.width, video.height)
+                    val videoBytes = if (video.bitrate > 0) {
+                        estimateBytesFromBitrateBps(video.bitrate.toDouble(), durationSec)
+                    } else {
+                        estimateBytesFromBitrateKbps(fallbackVideoBitrateKbps(short), durationSec)
+                    }
+                    val totalBytes = videoBytes + if (video.isVideoOnly || video.bitrate <= 0) bestAudioBytes else 0L
+                    streamSizes[id] = StreamSizePayload(
+                        sizeText = formatBytes(totalBytes), sizeBytes = totalBytes, available = true,
+                        itag = video.getItag().takeIf { it > 0 },
+                        height = video.getHeight().takeIf { it > 0 },
+                        shortSide = short, resolution = videoResolutionLabel(short)
                     )
-    
-                val actualShortSide = video?.let { shortSide(it.width, it.height) } ?: targetShortSide
-                val videoKbps = video?.bitrate?.takeIf { it > 0 }?.toDouble()
-                    ?: fallbackVideoBitrateKbps(actualShortSide)
-                val videoBytes = estimateBytesFromBitrateKbps(videoKbps, durationSec)
-                val needsAudio = video == null || video.isVideoOnly || video.bitrate <= 0
-                val totalBytes = videoBytes + if (needsAudio) bestAudioBytes else 0L
-                streamSizes[id] = StreamSizePayload(
-                    sizeText = sizeText(totalBytes),
-                    itag = video?.getItag()?.takeIf { it > 0 },
-                    height = video?.getHeight()?.takeIf { it > 0 }
-                )
-            }
-    
+                }
+
             val payload = MediaInfoPayload(
                 ok = true,
                 title = info.name ?: "JET Media Stream",
@@ -1835,63 +1863,48 @@ class MainActivity : AppCompatActivity() {
                                 )
                             } ?: (targetKbps.toDouble() * 1000.0 * durationSec.coerceAtLeast(0L).toDouble() / 8.0).toLong()
                             streamSizes[id] = StreamSizePayload(
-                                sizeText = sizeLabel(bytes)
+                                sizeText = sizeLabel(bytes), sizeBytes = bytes, available = bytes > 0L
                             )
                         }
                         streamSizes["aud-fast"] = StreamSizePayload(
-                            sizeText = sizeLabel(bestAudioBytes)
+                            sizeText = sizeLabel(bestAudioBytes), sizeBytes = bestAudioBytes, available = bestAudioBytes > 0L
                         )
 
-                        listOf(
-                            "vid-144" to 144,
-                            "vid-240" to 240,
-                            "vid-360" to 360,
-                            "vid-480" to 480,
-                            "vid-720" to 720,
-                            "vid-1080" to 1080,
-                            "vid-2k" to 1440,
-                            "vid-4k" to 2160
-                        ).forEach { (id, targetShortSide) ->
-                            val videoCandidates = formats.filter { format ->
-                                val streamUrl = format.url ?: return@filter false
-                                format.vcodec != null && format.vcodec != "none" &&
-                                    streamUrl.isNotBlank() &&
-                                    streamUrl.startsWith("https://", ignoreCase = true) &&
-                                    !streamUrl.substringBefore('?').endsWith(".m3u8", ignoreCase = true) &&
-                                    !streamUrl.substringBefore('?').endsWith(".mpd", ignoreCase = true) &&
-                                    shortSide(format.width, format.height) in 1..targetShortSide
-                            }
-                            // Prefer direct HTTPS MP4/WebM/DASH media formats that expose
-                            // an exact or approximate byte count; never let an HLS manifest
-                            // outrank a downloadable media stream just because its bitrate is high.
-                            val videoFormat = videoCandidates.maxWithOrNull(
-                                compareBy<com.yausername.youtubedl_android.mapper.VideoFormat>(
-                                    { if (it.fileSize > 0L || it.fileSizeApproximate > 0L) 1 else 0 },
-                                    { shortSide(it.width, it.height) },
-                                    { it.tbr }
-                                )
-                            )
-                            val videoBytes = videoFormat?.let {
-                                formatBytes(
-                                    it.fileSize,
-                                    it.fileSizeApproximate,
-                                    it.tbr.toDouble(),
-                                    durationSec
-                                )
-                            }?.takeIf { it > 0L } ?: estimateBytesFromBitrateKbps(
-                                videoFormat?.tbr?.takeIf { it > 0 }?.toDouble()
-                                    ?: fallbackVideoBitrateKbps(targetShortSide),
-                                durationSec
-                            )
-                            val isVideoOnly = videoFormat == null ||
-                                videoFormat.acodec == null ||
-                                videoFormat.acodec == "none" ||
-                                videoFormat.tbr <= 0
-                            val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
-                            streamSizes[id] = StreamSizePayload(
-                                sizeText = sizeLabel(totalBytes)
-                            )
+                        val videoCandidates = formats.filter { format ->
+                            val streamUrl = format.url ?: return@filter false
+                            format.vcodec != null && format.vcodec != "none" &&
+                                streamUrl.isNotBlank() &&
+                                streamUrl.startsWith("https://", ignoreCase = true) &&
+                                !streamUrl.substringBefore('?').endsWith(".m3u8", ignoreCase = true) &&
+                                !streamUrl.substringBefore('?').endsWith(".mpd", ignoreCase = true) &&
+                                shortSide(format.width, format.height) > 0
                         }
+                        // Publish only real extracted formats, grouped by short-side resolution.
+                        videoCandidates.groupBy { videoResolutionId(shortSide(it.width, it.height)) }
+                            .filterKeys { it.isNotBlank() }
+                            .forEach { (id, candidates) ->
+                                val videoFormat = candidates.maxWithOrNull(
+                                    compareBy<com.yausername.youtubedl_android.mapper.VideoFormat>(
+                                        { if (it.fileSize > 0L || it.fileSizeApproximate > 0L) 1 else 0 },
+                                        { shortSide(it.width, it.height) }, { it.tbr }
+                                    )
+                                ) ?: return@forEach
+                                val short = shortSide(videoFormat.width, videoFormat.height)
+                                val videoBytes = formatBytes(
+                                    videoFormat.fileSize, videoFormat.fileSizeApproximate,
+                                    videoFormat.tbr.toDouble(), durationSec
+                                ).takeIf { it > 0L } ?: estimateBytesFromBitrateKbps(
+                                    videoFormat.tbr.takeIf { it > 0 }?.toDouble()
+                                        ?: fallbackVideoBitrateKbps(short), durationSec
+                                )
+                                val isVideoOnly = videoFormat.acodec == null || videoFormat.acodec == "none" || videoFormat.tbr <= 0
+                                val totalBytes = if (isVideoOnly) videoBytes + bestAudioBytes else videoBytes
+                                streamSizes[id] = StreamSizePayload(
+                                    sizeText = sizeLabel(totalBytes), sizeBytes = totalBytes, available = true,
+                                    height = videoFormat.height, shortSide = short,
+                                    resolution = videoResolutionLabel(short)
+                                )
+                            }
 
                         val payload = MediaInfoPayload(
                             ok = true,
@@ -1948,7 +1961,7 @@ class MainActivity : AppCompatActivity() {
                         runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, blocked.error) }
                         return@launch
                     }
-                    downloadDao.upsert(DownloadEntity(downloadId, title, url, if (isAudio) audioExt.uppercase(Locale.US) else "${maxHeight}p", "", "", if (isAudio) "audio" else "video", thumbnailUrl = thumbnailUrl))
+                    downloadDao.upsert(DownloadEntity(downloadId, title, url, if (isAudio) audioExt.uppercase(Locale.US) else "${maxHeight}p", "", "", if (isAudio) "audio" else "video", thumbnailUrl = thumbnailUrl, resolution = ""))
                     val resolvedThumbnailUrl = thumbnailUrl
 
                     // Show extraction as a separate phase; yt-dlp can spend several seconds
@@ -2133,6 +2146,7 @@ class MainActivity : AppCompatActivity() {
         ) {
             MediaScannerConnection.scanFile(applicationContext, arrayOf(file.absolutePath), null, null)
             val sizeStr = formatBytes(file.length())
+            val resolution = if (mediaType == "video") extractVideoResolution(file) else ""
 
             // Persist in Room database
             downloadDao.upsert(
@@ -2144,7 +2158,8 @@ class MainActivity : AppCompatActivity() {
                     filePath = file.absolutePath,
                     fileSize = sizeStr,
                     mediaType = mediaType,
-                    thumbnailUrl = thumbnailUrl
+                    thumbnailUrl = thumbnailUrl,
+                    resolution = resolution
                 )
             )
 
@@ -2154,7 +2169,9 @@ class MainActivity : AppCompatActivity() {
                 size = sizeStr,
                 filePath = file.absolutePath,
                 fileUri = Uri.fromFile(file).toString(),
-                thumbnailUrl = thumbnailUrl
+                thumbnailUrl = thumbnailUrl,
+                resolution = resolution,
+                format = file.extension.uppercase(Locale.US)
             )
             realDownloadSpecs.remove(downloadId)
             pauseRequestedDownloads.remove(downloadId)

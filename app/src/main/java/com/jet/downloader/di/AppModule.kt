@@ -19,6 +19,12 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE downloads ADD COLUMN resolution TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 val appModule = module {
     single {
         OkHttpClient.Builder()
@@ -43,7 +49,7 @@ val appModule = module {
             androidContext(),
             JetDatabase::class.java,
             "jet_downloads.db"
-        ).addMigrations(MIGRATION_1_2).fallbackToDestructiveMigration().build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).fallbackToDestructiveMigration().build()
     }
 
     single { get<JetDatabase>().downloadDao() }
