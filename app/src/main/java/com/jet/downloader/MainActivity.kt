@@ -335,12 +335,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Three-minute normalized-URL cache shared by silent prefetch and explicit Download.
-    private val streamInfoCache=LruCache<String,StreamInfo>(8)
+    // Ten-minute normalized-URL cache shared by Analyze/prefetch and native Download.
+    private val streamInfoCache=LruCache<String,StreamInfo>(12)
     private val streamInfoCacheAt=ConcurrentHashMap<String,Long>()
     private val streamInfoInFlight=ConcurrentHashMap<String,CompletableDeferred<StreamInfo>>()
     private val mediaInfoPrefetchJobs=ConcurrentHashMap<String,Job>()
-    private val streamInfoCacheTtlMs=3*60*1000L
+    private val streamInfoCacheTtlMs=10*60*1000L
 
     private fun normalizeMediaInfoUrl(rawUrl:String):String {
         return try {
@@ -1793,6 +1793,8 @@ class MainActivity : AppCompatActivity() {
                         val metadataRequest = YoutubeDLRequest(url).apply {
                             addOption("--dump-single-json")
                             addOption("--no-playlist")
+                            addOption("--no-check-certificates")
+                            addOption("--cache-dir", File(noBackupFilesDir, "yt-dlp-cache").apply { mkdirs() }.absolutePath)
                             addOption("--no-warnings")
                             applyYtDlpNetworkOptions(this)
                             // Let yt-dlp choose supported YouTube clients automatically.
@@ -1966,8 +1968,8 @@ class MainActivity : AppCompatActivity() {
 
                     // Show extraction as a separate phase; yt-dlp can spend several seconds
                     // resolving formats before it reports actual byte progress.
-                    callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Preparing / extracting streams…")}")
-                    runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, 0, "Preparing / extracting streams…", resolvedThumbnailUrl) }
+                    callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Preparing...")}, ${JSONObject.quote("PREPARING")}, 0")
+                    runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, 0, "Preparing...", resolvedThumbnailUrl) }
 
                     val newPipeFile = if (!isAudio) downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight) else null
                     if (newPipeFile != null) {
@@ -1987,6 +1989,8 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("-o", "${outDir.absolutePath}/%(title).80B [%(id)s].%(ext)s")
                     request.addOption("--no-mtime")
                     request.addOption("--no-playlist")
+                    request.addOption("--no-check-certificates")
+                    request.addOption("--cache-dir", File(noBackupFilesDir, "yt-dlp-cache").apply { mkdirs() }.absolutePath)
                     request.addOption("--ignore-config")
                     request.addOption("--continue")
                     applyYtDlpNetworkOptions(request)
@@ -2019,19 +2023,45 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val speedRegex = Regex("at\\s+([0-9.]+\\s*[KMG]i?B/s)")
+                    val downloadedBytesRegex = Regex("""^.*?([0-9]+(?:\.[0-9]+)?)\s*(B|KiB|MiB|GiB)\b""")
                     var lastReportedProgress = 0
+                    var lastBytesRead = 0L
+                    callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Connecting...")}, ${JSONObject.quote("CONNECTING")}, 0")
                     synchronized(ytDlpEngineLock) {
                         YoutubeDL.getInstance().execute(request, "jet_dl_$downloadId") { progress, etaInSeconds, line ->
-                        val reported = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else lastReportedProgress
-                        lastReportedProgress = maxOf(lastReportedProgress, reported)
-                        val pct = lastReportedProgress
-                        val speedMatch = speedRegex.find(line)?.groupValues?.getOrNull(1)
-                        val speedLabel = when {
-                            speedMatch != null -> "$speedMatch · ETA ${etaInSeconds}s"
-                            line.contains("Merging", ignoreCase = true) || line.contains("ExtractAudio", ignoreCase = true) -> "FFmpeg processing..."
-                            else -> "Downloading..."
-                        }
-                            callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}")
+                            val reported = if (progress >= 0f) progress.toInt().coerceIn(0, 99) else lastReportedProgress
+                            lastReportedProgress = maxOf(lastReportedProgress, reported)
+                            val downloadedText = line.substringBefore(" at ")
+                            val byteMatch = downloadedBytesRegex.find(downloadedText)
+                            if (byteMatch != null) {
+                                val value = byteMatch.groupValues[1].toDoubleOrNull() ?: 0.0
+                                val multiplier = when (byteMatch.groupValues[2]) {
+                                    "KiB" -> 1024.0
+                                    "MiB" -> 1024.0 * 1024.0
+                                    "GiB" -> 1024.0 * 1024.0 * 1024.0
+                                    else -> 1.0
+                                }
+                                lastBytesRead = maxOf(lastBytesRead, (value * multiplier).toLong())
+                            }
+                            val merging = line.contains("Merging", ignoreCase = true) || line.contains("ExtractAudio", ignoreCase = true)
+                            val stage = when {
+                                merging -> "MERGING"
+                                lastBytesRead > 0L -> "DOWNLOADING"
+                                else -> "CONNECTING"
+                            }
+                            val pct = when {
+                                stage == "MERGING" -> maxOf(lastReportedProgress, 99)
+                                lastBytesRead > 0L -> maxOf(1, lastReportedProgress)
+                                else -> 0
+                            }.coerceAtMost(99)
+                            val speedMatch = speedRegex.find(line)?.groupValues?.getOrNull(1)
+                            val speedLabel = when {
+                                merging -> "Merging..."
+                                lastBytesRead == 0L -> "Connecting..."
+                                speedMatch != null -> "$speedMatch · ETA ${etaInSeconds}s"
+                                else -> "Downloading..."
+                            }
+                            callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}, ${JSONObject.quote(stage)}, $lastBytesRead")
                             runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, pct, speedLabel, resolvedThumbnailUrl) }
                         }
                     }
@@ -2099,17 +2129,44 @@ class MainActivity : AppCompatActivity() {
                 check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
                 if (output.exists()) output.delete()
                 val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
-                val args = mutableListOf(ffmpeg.absolutePath, "-y", "-rw_timeout", "20000000", "-user_agent", userAgent, "-i", selected.url)
+                val args = mutableListOf(ffmpeg.absolutePath, "-y", "-hide_banner", "-rw_timeout", "20000000", "-user_agent", userAgent, "-i", selected.url)
                 if (audio != null) {
                     args += listOf("-rw_timeout", "20000000", "-user_agent", userAgent, "-i", audio.url, "-map", "0:v:0", "-map", "1:a:0")
                 } else {
                     args += listOf("-map", "0:v:0", "-map", "0:a?")
                 }
-                args += listOf("-c", "copy", "-movflags", "+faststart", output.absolutePath)
+                args += listOf("-c", "copy", "-movflags", "+faststart", "-progress", "pipe:1", "-nostats", output.absolutePath)
+                callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Connecting...")}, ${JSONObject.quote("CONNECTING")}, 0")
                 val process = ProcessBuilder(args).redirectErrorStream(true).start()
                 activeNewPipeProcesses[downloadId] = process
+                val durationMicros = info.duration.coerceAtLeast(0L) * 1_000_000L
+                var bytesRead = 0L
+                var outTimeMicros = 0L
+                var lastPercent = 0
                 process.inputStream.bufferedReader().useLines { lines ->
-                    lines.forEach { line -> Log.d("JET-NewPipe-FFmpeg", line.take(500)) }
+                    lines.forEach { line ->
+                        when {
+                            line.startsWith("total_size=") -> line.substringAfter('=').toLongOrNull()?.let { bytesRead = maxOf(bytesRead, it) }
+                            line.startsWith("out_time_ms=") -> line.substringAfter('=').toLongOrNull()?.let { outTimeMicros = maxOf(outTimeMicros, it) }
+                            line.startsWith("progress=") -> {
+                                val finished = line.substringAfter('=') == "end"
+                                val merging = audio != null && (finished || (durationMicros > 0L && outTimeMicros >= durationMicros * 90L / 100L))
+                                val stage = when { merging -> "MERGING"; bytesRead > 0L -> "DOWNLOADING"; else -> "CONNECTING" }
+                                val pct = when {
+                                    finished -> 99
+                                    bytesRead <= 0L -> 0
+                                    durationMicros > 0L -> (outTimeMicros * 100L / durationMicros).toInt().coerceIn(1, 99)
+                                    else -> maxOf(1, lastPercent)
+                                }
+                                lastPercent = maxOf(lastPercent, pct)
+                                val label = when (stage) { "MERGING" -> "Merging..."; "DOWNLOADING" -> "Downloading..."; else -> "Connecting..." }
+                                callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $lastPercent, ${JSONObject.quote(label)}, ${JSONObject.quote(stage)}, $bytesRead")
+                                val spec = realDownloadSpecs[downloadId]
+                                runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, spec?.title ?: "Download", lastPercent, label, spec?.thumbnailUrl.orEmpty()) }
+                            }
+                        }
+                        if (!line.startsWith("total_size=") && !line.startsWith("out_time_ms=") && !line.startsWith("progress=")) Log.d("JET-NewPipe-FFmpeg", line.take(500))
+                    }
                 }
                 val exitCode = process.waitFor()
                 activeNewPipeProcesses.remove(downloadId, process)

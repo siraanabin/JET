@@ -1423,18 +1423,57 @@
         const key=normalizeMediaInfoUrl(rawUrl),entry=mediaInfoPrefetchCache.get(key);
         if(entry&&entry.status==='inFlight')mediaInfoPrefetchCache.delete(key);
       };
-      window.onNativeDownloadProgress = function (id, progress, speedLabel) {
-        const item = state.activeDownloads.find((d) => d.id === id);
-        if (item) {
-          const nextProgress = Number.isFinite(Number(progress)) ? Number(progress) : item.progress || 0;
-          item.progress = Math.max(item.progress || 0, nextProgress);
-          item.status = item.progress <= 0 ? 'preparing' : 'downloading';
-          const preparingLabel = 'Preparing / extracting streams…';
-          item.speed = item.status === 'preparing'
-            ? (speedLabel && !/^downloading…?$/i.test(speedLabel.trim()) ? speedLabel : preparingLabel)
-            : (speedLabel || 'Downloading…');
+      function getPreByteProgress(elapsedMs) {
+        const elapsed = Math.max(0, Number(elapsedMs) || 0);
+        return Math.min(6, 6 * (1 - Math.exp(-elapsed / 2400)));
+      }
+      function tickPreByteProgress(item) {
+        if (!item || !['PREPARING', 'CONNECTING'].includes(item.stage) || Number(item.bytesRead) > 0) {
+          if (item) item.preByteRaf = 0;
+          return;
+        }
+        const now = Date.now();
+        if (!item.lastPreBytePaintAt || now - item.lastPreBytePaintAt >= 100) {
+          item.progress = getPreByteProgress(now - (item.stageStartedAt || now));
+          item.lastPreBytePaintAt = now;
           renderDownloads();
         }
+        item.preByteRaf = window.requestAnimationFrame(() => tickPreByteProgress(item));
+      }
+      window.onNativeDownloadProgress = function (id, progress, speedLabel, stage, bytesRead) {
+        const item = state.activeDownloads.find((d) => d.id === id);
+        if (!item) return;
+        const normalizedStage = String(stage || '').toUpperCase();
+        item.stage = ['PREPARING', 'CONNECTING', 'DOWNLOADING', 'MERGING'].includes(normalizedStage)
+          ? normalizedStage
+          : (Number(progress) > 0 ? 'DOWNLOADING' : 'PREPARING');
+        item.bytesRead = Math.max(0, Number(bytesRead) || 0);
+        const realPercent = Math.max(0, Math.min(100, Number(progress) || 0));
+        if ((item.stage === 'PREPARING' || item.stage === 'CONNECTING') && item.bytesRead === 0) {
+          item.status = 'preparing';
+          item.speed = item.stage === 'CONNECTING' ? 'Connecting...' : 'Preparing...';
+          if (!item.stageStartedAt) item.stageStartedAt = Date.now();
+          if (!item.preByteRaf) tickPreByteProgress(item);
+          else renderDownloads();
+          return;
+        }
+        if (item.preByteRaf) {
+          window.cancelAnimationFrame(item.preByteRaf);
+          item.preByteRaf = 0;
+        }
+        if (item.stage === 'MERGING') {
+          item.status = 'merging';
+          item.speed = 'Merging...';
+          item.progress = Math.max(item.progress || 0, Math.min(99, realPercent || 99));
+        } else if (item.stage === 'DOWNLOADING' && item.bytesRead > 0) {
+          item.status = 'downloading';
+          item.speed = speedLabel || 'Downloading...';
+          item.progress = realPercent > 6 ? realPercent : Math.max(6, realPercent, item.progress || 0);
+        } else {
+          item.status = 'preparing';
+          item.speed = speedLabel || 'Connecting...';
+        }
+        renderDownloads();
       };
 
       window.onNativeDownloadPaused = function (id) {
@@ -1748,8 +1787,11 @@
           resolution: selectedResolution,
           size: fmt.sizeText || 'Size N/A',
           progress: 0,
-          speed: 'Preparing / extracting streams…',
+          speed: 'Preparing...',
           status: 'preparing',
+          stage: 'PREPARING',
+          bytesRead: 0,
+          stageStartedAt: Date.now(),
           thumbnailUrl: state.fetchedThumbnail
         });
 
@@ -1770,6 +1812,7 @@
           id: downloadId, title: displayTitle,
           format: fmt.ext.toUpperCase(),
           size: fmt.sizeText || 'Size N/A', progress: 0, speed: 'Preparing retry…', status: 'preparing',
+          stage: 'PREPARING', bytesRead: 0, stageStartedAt: Date.now(),
           thumbnailUrl: state.fetchedThumbnail, resolution: selectedResolution, requestArgs
         };
         if (hasAndroid() && window.JetAndroid.startRealDownload) {
@@ -1899,7 +1942,7 @@
         if (resumeBtn) {
           const id = resumeBtn.dataset.dlResume, item = state.activeDownloads.find((d) => d.id === id);
           if (item && hasAndroid() && window.JetAndroid.resumeRealDownload) {
-            item.status = 'preparing'; item.speed = 'Resuming…'; window.JetAndroid.resumeRealDownload(id); renderDownloads();
+            item.status = 'preparing'; item.speed = 'Resuming…'; item.stage = 'PREPARING'; item.bytesRead = 0; item.stageStartedAt = Date.now(); window.JetAndroid.resumeRealDownload(id); renderDownloads();
           }
           return;
         }
@@ -1907,7 +1950,9 @@
         if (retryBtn) {
           const id = retryBtn.dataset.dlRetry, item = state.activeDownloads.find((d) => d.id === id);
           if (item && hasAndroid() && window.JetAndroid.retryRealDownload) {
-            item.status = 'preparing'; item.progress = 0; item.speed = 'Retrying…'; window.JetAndroid.retryRealDownload(id); renderDownloads();
+            if (item.preByteRaf) window.cancelAnimationFrame(item.preByteRaf);
+            item.status = 'preparing'; item.progress = 0; item.speed = 'Retrying…'; item.stage = 'PREPARING'; item.bytesRead = 0; item.stageStartedAt = Date.now(); item.preByteRaf = 0;
+            window.JetAndroid.retryRealDownload(id); renderDownloads();
           }
           return;
         }
