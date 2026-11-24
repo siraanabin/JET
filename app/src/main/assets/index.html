@@ -2147,6 +2147,7 @@
 
       $('update-engine-btn').addEventListener('click', () => {
         if (hasAndroid() && window.JetAndroid.updateYtDlpEngine) {
+          window.__jetEngineUpdateSource = 'settings';
           showToast('Updating fallback engine...');
           window.JetAndroid.updateYtDlpEngine();
         }
@@ -2424,6 +2425,7 @@
       const update = document.getElementById('engine-update-now');
       const status = document.getElementById('engine-update-status');
       const message = document.getElementById('engine-update-message');
+      const notifySettingsEngineUpdate = window.onNativeEngineUpdated;
 
       function closeModal() { modal.classList.add('hidden'); }
 
@@ -2444,6 +2446,7 @@
           status.classList.remove('hidden');
           return;
         }
+        window.__jetEngineUpdateSource = 'modal';
         update.disabled = true;
         update.textContent = 'Updating...';
         status.textContent = 'Downloading and installing the latest engine...';
@@ -2454,6 +2457,11 @@
       window.onNativeEngineUpdated = function (result) {
         if (typeof result === 'string') {
           try { result = JSON.parse(result); } catch (_) { result = { ok: false, error: result }; }
+        }
+        const updateSource = window.__jetEngineUpdateSource || 'settings';
+        window.__jetEngineUpdateSource = '';
+        if (updateSource === 'settings' && typeof notifySettingsEngineUpdate === 'function') {
+          notifySettingsEngineUpdate(result);
         }
         if (result && result.ok) {
           status.textContent = 'Engine updated successfully (' + (result.version || 'latest') + ').';

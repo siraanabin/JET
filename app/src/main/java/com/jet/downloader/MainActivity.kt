@@ -103,6 +103,7 @@ import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 private data class RealDownloadSpec(
     val id: String, val url: String, val title: String, val isAudio: Boolean,
@@ -179,6 +180,12 @@ class MainActivity : AppCompatActivity() {
     private var ytDlpReady: Boolean = false
     // Serializes yt-dlp initialization, extraction, downloads and updates.
     private val ytDlpEngineLock = Any()
+    private val engineUpdateInFlight = AtomicBoolean(false)
+    private val engineUpdatePreferences by lazy {
+        getSharedPreferences("jet_engine_update", Context.MODE_PRIVATE)
+    }
+    private val engineUpdateCooldownMs = 24L * 60L * 60L * 1000L
+    private val engineUpdateTimestampKey = "last_engine_update_check_ms"
 
     private fun ensureYtDlpInitialized() {
         synchronized(ytDlpEngineLock) {
@@ -484,6 +491,7 @@ class MainActivity : AppCompatActivity() {
         val html = assets.open("index.html").bufferedReader().use { it.readText() }
         val bootstrap = "<script>(function(){var m=" + JSONObject.quote(initialThemeMode) + ";var d=m==='dark'||(m==='system'&&" + isSystemDarkMode().toString() + ");document.documentElement.classList.toggle('dark',d);document.documentElement.style.backgroundColor=d?'#080B12':'#F4F6FB';try{localStorage.setItem('jet-theme-mode',m)}catch(e){}})();</script>"
         webView.loadDataWithBaseURL("file:///android_asset/", html.replaceFirst("<head>", "<head>$bootstrap"), "text/html", "UTF-8", null)
+        scheduleSilentEngineAutoUpdate()
         registerMediaStoreObserver()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -687,8 +695,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializeFallbackEngine() {
-        // Initialization is asynchronous. Do not run a binary update here:
-        // the updater shares yt-dlp's process lock and could stall a newly queued download.
+        // Initialize the bundled engine without doing network work on the startup path.
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 ensureYtDlpInitialized()
@@ -699,6 +706,91 @@ class MainActivity : AppCompatActivity() {
                 Log.e("JET", "yt-dlp initialization failed; download fallback will retry on demand", error)
                 ytDlpReady = false
             }
+        }
+    }
+
+    private fun scheduleSilentEngineAutoUpdate() {
+        // Wait until the intro and initial WebView work have had time to finish.
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    runSilentEngineAutoUpdateIfDue()
+                }
+            }
+        }, 4_000L)
+    }
+
+    private suspend fun runSilentEngineAutoUpdateIfDue() = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val lastCheck = engineUpdatePreferences.getLong(engineUpdateTimestampKey, 0L)
+        if (lastCheck > 0L && now - lastCheck < engineUpdateCooldownMs) return@withContext
+
+        // If a manual or automatic update is already active, leave this attempt unclaimed.
+        if (!engineUpdateInFlight.compareAndSet(false, true)) return@withContext
+        try {
+            // Persist at start so offline/failing attempts are still throttled for 24 hours.
+            engineUpdatePreferences.edit().putLong(engineUpdateTimestampKey, now).commit()
+            runEngineUpdateBlocking()
+            // Intentionally discard the result: automatic updates never notify the WebView.
+        } catch (_: Exception) {
+            // Silent by design. The next automatic attempt is after the cooldown.
+        } finally {
+            engineUpdateInFlight.set(false)
+        }
+    }
+
+    private fun runEngineUpdateBlocking(): JSONObject {
+        return try {
+            val result = synchronized(ytDlpEngineLock) {
+                ensureYtDlpInitialized()
+                val status = YoutubeDL.getInstance().updateYoutubeDL(
+                    applicationContext,
+                    YoutubeDL.UpdateChannel.NIGHTLY
+                )
+                val version = YoutubeDL.getInstance().version(applicationContext) ?: "Latest"
+                (status?.name ?: "DONE") to version
+            }
+            JSONObject().apply {
+                put("ok", true)
+                put("status", result.first)
+                put("version", result.second)
+            }
+        } catch (error: Exception) {
+            val installedVersion = runCatching {
+                YoutubeDL.getInstance().version(applicationContext)
+            }.getOrNull()
+            val engineStillUsable = ytDlpReady && !installedVersion.isNullOrBlank()
+            JSONObject().apply {
+                put("ok", false)
+                put("recoverable", engineStillUsable)
+                if (engineStillUsable) put("version", installedVersion)
+                put(
+                    "error",
+                    if (engineStillUsable) {
+                        "Engine update failed; keeping the installed engine. " + (error.message ?: "")
+                    } else {
+                        error.message ?: "Engine update failed"
+                    }
+                )
+            }
+        }
+    }
+
+    private suspend fun runManualEngineUpdate() = withContext(Dispatchers.IO) {
+        // Manual requests queue behind an automatic/manual run instead of racing it.
+        while (!engineUpdateInFlight.compareAndSet(false, true)) {
+            kotlinx.coroutines.delay(100L)
+        }
+        try {
+            engineUpdatePreferences.edit()
+                .putLong(engineUpdateTimestampKey, System.currentTimeMillis())
+                .commit()
+            val result = runEngineUpdateBlocking()
+            withContext(Dispatchers.Main) {
+                callJs("onNativeEngineUpdated", result.toString())
+            }
+        } finally {
+            engineUpdateInFlight.set(false)
         }
     }
 
@@ -2226,42 +2318,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun updateYtDlpEngine() {
             lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val status = synchronized(ytDlpEngineLock) {
-                        ensureYtDlpInitialized()
-                        YoutubeDL.getInstance().updateYoutubeDL(
-                            applicationContext,
-                            YoutubeDL.UpdateChannel.NIGHTLY
-                        )
-                    }
-                    val version = YoutubeDL.getInstance().version(applicationContext) ?: "Latest"
-                    val result = JSONObject().apply {
-                        put("ok", true)
-                        put("status", status?.name ?: "DONE")
-                        put("version", version)
-                    }
-                    callJs("onNativeEngineUpdated", result.toString())
-                } catch (e: Exception) {
-                    // A failed update must not disable an already-installed, usable engine.
-                    val installedVersion = runCatching {
-                        YoutubeDL.getInstance().version(applicationContext)
-                    }.getOrNull()
-                    val engineStillUsable = ytDlpReady && !installedVersion.isNullOrBlank()
-                    val result = JSONObject().apply {
-                        put("ok", false)
-                        put("recoverable", engineStillUsable)
-                        if (engineStillUsable) put("version", installedVersion)
-                        put(
-                            "error",
-                            if (engineStillUsable) {
-                                "Engine update failed; keeping the installed engine. " + (e.message ?: "")
-                            } else {
-                                e.message ?: "Engine update failed"
-                            }
-                        )
-                    }
-                    callJs("onNativeEngineUpdated", result.toString())
-                }
+                runManualEngineUpdate()
             }
         }
 
