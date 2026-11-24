@@ -2451,15 +2451,19 @@ class MainActivity : AppCompatActivity() {
                     request.addOption("--ignore-config")
                     request.addOption("--continue")
                     applyYtDlpNetworkOptions(request)
+                    request.addOption("-N", "8")
                     if (downloadPrefs.speedLimitKbps > 0) {
                         request.addOption("--limit-rate", downloadPrefs.speedLimitKbps.toString() + "K")
                     }
                     // Thumbnail metadata is carried over from the media-info request.
 
                     if (isAudio) {
-                        request.addOption("-x")
-                        request.addOption("--audio-format", audioExt.lowercase(Locale.US))
-                        request.addOption("--audio-quality", audioBitrate)
+                        request.addOption("-f", "bestaudio[ext=m4a]/bestaudio")
+                        if (audioExt.equals("mp3", ignoreCase = true)) {
+                            request.addOption("--extract-audio")
+                            request.addOption("--audio-format", "mp3")
+                            request.addOption("--audio-quality", audioBitrate)
+                        }
                     } else {
                         // Resolve only the selected itag or exact requested height.
                         // youtubedl-android injects its bundled

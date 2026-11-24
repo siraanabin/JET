@@ -1,8 +1,9 @@
 {
-  "versionCode": 412,
-  "versionName": "3.9.22",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.22/JET-debug.apk",
+  "versionCode": 413,
+  "versionName": "3.9.23",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.9.23/JET-debug.apk",
   "changelog": [
+    "Updated yt-dlp fallback to use 8 concurrent fragments and save M4A directly while converting to MP3 only when requested",
     "Added MP3 FFmpeg init, preparation, execution, output verification and progress-speed telemetry diagnostics",
     "Enabled the 8-connection custom audio-only engine, direct M4A saving, local FFmpeg MP3 conversion, and separate download/convert/mux telemetry",
     "Fixed custom FFmpeg runtime library search path and preserved full FFmpeg stderr diagnostics",
