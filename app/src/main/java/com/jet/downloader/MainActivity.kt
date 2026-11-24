@@ -1035,8 +1035,19 @@ class MainActivity : AppCompatActivity() {
         return try {
             retriever.setDataSource(file.absolutePath)
             val picture = retriever.embeddedPicture ?: return ""
-            val mime = if (picture.size > 3 && picture[0] == 0x89.toByte() && picture[1] == 0x50.toByte()) "image/png" else "image/jpeg"
-            val data = "data:$mime;base64," + Base64.encodeToString(picture, Base64.NO_WRAP)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(picture, 0, picture.size, bounds)
+            var sample = 1
+            while (bounds.outWidth / sample > 512 || bounds.outHeight / sample > 512) sample *= 2
+            val decoded = BitmapFactory.decodeByteArray(picture, 0, picture.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return ""
+            val scaled = if (decoded.width > 320 || decoded.height > 320) {
+                val ratio = minOf(320f / decoded.width, 320f / decoded.height)
+                Bitmap.createScaledBitmap(decoded, (decoded.width * ratio).toInt().coerceAtLeast(1), (decoded.height * ratio).toInt().coerceAtLeast(1), true).also { if (it !== decoded) decoded.recycle() }
+            } else decoded
+            val output = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 82, output)
+            if (!scaled.isRecycled) scaled.recycle()
+            val data = "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
             runCatching { cached.writeText(data) }
             data
         } catch (error: Exception) {
