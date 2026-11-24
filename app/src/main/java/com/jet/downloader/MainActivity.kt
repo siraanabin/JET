@@ -2298,7 +2298,7 @@ class MainActivity : AppCompatActivity() {
                                 videoDownloadedBytes.set(bytes); videoTotalBytes.set(total); emitTransferProgress()
                             }
                         }
-                        val audioJob = if (audio != null) kotlinx.coroutines.async(Dispatchers.IO) {
+                        val audioJob = if (audio != null) async(Dispatchers.IO) {
                             downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: throw IllegalStateException("Audio stream URL is missing"), audioPart) { bytes, total ->
                                 audioDownloadedBytes.set(bytes); audioTotalBytes.set(total); emitTransferProgress()
                             }
