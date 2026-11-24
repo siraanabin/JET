@@ -7,6 +7,7 @@ import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 const val DEFAULT_MAX_CONNECTIONS = 8
 const val CHUNK_SIZE_BYTES = 5L * 1024L * 1024L
