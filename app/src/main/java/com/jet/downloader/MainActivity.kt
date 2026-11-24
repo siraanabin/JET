@@ -112,6 +112,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -2719,6 +2720,7 @@ class MainActivity : AppCompatActivity() {
                 channel.force(false)
             } finally {
                 executor.shutdownNow()
+                runCatching { executor.awaitTermination(5L, TimeUnit.SECONDS) }
             }
         }
 
