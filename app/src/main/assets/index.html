@@ -1439,7 +1439,7 @@
         const key=normalizeMediaInfoUrl(rawUrl),entry=mediaInfoPrefetchCache.get(key);
         if(entry&&entry.status==='inFlight')mediaInfoPrefetchCache.delete(key);
       };
-      const clampDownloadPercent = (percent) => Math.min(100, Math.max(0, Math.floor(Number(percent) || 0));
+      const clampDownloadPercent = (percent) => Math.min(100, Math.max(0, Math.floor(Number(percent) || 0)));
       const isPreByteDownload = (item) => ['PREPARING', 'CONNECTING'].includes(String(item.stage || '').toUpperCase()) && Number(item.bytesRead) <= 0;
       const shownDownloadPercent = (item) => isPreByteDownload(item) ? 0 : clampDownloadPercent(item.progress);
       const downloadBarWidth = (item) => isPreByteDownload(item) ? 8 : shownDownloadPercent(item);

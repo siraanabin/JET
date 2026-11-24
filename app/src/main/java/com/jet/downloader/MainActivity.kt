@@ -2073,7 +2073,7 @@ class MainActivity : AppCompatActivity() {
 
                     // Show extraction as a separate phase; yt-dlp can spend several seconds
                     // resolving formats before it reports actual byte progress.
-                    callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Preparing...")}, ${JSONObject.quote("PREPARING")}, 0")
+                    callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Preparing...")}, ${JSONObject.quote("PREPARING")}, 0, 0, 0, 0, -1")
                     runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, 0, "Preparing...", resolvedThumbnailUrl) }
 
                     val newPipeFile = if (!isAudio) downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight) else null
@@ -2177,7 +2177,7 @@ class MainActivity : AppCompatActivity() {
                                 lastBytesRead > 0L -> maxOf(1, lastReportedProgress)
                                 else -> 0
                             }.coerceAtMost(99)
-                            val speedLabel = when { merging -> "Merging..."; lastBytesRead == 0L -> "Connecting..."; speedMatch != null -> speedMatch; else -> "Downloading..." }
+                            val speedLabel = when { merging -> "Merging..."; lastBytesRead == 0L -> "Connecting..."; speedText != null -> speedText; else -> "Downloading..." }
                             val etaSeconds = if (lastTotalBytes > lastBytesRead && smoothedSpeedBps > 0.0) ((lastTotalBytes - lastBytesRead) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else etaInSeconds.toLong().coerceAtLeast(-1L)
                             callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, $pct, ${JSONObject.quote(speedLabel)}, ${JSONObject.quote(stage)}, $lastBytesRead, $lastBytesRead, $lastTotalBytes, ${smoothedSpeedBps.toLong().coerceAtLeast(0L)}, $etaSeconds)
                             runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, pct, speedLabel, resolvedThumbnailUrl) }
@@ -2277,12 +2277,12 @@ class MainActivity : AppCompatActivity() {
                     val etaSeconds = if (totalBytes > downloadedBytes && smoothedSpeedBps > 0.0) ((totalBytes - downloadedBytes) / smoothedSpeedBps).toLong().coerceAtLeast(0L) else -1L
                     callJs("onNativeDownloadProgress", JSONObject.quote(downloadId) + ", " + lastTransferPercent + ", " + JSONObject.quote(label) + ", " + JSONObject.quote(stage) + ", " + downloadedBytes + ", " + downloadedBytes + ", " + totalBytes + ", " + smoothedSpeedBps.toLong().coerceAtLeast(0L) + ", " + etaSeconds)
                 }
-                downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart, false) { bytes, total ->
+                downloadGoogleVideoToPart(downloadId, info.id, selected.getItag(), selectedUrl, videoPart) { bytes, total ->
                     videoDownloadedBytes = bytes
                     videoTotalBytes = total
                     emitTransferProgress("Downloading...", "DOWNLOADING")
                 }
-                if (audio != null) downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: return null, audioPart, true) { bytes, total ->
+                if (audio != null) downloadGoogleVideoToPart(downloadId, info.id, audio.getItag(), audioUrl ?: return null, audioPart) { bytes, total ->
                     audioDownloadedBytes = bytes
                     audioTotalBytes = total
                     emitTransferProgress("Downloading...", "DOWNLOADING")
@@ -2339,7 +2339,7 @@ class MainActivity : AppCompatActivity() {
 
         private fun downloadGoogleVideoToPart(
             downloadId: String, videoId: String, itag: Int, streamUrl: String, target: File,
-            isAudioStream: Boolean, onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit
+            onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit
         ) {
             val host = Uri.parse(streamUrl).host?.lowercase(Locale.ROOT).orEmpty()
             check(host == "googlevideo.com" || host.endsWith(".googlevideo.com")) { "Unexpected media stream host" }
