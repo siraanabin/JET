@@ -18,7 +18,7 @@
     "Made swipe-seek HUD transparent and softened the dark-mode URL input border",
     "Added draggable fast scrolling to Library and Downloads",
     "Preserved rotating track artwork during music playback",
-    "Restored crisp URL borders and removed video overlay scrims and text shadows",
+    "Restored high-contrast URL borders and transparent video overlays",
     "Added asynchronous latest-file thumbnail hydration and stopped music when video playback starts"
   ]
 }
