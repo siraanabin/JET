@@ -2438,25 +2438,49 @@ class MainActivity : AppCompatActivity() {
 
                 val selectedUrl = selected.url ?: return null
                 val audioUrl = if (audio != null) audio.url ?: return null else null
-                val videoTotalBytes = resolveExactStreamContentLength(selectedUrl)
-                check(videoTotalBytes > 0L) { "Could not resolve the exact video Content-Length" }
-                val audioTotalBytes = if (audio != null) resolveExactStreamContentLength(audioUrl) else 0L
-                if (audio != null) check(audioTotalBytes > 0L) {
-                    "Could not resolve the exact audio Content-Length"
+                var videoTotalBytes = resolveExactStreamContentLength(selectedUrl)
+                var audioTotalBytes = if (audio != null) resolveExactStreamContentLength(audioUrl) else 0L
+                var totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
+
+                fun supportsRanges(streamUrl: String): Boolean {
+                    return runCatching {
+                        val probe = Request.Builder().url(streamUrl).get()
+                            .header("Range", "bytes=0-0")
+                            .header("Accept-Encoding", "identity")
+                            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                            .build()
+                        JetOkHttpDownloader.withRangeRequestPermit {
+                            okHttpClient.newCall(probe).execute().use { response ->
+                                if (response.code != 206) false
+                                else {
+                                    val rangeTotal = response.header("Content-Range")
+                                        ?.substringAfterLast("/")?.toLongOrNull() ?: 0L
+                                    if (rangeTotal > 0L) {
+                                        if (streamUrl == selectedUrl) videoTotalBytes = rangeTotal
+                                        else audioTotalBytes = rangeTotal
+                                        true
+                                    } else false
+                                }
+                            }
+                        }
+                    }.getOrDefault(false)
                 }
-                val totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
-                check(totalBytes > 0L) { "Combined stream size is invalid" }
+                val rangeSupported = videoTotalBytes > 0L && supportsRanges(selectedUrl) &&
+                    (audio == null || (audioTotalBytes > 0L && supportsRanges(audioUrl!!)))
+                if (rangeSupported) {
+                    totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
+                }
 
                 val totalDownloadedBytes = AtomicLong(0L)
                 videoPart.parentFile?.mkdirs()
                 val videoAccess = RandomAccessFile(videoPart, "rw")
                 var audioAccess: RandomAccessFile? = null
                 try {
-                    // Allocate both exact-size output files before starting any range worker.
-                    videoAccess.setLength(videoTotalBytes)
+                    // Preallocate only when the server has confirmed byte-range support.
+                    if (rangeSupported) videoAccess.setLength(videoTotalBytes)
                     if (audio != null) {
                         audioAccess = RandomAccessFile(audioPart, "rw")
-                        audioAccess!!.setLength(audioTotalBytes)
+                        if (rangeSupported) audioAccess!!.setLength(audioTotalBytes)
                     }
 
                     val progressLock = Any()
@@ -2469,7 +2493,7 @@ class MainActivity : AppCompatActivity() {
                     fun emitTransferProgress() {
                         synchronized(progressLock) {
                             val now = SystemClock.elapsedRealtime()
-                            val currentBytes = totalDownloadedBytes.get().coerceIn(0L, totalBytes)
+                            val currentBytes = totalDownloadedBytes.get().coerceIn(0L, totalBytes.coerceAtLeast(0L))
                             val deltaBytes = (currentBytes - lastTickBytes).coerceAtLeast(0L)
                             val deltaMs = (now - lastTickTimeMs).coerceAtLeast(1L)
                             if (deltaBytes > 0L) {
@@ -2501,7 +2525,7 @@ class MainActivity : AppCompatActivity() {
                                 etaSeconds < 60L -> etaSeconds.toString() + "s"
                                 else -> (etaSeconds / 60L).toString() + "m " + (etaSeconds % 60L).toString() + "s"
                             }
-                            val rawPercent = (currentBytes.toDouble() / totalBytes.toDouble() * 100.0).toInt().coerceIn(0, 100)
+                            val rawPercent = if (totalBytes > 0L) (currentBytes.toDouble() / totalBytes.toDouble() * 100.0).toInt().coerceIn(0, 100) else 0
                             lastTransferPercent = maxOf(lastTransferPercent, rawPercent)
                             val args = listOf(
                                 JSONObject.quote(downloadId), lastTransferPercent.toString(),
@@ -2530,13 +2554,29 @@ class MainActivity : AppCompatActivity() {
                         ticker.scheduleAtFixedRate(
                             { runCatching { emitTransferProgress() } }, 0L, 500L, TimeUnit.MILLISECONDS
                         )
-                        runBlocking(Dispatchers.IO) {
-                            downloadSharedGoogleVideoParts(
-                                downloadId, info.id, selected.getItag(), selectedUrl,
-                                videoPart, videoTotalBytes, videoAccess.channel,
-                                audio?.getItag() ?: -1, audioUrl, audioPart, audioTotalBytes,
-                                audioAccess?.channel, totalDownloadedBytes
-                            )
+                        if (rangeSupported) {
+                            try {
+                                runBlocking(Dispatchers.IO) {
+                                    downloadSharedGoogleVideoParts(
+                                        downloadId, info.id, selected.getItag(), selectedUrl,
+                                        videoPart, videoTotalBytes, videoAccess.channel,
+                                        audio?.getItag() ?: -1, audioUrl, audioPart, audioTotalBytes,
+                                        audioAccess?.channel, totalDownloadedBytes
+                                    )
+                                }
+                            } catch (rangeError: RangeUnsupportedException) {
+                                File(cacheDir, "jet-" + downloadId + ".chunks.ckpt").delete()
+                                totalDownloadedBytes.set(0L)
+                                videoAccess.close()
+                                audioAccess?.close()
+                                videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId)
+                                audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId) else 0L
+                                totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
+                            }
+                        } else {
+                            videoTotalBytes = downloadSequentialStream(selectedUrl, videoPart, downloadId)
+                            audioTotalBytes = if (audioUrl != null) downloadSequentialStream(audioUrl, audioPart, downloadId) else 0L
+                            totalBytes = Math.addExact(videoTotalBytes, audioTotalBytes)
                         }
                         emitTransferProgress()
                     } finally {
@@ -2652,6 +2692,42 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        private class RangeUnsupportedException(message: String) : IOException(message)
+
+        private fun downloadSequentialStream(streamUrl: String, target: File, downloadId: String): Long {
+            val request = Request.Builder().url(streamUrl).get()
+                .header("Accept-Encoding", "identity")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
+                .header("Origin", "https://www.youtube.com")
+                .header("Referer", "https://www.youtube.com/")
+                .build()
+            return JetOkHttpDownloader.withRangeRequestPermit {
+                okHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) throw IOException("Sequential stream failed with HTTP " + response.code)
+                    val input = response.body?.byteStream() ?: throw IOException("Sequential stream body is empty")
+                    var countTotal = 0L
+                    target.parentFile?.mkdirs()
+                    input.use {
+                        FileOutputStream(target, false).use { output ->
+                            val buffer = ByteArray(DISK_BUFFER_BYTES)
+                            while (true) {
+                                if (pauseRequestedDownloads.contains(downloadId) || !realDownloadSpecs.containsKey(downloadId)) {
+                                    throw CancellationException("Download paused or cancelled")
+                                }
+                                val count = it.read(buffer)
+                                if (count < 0) break
+                                if (count == 0) continue
+                                output.write(buffer, 0, count)
+                                countTotal += count.toLong()
+                            }
+                            output.fd.sync()
+                        }
+                    }
+                    countTotal
+                }
+            }.also { downloaded.addAndGet(it) }
+        }
+
         private fun downloadSharedGoogleVideoParts(
             downloadId: String, videoId: String, videoItag: Int, videoUrl: String,
             videoFile: File, videoSize: Long, videoChannel: FileChannel,
@@ -2744,7 +2820,7 @@ class MainActivity : AppCompatActivity() {
                                     stepDown()
                                     throw IOException("HTTP " + response.code + " throttled media request")
                                 }
-                                if (response.code != 206) throw IOException("Range unsupported: HTTP " + response.code)
+                                if (response.code != 206) throw RangeUnsupportedException("Range unsupported: HTTP " + response.code)
                                 val range = Regex("^bytes (\\d+)-(\\d+)/(\\d+)$")
                                     .matchEntire(response.header("Content-Range").orEmpty())
                                     ?: throw IOException("Invalid Content-Range")
