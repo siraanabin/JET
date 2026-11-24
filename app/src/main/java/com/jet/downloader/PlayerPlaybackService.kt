@@ -1,13 +1,19 @@
 package com.jet.downloader
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
@@ -28,6 +34,10 @@ class PlayerPlaybackService : MediaSessionService() {
         const val ACTION_SET_QUEUE = "com.jet.downloader.action.SET_MUSIC_QUEUE"
         const val ACTION_SLEEP_TIMER = "com.jet.downloader.action.MUSIC_SLEEP_TIMER"
         const val ACTION_STOP_FOR_VIDEO = "com.jet.downloader.action.STOP_MUSIC_FOR_VIDEO"
+        const val ACTION_TOGGLE_PLAYBACK = "com.jet.downloader.action.TOGGLE_BACKGROUND_PLAYBACK"
+        const val ACTION_STOP_PLAYBACK = "com.jet.downloader.action.STOP_BACKGROUND_PLAYBACK"
+        private const val NOTIFICATION_CHANNEL_ID = "jet_bg_playback"
+        private const val NOTIFICATION_ID = 3912
         const val EXTRA_START_POSITION = "background_audio_start_position_ms"
         const val EXTRA_PLAY_WHEN_READY = "background_audio_play_when_ready"
 
@@ -65,6 +75,8 @@ class PlayerPlaybackService : MediaSessionService() {
     private var backgroundVideoMode = false
     private var session: MediaSession? = null
     private var initializationFailed = false
+    private var activeVideoFile: File? = null
+    private var activeVideoTitle: String = ""
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
@@ -86,6 +98,7 @@ class PlayerPlaybackService : MediaSessionService() {
     private val playbackListener = object : androidx.media3.common.Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             persistCurrentPosition()
+            updateMediaNotification()
         }
 
         override fun onPositionDiscontinuity(
@@ -110,6 +123,8 @@ class PlayerPlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        ensureNotificationChannel()
+        startAsForeground()
         try {
             val exo = ExoPlayer.Builder(this).build().apply { setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA).setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC).build(), false) }
             player = exo
@@ -128,6 +143,8 @@ class PlayerPlaybackService : MediaSessionService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureNotificationChannel()
+        startAsForeground()
         try {
             if (initializationFailed || player == null || session == null) {
                 stopSelf(startId)
@@ -136,6 +153,8 @@ class PlayerPlaybackService : MediaSessionService() {
 
             when (intent?.action) {
                 ACTION_STOP_FOR_VIDEO -> stopPlaybackForVideoHandoff()
+                ACTION_TOGGLE_PLAYBACK -> toggleBackgroundPlayback()
+                ACTION_STOP_PLAYBACK -> stopBackgroundPlayback(startId)
                 ACTION_SLEEP_TIMER -> {
                     timerHandler.removeCallbacks(sleepTimer)
                     val minutes = intent.getIntExtra(EXTRA_SLEEP_TIMER_MINUTES, 0).coerceIn(0, 240)
@@ -164,8 +183,11 @@ class PlayerPlaybackService : MediaSessionService() {
                             val startPosition = intent.getLongExtra(EXTRA_START_POSITION, 0L).coerceAtLeast(0L)
                             val playWhenReady = intent.getBooleanExtra(EXTRA_PLAY_WHEN_READY, true)
                             backgroundVideoMode = true
+                            activeVideoFile = file
+                            activeVideoTitle = title
                             requestMusicAudioFocus()
                             setVideoSessionActivity(file, title)
+                            updateMediaNotification()
                             exo.setMediaItem(mediaItem)
                             exo.seekTo(startPosition)
                             exo.playWhenReady = playWhenReady
@@ -175,6 +197,7 @@ class PlayerPlaybackService : MediaSessionService() {
                             )
                             timerHandler.removeCallbacks(positionTicker)
                             timerHandler.post(positionTicker)
+                            updateMediaNotification()
                         }
                     }
                 }
@@ -193,6 +216,8 @@ class PlayerPlaybackService : MediaSessionService() {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(VideoPlayerActivity.EXTRA_FILE_PATH, file.absolutePath)
             putExtra(VideoPlayerActivity.EXTRA_TITLE, title)
+            putExtra(EXTRA_START_POSITION, player?.currentPosition?.coerceAtLeast(0L) ?: 0L)
+            putExtra(EXTRA_PLAY_WHEN_READY, player?.playWhenReady ?: true)
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -201,6 +226,132 @@ class PlayerPlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         session?.setSessionActivity(pendingIntent)
+    }
+
+
+    private fun ensureNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
+            if (manager.getNotificationChannel(NOTIFICATION_CHANNEL_ID) == null) {
+                val channel = NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    "Background playback",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { setShowBadge(false) }
+                manager.createNotificationChannel(channel)
+            }
+        }
+    }
+
+    private fun startAsForeground() {
+        val notification = buildMediaNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun buildMediaNotification(): Notification {
+        val exo = player
+        val title = activeVideoTitle.ifBlank {
+            exo?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() } ?: "JET Background Play"
+        }
+        val isPlaying = exo?.playWhenReady == true
+        val contentIntent = activeVideoFile?.let { file ->
+            val openVideo = Intent(this, VideoPlayerActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(VideoPlayerActivity.EXTRA_FILE_PATH, file.absolutePath)
+                putExtra(VideoPlayerActivity.EXTRA_TITLE, title)
+                putExtra(EXTRA_START_POSITION, exo?.currentPosition?.coerceAtLeast(0L) ?: 0L)
+                putExtra(EXTRA_PLAY_WHEN_READY, isPlaying)
+            }
+            PendingIntent.getActivity(
+                this,
+                file.absolutePath.hashCode(),
+                openVideo,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        } ?: PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val toggleIntent = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, PlayerPlaybackService::class.java).setAction(ACTION_TOGGLE_PLAYBACK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val stopIntent = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, PlayerPlaybackService::class.java).setAction(ACTION_STOP_PLAYBACK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setContentText(
+                if (backgroundVideoMode) {
+                    if (isPlaying) "Playing in background" else "Paused"
+                } else {
+                    "Media playback"
+                }
+            )
+            .setContentIntent(contentIntent)
+            .setOngoing(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(
+                if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                if (isPlaying) "Pause" else "Play",
+                toggleIntent
+            )
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                if (backgroundVideoMode) "Stop" else "Close",
+                stopIntent
+            )
+            .build()
+    }
+
+    private fun updateMediaNotification() {
+        if (backgroundVideoMode) {
+            runCatching {
+                getSystemService(NotificationManager::class.java)
+                    .notify(NOTIFICATION_ID, buildMediaNotification())
+            }.onFailure { Log.w("JET-MusicService", "Could not refresh playback notification", it) }
+        }
+    }
+
+    private fun toggleBackgroundPlayback() {
+        val exo = player ?: return
+        if (exo.playWhenReady) exo.pause() else exo.play()
+        persistCurrentPosition()
+        updateMediaNotification()
+    }
+
+    private fun stopBackgroundPlayback(startId: Int) {
+        timerHandler.removeCallbacksAndMessages(null)
+        persistCurrentPosition()
+        runCatching { player?.pause() }
+        runCatching { player?.stop() }
+        runCatching { player?.clearMediaItems() }
+        backgroundVideoMode = false
+        activeVideoFile = null
+        activeVideoTitle = ""
+        PlaybackStateTracker.clearActive(this)
+        abandonMusicAudioFocus()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf(startId)
     }
 
     private fun persistCurrentPosition() {
@@ -223,6 +374,8 @@ class PlayerPlaybackService : MediaSessionService() {
         runCatching { player?.stop() }
         runCatching { player?.clearMediaItems() }
         backgroundVideoMode = false
+        activeVideoFile = null
+        activeVideoTitle = ""
         PlaybackStateTracker.clearActive(this)
         abandonMusicAudioFocus()
         stopForeground(STOP_FOREGROUND_REMOVE)
