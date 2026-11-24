@@ -124,7 +124,15 @@ class PlayerPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         ensureNotificationChannel()
-        startAsForeground()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildMediaNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildMediaNotification())
+        }
         try {
             val exo = ExoPlayer.Builder(this).build().apply { setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA).setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC).build(), false) }
             player = exo
@@ -145,7 +153,15 @@ class PlayerPlaybackService : MediaSessionService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ensureNotificationChannel()
-        startAsForeground()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildMediaNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildMediaNotification())
+        }
         try {
             if (initializationFailed || player == null || session == null) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -257,19 +273,6 @@ class PlayerPlaybackService : MediaSessionService() {
                 ).apply { setShowBadge(false) }
                 manager.createNotificationChannel(channel)
             }
-        }
-    }
-
-    private fun startAsForeground() {
-        val notification = buildMediaNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
         }
     }
 
