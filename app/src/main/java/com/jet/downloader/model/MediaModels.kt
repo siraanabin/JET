@@ -4,7 +4,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class StreamSizePayload(
-    val sizeText: String = "Auto"
+    val sizeText: String = "Auto",
+    val itag: Int? = null,
+    val height: Int? = null
 )
 
 @Serializable
@@ -25,7 +27,8 @@ data class DownloadCompletePayload(
     val title: String,
     val size: String,
     val filePath: String,
-    val fileUri: String
+    val fileUri: String,
+    val thumbnailUrl: String = ""
 )
 
 @Serializable

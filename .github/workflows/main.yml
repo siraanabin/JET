@@ -167,8 +167,8 @@ jobs:
       - name: Prepare Debug update asset
         run: |
           set -euo pipefail
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          cp app/build/outputs/apk/debug/app-debug.apk JET-debug.apk
+          test -s app/build/outputs/apk/debug/app-universal-debug.apk
+          cp app/build/outputs/apk/debug/app-universal-debug.apk JET-debug.apk
           ls -lh JET-debug.apk
 
       - name: Upload Debug APK artifact
@@ -179,6 +179,27 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Build signed Release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Prepare Release APK artifact
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/release/app-universal-release.apk
+          cp app/build/outputs/apk/release/app-universal-release.apk JET-release.apk
+          ls -lh JET-release.apk
+
+      - name: Upload Release APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JET Release APK
+          path: JET-release.apk
+          if-no-files-found: error
+          retention-days: 30
       - name: Publish JET Debug in-app update
         uses: softprops/action-gh-release@v2
         with:

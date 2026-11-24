@@ -1,8 +1,9 @@
 {
-  "versionCode": 388,
-  "versionName": "3.8.8",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.8/JET-debug.apk",
+  "versionCode": 389,
+  "versionName": "3.8.9",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v3.8.9/JET-debug.apk",
   "changelog": [
+    "Added NewPipe itag-based 1080p selection, FFmpeg mux fallback and video-track validation; improved thumbnail, scrollbar, artwork and updater",
     "Fixed PiP UI cast crash and improved player title marquee and progress styling",
     "Persisted Library snapshots and deferred scans for instant tab display",
     "Added intro-gated auto-open for successfully prefetched copied media URLs",

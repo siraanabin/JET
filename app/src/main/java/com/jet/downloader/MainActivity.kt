@@ -12,7 +12,10 @@ import android.graphics.Color
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
 import android.media.MediaMetadataRetriever
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.ThumbnailUtils
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -108,7 +111,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private data class RealDownloadSpec(
     val id: String, val url: String, val title: String, val isAudio: Boolean,
-    val audioBitrate: String, val audioExt: String, val maxHeight: Int,
+    val audioBitrate: String, val audioExt: String, val maxHeight: Int, val selectedItag: Int,
     val includeSubtitles: Boolean, val thumbnailUrl: String
 )
 
@@ -121,6 +124,7 @@ class MainActivity : AppCompatActivity() {
     private val preferencesManager: PreferencesManager by inject()
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
+    private val activeNewPipeProcesses = ConcurrentHashMap<String, Process>()
     @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
     private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
     private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
@@ -737,9 +741,10 @@ class MainActivity : AppCompatActivity() {
         // If a manual or automatic update is already active, leave this attempt unclaimed.
         if (!engineUpdateInFlight.compareAndSet(false, true)) return@withContext
         try {
-            // Persist at start so offline/failing attempts are still throttled for 24 hours.
-            engineUpdatePreferences.edit().putLong(engineUpdateTimestampKey, now).commit()
-            runEngineUpdateBlocking()
+            val result = runEngineUpdateBlocking()
+            if (result.optBoolean("ok", false)) {
+                engineUpdatePreferences.edit().putLong(engineUpdateTimestampKey, System.currentTimeMillis()).commit()
+            }
             // Intentionally discard the result: automatic updates never notify the WebView.
         } catch (_: Exception) {
             // Silent by design. The next automatic attempt is after the cooldown.
@@ -1679,7 +1684,7 @@ class MainActivity : AppCompatActivity() {
                 "vid-2k" to 1440,
                 "vid-4k" to 2160
             ).forEach { (id, targetShortSide) ->
-                val video = info.videoStreams
+                val video = (info.videoOnlyStreams + info.videoStreams)
                     .filter {
                         it.isUrl && shortSide(it.width, it.height) in 1..targetShortSide
                     }
@@ -1696,7 +1701,11 @@ class MainActivity : AppCompatActivity() {
                 val videoBytes = estimateBytesFromBitrateKbps(videoKbps, durationSec)
                 val needsAudio = video == null || video.isVideoOnly || video.bitrate <= 0
                 val totalBytes = videoBytes + if (needsAudio) bestAudioBytes else 0L
-                streamSizes[id] = StreamSizePayload(sizeText = sizeText(totalBytes))
+                streamSizes[id] = StreamSizePayload(
+                    sizeText = sizeText(totalBytes),
+                    itag = video?.getItag()?.takeIf { it > 0 },
+                    height = video?.getHeight()?.takeIf { it > 0 }
+                )
             }
     
             val payload = MediaInfoPayload(
@@ -1916,11 +1925,12 @@ class MainActivity : AppCompatActivity() {
             audioBitrate: String,
             audioExt: String,
             maxHeight: Int,
+            selectedItag: Int,
             includeSubtitles: Boolean,
             thumbnailUrl: String
         ) {
             realDownloadSpecs[downloadId] = RealDownloadSpec(
-                downloadId, url, title, isAudio, audioBitrate, audioExt, maxHeight, includeSubtitles, thumbnailUrl
+                downloadId, url, title, isAudio, audioBitrate, audioExt, maxHeight, selectedItag, includeSubtitles, thumbnailUrl
             )
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)
@@ -1946,8 +1956,18 @@ class MainActivity : AppCompatActivity() {
                     callJs("onNativeDownloadProgress", "${JSONObject.quote(downloadId)}, 0, ${JSONObject.quote("Preparing / extracting streams…")}")
                     runCatching { DownloadNotificationService.update(this@MainActivity, downloadId, title, 0, "Preparing / extracting streams…", resolvedThumbnailUrl) }
 
-                    // Adaptive 1080p/2K/4K FFmpeg muxing or MP3 conversion via yt-dlp + FFmpeg
-                    ensureYtDlpInitialized()
+                    val newPipeFile = if (!isAudio) downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight) else null
+                    if (newPipeFile != null) {
+                        finishDownloadSuccess(downloadId, url, newPipeFile, "video", resolvedThumbnailUrl)
+                    } else {
+                        if (pauseRequestedDownloads.remove(downloadId)) {
+                            pausedDownloads.add(downloadId)
+                            callJs("onNativeDownloadPaused", JSONObject.quote(downloadId))
+                            return@launch
+                        }
+                        if (!realDownloadSpecs.containsKey(downloadId)) return@launch
+                        // NewPipe stream selection or FFmpeg mux failed; use strict yt-dlp fallback.
+                        ensureYtDlpInitialized()
 
                     val beforeFiles = outDir.listFiles()?.map { it.absolutePath }?.toSet() ?: emptySet()
                     val request = YoutubeDLRequest(url)
@@ -1970,8 +1990,12 @@ class MainActivity : AppCompatActivity() {
                         // Resolve the best separate video/audio streams at or below the
                         // selected resolution. youtubedl-android injects its bundled
                         // --ffmpeg-location automatically; do not override that path.
-                        val formatSelector =
-                            "bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]/best"
+                        val strictSelector = if (maxHeight == 1080) {
+                            "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+                        } else {
+                            "bestvideo[height<=${maxHeight}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]"
+                        }
+                        val formatSelector = if (selectedItag > 0) "$selectedItag+bestaudio/$strictSelector" else strictSelector
                         request.addOption("-f", formatSelector)
                         request.addOption("--merge-output-format", "mp4")
                         request.addOption("--remux-video", "mp4")
@@ -2008,6 +2032,10 @@ class MainActivity : AppCompatActivity() {
                         ?: afterFiles.maxByOrNull { it.lastModified() }
 
                     if (newFile != null && newFile.exists()) {
+                        if (!isAudio && !containsVideoTrack(newFile)) {
+                            newFile.delete()
+                            throw IllegalStateException("Downloaded file has no video track; audio-only output was rejected.")
+                        }
                         finishDownloadSuccess(downloadId, url, newFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl)
                     } else {
                         val fail = DownloadErrorPayload(downloadId, "Output file not found after download")
@@ -2015,7 +2043,8 @@ class MainActivity : AppCompatActivity() {
                         runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                         callJs("onNativeDownloadError", json.encodeToString(fail))
                     }
-                } catch (e: Exception) {
+
+                    }                } catch (e: Exception) {
                     if (pauseRequestedDownloads.remove(downloadId)) {
                         pausedDownloads.add(downloadId)
                         runCatching {
@@ -2036,6 +2065,62 @@ class MainActivity : AppCompatActivity() {
                 } finally {
                     releaseDownloadSlot()
                 }
+            }
+        }
+
+        private fun downloadWithNewPipe(
+            downloadId: String, url: String, outDir: File, selectedItag: Int, maxHeight: Int
+        ): File? {
+            val output = File(outDir, "jet-newpipe-$downloadId.mp4")
+            return try {
+                val info = runBlocking(Dispatchers.IO) { getOrFetchStreamInfo(url) }
+                val candidates = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl }
+                val selected = candidates.firstOrNull { selectedItag > 0 && it.getItag() == selectedItag }
+                    ?: candidates.firstOrNull { it.getHeight() == maxHeight }
+                    ?: return null
+                val audio = if (selected.isVideoOnly) {
+                    info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate } ?: return null
+                } else null
+                ensureYtDlpInitialized()
+                val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
+                check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
+                if (output.exists()) output.delete()
+                val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
+                val args = mutableListOf(ffmpeg.absolutePath, "-y", "-rw_timeout", "20000000", "-user_agent", userAgent, "-i", selected.url)
+                if (audio != null) {
+                    args += listOf("-rw_timeout", "20000000", "-user_agent", userAgent, "-i", audio.url, "-map", "0:v:0", "-map", "1:a:0")
+                } else {
+                    args += listOf("-map", "0:v:0", "-map", "0:a?")
+                }
+                args += listOf("-c", "copy", "-movflags", "+faststart", output.absolutePath)
+                val process = ProcessBuilder(args).redirectErrorStream(true).start()
+                activeNewPipeProcesses[downloadId] = process
+                process.inputStream.bufferedReader().useLines { lines ->
+                    lines.forEach { line -> Log.d("JET-NewPipe-FFmpeg", line.take(500)) }
+                }
+                val exitCode = process.waitFor()
+                activeNewPipeProcesses.remove(downloadId, process)
+                if (exitCode == 0 && output.isFile && output.length() > 0L && containsVideoTrack(output)) output else {
+                    output.delete()
+                    null
+                }
+            } catch (error: Exception) {
+                activeNewPipeProcesses.remove(downloadId)?.let { runCatching { it.destroyForcibly() } }
+                output.delete()
+                Log.w("JET-NewPipe", "Direct NewPipe stream mux failed; falling back to yt-dlp", error)
+                null
+            }
+        }
+
+        private fun containsVideoTrack(file: File): Boolean {
+            val extractor = MediaExtractor()
+            return try {
+                extractor.setDataSource(file.absolutePath)
+                (0 until extractor.trackCount).any { index ->
+                    extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
+                }
+            } finally {
+                extractor.release()
             }
         }
 
@@ -2068,7 +2153,8 @@ class MainActivity : AppCompatActivity() {
                 title = file.nameWithoutExtension,
                 size = sizeStr,
                 filePath = file.absolutePath,
-                fileUri = Uri.fromFile(file).toString()
+                fileUri = Uri.fromFile(file).toString(),
+                thumbnailUrl = thumbnailUrl
             )
             realDownloadSpecs.remove(downloadId)
             pauseRequestedDownloads.remove(downloadId)
@@ -2082,6 +2168,7 @@ class MainActivity : AppCompatActivity() {
         fun pauseRealDownload(downloadId: String) {
             if (!realDownloadSpecs.containsKey(downloadId)) return
             pauseRequestedDownloads.add(downloadId)
+            activeNewPipeProcesses.remove(downloadId)?.let { runCatching { it.destroy() } }
             lifecycleScope.launch(Dispatchers.IO) {
                 runCatching { YoutubeDL.getInstance().destroyProcessById("jet_dl_$downloadId") }
             }
@@ -2092,19 +2179,20 @@ class MainActivity : AppCompatActivity() {
             val spec = realDownloadSpecs[downloadId] ?: return
             if (!pausedDownloads.remove(downloadId)) return
             startRealDownload(spec.id, spec.url, spec.title, spec.isAudio, spec.audioBitrate,
-                spec.audioExt, spec.maxHeight, spec.includeSubtitles, spec.thumbnailUrl)
+                spec.audioExt, spec.maxHeight, spec.selectedItag, spec.includeSubtitles, spec.thumbnailUrl)
         }
 
         @JavascriptInterface
         fun retryRealDownload(downloadId: String) {
             val spec = realDownloadSpecs[downloadId] ?: return
             startRealDownload(spec.id, spec.url, spec.title, spec.isAudio, spec.audioBitrate,
-                spec.audioExt, spec.maxHeight, spec.includeSubtitles, spec.thumbnailUrl)
+                spec.audioExt, spec.maxHeight, spec.selectedItag, spec.includeSubtitles, spec.thumbnailUrl)
         }
 
         @JavascriptInterface
         fun cancelRealDownload(downloadId: String) {
             realDownloadSpecs.remove(downloadId)
+            activeNewPipeProcesses.remove(downloadId)?.let { runCatching { it.destroyForcibly() } }
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)
             runCatching { DownloadNotificationService.cancel(this@MainActivity, downloadId) }
@@ -2273,6 +2361,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 dialog.setContentView(sheet)
                 dialog.show()
+                dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+                    ?.setBackgroundColor(Color.TRANSPARENT)
             }
         }
 
