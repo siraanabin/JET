@@ -2421,6 +2421,9 @@ class MainActivity : AppCompatActivity() {
             var process: Process? = null
             var wifiLock: WifiManager.WifiLock? = null
             val downloadStartedAtMs = SystemClock.elapsedRealtime()
+            val downloadRetryCount = AtomicInteger(0)
+            val downloadBlockCount = AtomicInteger(0)
+            val activeConnectionLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
             try {
                 wifiLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
                     .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "JET:MediaDownload").apply {
@@ -2432,11 +2435,17 @@ class MainActivity : AppCompatActivity() {
                 val selected = if (selectedItag > 0) {
                     candidates.firstOrNull { it.getItag() == selectedItag }
                 } else {
-                    candidates.firstOrNull { it.getHeight() == maxHeight }
+                    candidates.filter { it.getHeight() == maxHeight }
+                        .sortedByDescending { it.format.suffix.equals("mp4", ignoreCase = true) }
+                        .firstOrNull()
                 } ?: return null
                 check(selected.getItag() > 0) { "Selected video stream has no valid itag" }
                 val audio = if (selected.isVideoOnly) {
-                    info.audioStreams.filter { it.isUrl }.maxByOrNull { it.averageBitrate } ?: return null
+                    info.audioStreams.filter { it.isUrl }
+                        .sortedWith(compareByDescending<org.schabi.newpipe.extractor.stream.AudioStream> {
+                            it.format.suffix.equals("m4a", ignoreCase = true)
+                        }.thenByDescending { it.averageBitrate })
+                        .firstOrNull() ?: return null
                 } else null
                 if (audio != null) check(audio.getItag() > 0) { "Selected audio stream has no valid itag" }
                 val videoSuffix = selected.format.suffix.lowercase(Locale.ROOT)
@@ -2576,7 +2585,8 @@ class MainActivity : AppCompatActivity() {
                                         downloadId, info.id, selected.getItag(), selectedUrl,
                                         videoPart, videoTotalBytes, videoAccess.channel,
                                         audio?.getItag() ?: -1, audioUrl, audioPart, audioTotalBytes,
-                                        audioAccess?.channel, totalDownloadedBytes
+                                        audioAccess?.channel, totalDownloadedBytes,
+                                        downloadRetryCount, downloadBlockCount, activeConnectionLimit
                                     )
                                 }
                             } catch (rangeError: RangeUnsupportedException) {
@@ -2687,7 +2697,10 @@ class MainActivity : AppCompatActivity() {
                     val videoMb = String.format(Locale.US, "%.1f", videoTotalBytes / (1024.0 * 1024.0))
                     val audioMb = String.format(Locale.US, "%.1f", audioTotalBytes / (1024.0 * 1024.0))
                     val avgMbps = String.format(Locale.US, "%.2f", totalDownloadedBytes.get() / (1024.0 * 1024.0) / dlSec)
-                    Log.d("DL_DEBUG", "conn=8 chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=0 blocks=0 merge=${mergeSec}s")
+                    val finalConn = activeConnectionLimit.get()
+                    val retryCount = downloadRetryCount
+                    val blockCount = downloadBlockCount
+                    Log.d("DL_DEBUG", "conn=${finalConn} chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=${retryCount.get()} blocks=${blockCount.get()} merge=${mergeSec}s")
                     callJs(
                         "onNativeDownloadProgress",
                         listOf(
@@ -2758,19 +2771,19 @@ class MainActivity : AppCompatActivity() {
             downloadId: String, videoId: String, videoItag: Int, videoUrl: String,
             videoFile: File, videoSize: Long, videoChannel: FileChannel,
             audioItag: Int, audioUrl: String?, audioFile: File, audioSize: Long,
-            audioChannel: FileChannel?, downloaded: AtomicLong
+            audioChannel: FileChannel?, downloaded: AtomicLong,
+            retryCount: AtomicInteger, blockCount: AtomicInteger, activeLimit: AtomicInteger
         ) {
             data class Task(val audio: Boolean, val start: Long, val end: Long, val index: Int)
             val queue = ConcurrentLinkedQueue<Task>()
             val checkpoint = File(cacheDir, "jet-" + downloadId + ".chunks.ckpt")
             val completed = java.util.Collections.synchronizedSet(mutableSetOf<String>())
             val checkpointLock = Any()
-            val retryCount = AtomicInteger(0)
-            val blockCount = AtomicInteger(0)
-            val activeLimit = AtomicInteger(DEFAULT_MAX_CONNECTIONS)
             val consecutiveFailures = AtomicInteger(0)
             val previous = runCatching { if (checkpoint.isFile) JSONObject(checkpoint.readText()) else null }.getOrNull()
             val validCheckpoint = previous != null &&
+                videoFile.isFile && videoFile.length() == videoSize &&
+                (audioUrl == null || (audioFile.isFile && audioFile.length() == audioSize)) &&
                 previous.optLong("videoSize") == videoSize && previous.optLong("audioSize") == audioSize &&
                 previous.optInt("videoItag") == videoItag && previous.optInt("audioItag") == audioItag
             if (validCheckpoint) {
