@@ -539,17 +539,19 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun showGestureControls() {
         controls.visibility = View.VISIBLE
-        topBar.visibility = View.GONE
-        centerControls.visibility = View.GONE
-        bottomPanel.visibility = if (gestureMode == 3) View.VISIBLE else View.GONE
-        bottomIcons.visibility = View.GONE
-        bottomPanel.alpha = 1f
-        bottomPanel.translationY = 0f
+        if (gestureMode == 3) {
+            topBar.visibility = View.GONE
+            centerControls.visibility = View.GONE
+            bottomPanel.visibility = View.VISIBLE
+            bottomIcons.visibility = View.GONE
+            bottomPanel.alpha = 1f
+            bottomPanel.translationY = 0f
+            controlsVisible = false
+        }
         volumeHud.visibility = View.GONE
         brightnessHud.visibility = View.GONE
         seekHud.visibility = View.GONE
         if (gestureMode != 3) seekPill.visibility = View.GONE
-        controlsVisible = false
     }
 
     private fun showSeekPill(position: Long, duration: Long) {
@@ -573,10 +575,6 @@ class VideoPlayerActivity : AppCompatActivity() {
             brightnessHud.visibility = View.GONE
             updateVolumeIcon((fraction * 100).roundToInt())
         }
-        topBar.visibility = View.GONE
-        bottomPanel.visibility = View.GONE
-        bottomIcons.visibility = View.GONE
-        centerControls.visibility = View.GONE
         findViewById<TextView>(if (isBrightness) R.id.player_hud_percent else R.id.player_volume_percent).text =
             "${(fraction * 100).roundToInt()}%"
         findViewById<ProgressBar>(if (isBrightness) R.id.player_hud_progress else R.id.player_volume_progress).progress =
