@@ -2438,19 +2438,19 @@ class MainActivity : AppCompatActivity() {
                     candidates.firstOrNull { it.getItag() == selectedItag }
                 } else {
                     candidates.filter { it.getHeight() == maxHeight }
-                        .sortedByDescending { it.format.suffix.equals("mp4", ignoreCase = true) }
+                        .sortedByDescending { it.format?.suffix.equals("mp4", ignoreCase = true) }
                         .firstOrNull()
                 } ?: return null
                 check(selected.getItag() > 0) { "Selected video stream has no valid itag" }
                 val audio = if (selected.isVideoOnly) {
                     info.audioStreams.filter { it.isUrl }
                         .sortedWith(compareByDescending<org.schabi.newpipe.extractor.stream.AudioStream> {
-                            it.format.suffix.equals("m4a", ignoreCase = true)
+                            it.format?.suffix.equals("m4a", ignoreCase = true)
                         }.thenByDescending { it.averageBitrate })
                         .firstOrNull() ?: return null
                 } else null
                 if (audio != null) check(audio.getItag() > 0) { "Selected audio stream has no valid itag" }
-                val videoSuffix = selected.format.suffix.lowercase(Locale.ROOT)
+                val videoSuffix = selected.format?.suffix?.lowercase(Locale.ROOT).orEmpty()
                 val audioSuffix = audio?.format?.suffix?.lowercase(Locale.ROOT).orEmpty()
                 val useMkv = videoSuffix in setOf("webm", "mkv", "opus") ||
                     audioSuffix in setOf("webm", "opus", "mkv")
