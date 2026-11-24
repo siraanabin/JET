@@ -908,7 +908,7 @@
           { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false, available: null }
         ],
         activeDownloads: [],
-        doneDownloads: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-done-downloads-v1') || '[]'); return Array.isArray(cached) ? cached : []; } catch (_) { return []; } })(),
+        doneDownloads: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-done-downloads-v1') || '[]'); return Array.isArray(cached) ? cached.map(({ telemetrySummary, telemetryDisplay, ...item }) => item) : []; } catch (_) { return []; } })(),
         library: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-library-snapshot-v1') || '[]'); return Array.isArray(cached) ? cached : []; } catch (_) { return []; } })(),
         downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true },
         libraryGridColumns: 3
@@ -1119,7 +1119,7 @@
 
       function persistTelemetryLast4(record) {
         if (!record || !record.rawLog) return;
-        state.telemetryLast4 = [record, ...(state.telemetryLast4 || []).filter((item) => item.rawLog !== record.rawLog)].slice(0, 4);
+        state.telemetryLast4 = [record, ...(state.telemetryLast4 || [])].slice(0, 4);
         try { localStorage.setItem('jet-telemetry-last4-v1', JSON.stringify(state.telemetryLast4)); } catch (_) {}
         renderTelemetryTable();
       }
@@ -1722,8 +1722,6 @@
           thumbnailUrl,
           date: 'Just now',
           resolution: data.resolution || (existing && existing.resolution) || '',
-          telemetrySummary: data.telemetrySummary || '',
-          telemetryDisplay: data.telemetryDisplay || ''
         });
         try { localStorage.setItem('jet-done-downloads-v1', JSON.stringify(state.doneDownloads.slice(0, 500))); } catch (_) {}
         if (data.telemetry && typeof data.telemetry === 'object') persistTelemetryLast4(data.telemetry);
@@ -2615,7 +2613,6 @@
       window.onNativeCompletedDownloads = function (items) {
         if (!Array.isArray(items)) return;
         const restored = new Map();
-        const cachedDone = new Map(state.doneDownloads.map((item) => [item.filePath, item]));
         items.forEach((item) => {
           if (!item || !item.filePath) return;
           restored.set(item.filePath, {
@@ -2628,8 +2625,6 @@
             thumbnailUrl: item.thumbnailUrl || '',
             date: item.date || 'Saved',
             resolution: item.resolution || '',
-            telemetrySummary: (cachedDone.get(item.filePath) || {}).telemetrySummary || '',
-            telemetryDisplay: (cachedDone.get(item.filePath) || {}).telemetryDisplay || ''
           });
         });
         state.doneDownloads = Array.from(restored.values());
