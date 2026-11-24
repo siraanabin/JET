@@ -3100,9 +3100,9 @@ class MainActivity : AppCompatActivity() {
             val totalSec = downloadSec + muxSec
             val netSpeed = displaySizeBytes / (1024.0 * 1024.0) / downloadSec
             val avgSpeed = displaySizeBytes / (1024.0 * 1024.0) / totalSec.coerceAtLeast(0.001)
-            val connections = Regex("""conn=([^\\s]+)""", RegexOption.IGNORE_CASE)
+            val connections = Regex("""conn=([^\s]+)""", RegexOption.IGNORE_CASE)
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
-            val chunkSize = Regex("""chunk=([^\\s]+)""", RegexOption.IGNORE_CASE)
+            val chunkSize = Regex("""chunk=([^\s]+)""", RegexOption.IGNORE_CASE)
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
             val retries = metricInt("""retries=([0-9]+)""", 0)
             val blocks = metricInt("""blocks=([0-9]+)""", 0)
