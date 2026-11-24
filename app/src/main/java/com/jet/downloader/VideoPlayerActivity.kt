@@ -90,7 +90,11 @@ class VideoPlayerActivity : AppCompatActivity() {
     private lateinit var playerPrefs: PlayerPrefsManager
     private var aspect = 0
     private var controlsVisible = true
-    private var scrubbing = false
+    private var isTouchDown = false
+    private var isSwipeSeeking = false
+    private var isAdjustingVolume = false
+    private var isAdjustingBrightness = false
+    private var isScrubbing = false
     private var seekCommitPending = false
     private val hideLockIndicator = Runnable { findViewById<View>(R.id.player_unlock)?.visibility = View.GONE }
     private lateinit var scaleDetector: ScaleGestureDetector
@@ -133,10 +137,14 @@ class VideoPlayerActivity : AppCompatActivity() {
         override fun run() { updateProgress(); handler.postDelayed(this, 300L) }
     }
     private val hideHud = Runnable {
+        if (isTouchDown || isSwipeSeeking || isAdjustingVolume || isAdjustingBrightness || isScrubbing) return@Runnable
         fadeHud(volumeHud); fadeHud(brightnessHud); fadeHud(seekHud); fadeHud(seekPill)
         fadeHud(leftTapHud); fadeHud(rightTapHud); fadeHud(zoomHud)
     }
-    private val hideControls = Runnable { if (!locked && player?.isPlaying == true) showControls(false) }
+    private val hideControls = Runnable {
+        if (isTouchDown || isSwipeSeeking || isAdjustingVolume || isAdjustingBrightness || isScrubbing) return@Runnable
+        if (!locked && player?.isPlaying == true) showControls(false)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -300,18 +308,44 @@ class VideoPlayerActivity : AppCompatActivity() {
                 false
             } }
         seek.addListener(object : TimeBar.OnScrubListener {
-            override fun onScrubStart(timeBar: TimeBar, position: Long) { scrubbing = true; handler.removeCallbacks(hideControls) }
+            override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                isScrubbing = true
+                cancelAutoHideCallbacks()
+                controls.visibility = View.VISIBLE
+                bottomPanel.visibility = View.VISIBLE
+                bottomPanel.alpha = 1f
+            }
             override fun onScrubMove(timeBar: TimeBar, position: Long) { currentTime.text = time(position) }
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
-                scrubbing = false
+                isScrubbing = false
                 if (!canceled) {
                     seekCommitPending = true
                     player?.seekTo(position)
                     handler.postDelayed({ seekCommitPending = false; updateProgress() }, 180L)
                 } else seekCommitPending = false
+                handler.removeCallbacks(hideControls)
+                handler.removeCallbacks(hideHud)
+                handler.postDelayed(hideHud, 400L)
                 handler.postDelayed(hideControls, 3000L)
             }
         })
+    }
+
+    private fun cancelAutoHideCallbacks() {
+        handler.removeCallbacks(hideControls)
+        handler.removeCallbacks(hideHud)
+    }
+
+    private fun finishTouchInteraction() {
+        isTouchDown = false
+        isSwipeSeeking = false
+        isAdjustingVolume = false
+        isAdjustingBrightness = false
+        isScrubbing = false
+        gestureMode = 0
+        cancelAutoHideCallbacks()
+        handler.postDelayed(hideHud, 400L)
+        handler.postDelayed(hideControls, 3500L)
     }
 
     private fun setupGestures() {
@@ -416,11 +450,24 @@ class VideoPlayerActivity : AppCompatActivity() {
                 return@setOnTouchListener true
             }
             if (event.pointerCount > 1 || scaleDetector.isInProgress) {
-                if (event.actionMasked == MotionEvent.ACTION_POINTER_UP || event.actionMasked == MotionEvent.ACTION_UP) gestureMode = 0
+                if (event.actionMasked == MotionEvent.ACTION_POINTER_UP) {
+                    gestureMode = 0
+                    isSwipeSeeking = false
+                    isAdjustingVolume = false
+                    isAdjustingBrightness = false
+                }
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    finishTouchInteraction()
+                }
                 return@setOnTouchListener true
             }
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    isTouchDown = true
+                    isSwipeSeeking = false
+                    isAdjustingVolume = false
+                    isAdjustingBrightness = false
+                    cancelAutoHideCallbacks()
                     gestureStartX = event.x
                     gestureStartY = event.y
                     lastPanX = event.x
@@ -438,6 +485,7 @@ class VideoPlayerActivity : AppCompatActivity() {
                     handler.removeCallbacks(hideHud)
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    cancelAutoHideCallbacks()
                     if (zoomScale > 1.001f && event.pointerCount == 1 && gestureMode == 0) {
                         val maxX = playerView.width * (zoomScale - 1f) / 2f
                         val maxY = playerView.height * (zoomScale - 1f) / 2f
@@ -452,6 +500,12 @@ class VideoPlayerActivity : AppCompatActivity() {
 
             detector.onTouchEvent(event)
 
+            if (event.actionMasked == MotionEvent.ACTION_MOVE && isTouchDown) {
+                isSwipeSeeking = gestureMode == 3
+                isAdjustingBrightness = gestureMode == 1
+                isAdjustingVolume = gestureMode == 2
+            }
+
             when (event.actionMasked) {
                 MotionEvent.ACTION_UP -> {
                     if (gestureMode == 3 && !locked) {
@@ -462,15 +516,13 @@ class VideoPlayerActivity : AppCompatActivity() {
                     } else if (gestureMode != 0) {
                         handler.postDelayed(hideHud, 400L)
                     }
-                    if (gestureMode != 0) handler.postDelayed(hideControls, 3500L)
-                    gestureMode = 0
+                    finishTouchInteraction()
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     seekPill.animate().cancel()
                     seekPill.visibility = View.GONE
                     seekPill.alpha = 1f
-                    if (gestureMode != 0) handler.postDelayed(hideHud, 400L)
-                    gestureMode = 0
+                    finishTouchInteraction()
                 }
             }
             true
