@@ -2332,6 +2332,10 @@ class MainActivity : AppCompatActivity() {
                     var lastReportedProgress = 0
                     var lastBytesRead = 0L
                     var lastTotalBytes = 0L
+                    val ytDlpPhaseStartedAtMs = SystemClock.elapsedRealtime()
+                    var ytDlpMuxStartedAtMs: Long? = null
+                    var ytDlpRetryCount = 0
+                    var ytDlpBlockCount = 0
                     fun parseYtDlpSize(match: MatchResult?): Long {
                         if (match == null) return 0L
                         val value = match.groupValues[1].toDoubleOrNull() ?: return 0L
@@ -2347,6 +2351,9 @@ class MainActivity : AppCompatActivity() {
                             lastTotalBytes = maxOf(lastTotalBytes, parseYtDlpSize(totalBytesRegex.find(line)))
                             val merging = line.contains("Merging", ignoreCase = true) ||
                                 line.contains("ExtractAudio", ignoreCase = true)
+                            if (merging && ytDlpMuxStartedAtMs == null) ytDlpMuxStartedAtMs = SystemClock.elapsedRealtime()
+                            if (Regex("""HTTP\\s+(403|429)|\\b(403|429)\\b""", RegexOption.IGNORE_CASE).containsMatchIn(line)) ytDlpBlockCount++
+                            if (line.contains("retry", ignoreCase = true)) ytDlpRetryCount++
                             val stage = when {
                                 merging -> "MERGING"
                                 lastBytesRead > 0L -> "DOWNLOADING"
@@ -2387,6 +2394,18 @@ class MainActivity : AppCompatActivity() {
                         ?: afterFiles.maxByOrNull { it.lastModified() }
 
                     if (newFile != null && newFile.exists()) {
+                        val ytDlpFinishedAtMs = SystemClock.elapsedRealtime()
+                        val ytDlpMuxStart = ytDlpMuxStartedAtMs
+                        val ytDlpDownloadEndMs = ytDlpMuxStart ?: ytDlpFinishedAtMs
+                        val ytDlpDownloadSec = ((ytDlpDownloadEndMs - ytDlpPhaseStartedAtMs).coerceAtLeast(1L)) / 1000.0
+                        val ytDlpMuxSec = if (ytDlpMuxStart != null) ((ytDlpFinishedAtMs - ytDlpMuxStart).coerceAtLeast(0L)) / 1000.0 else 0.0
+                        val ytDlpTotalSec = ytDlpDownloadSec + ytDlpMuxSec
+                        val ytDlpBytes = newFile.length().coerceAtLeast(0L)
+                        val ytDlpAvgSpeed = String.format(Locale.US, "%.2f", ytDlpBytes / (1024.0 * 1024.0) / ytDlpTotalSec.coerceAtLeast(0.001))
+                        val ytDlpDlLabel = String.format(Locale.US, "%.2f", ytDlpDownloadSec)
+                        val ytDlpMuxLabel = String.format(Locale.US, "%.2f", ytDlpMuxSec)
+                        val ytDlpSummary = "engine=yt-dlp-managed conn=n/a chunk=n/a download=${ytDlpDlLabel}s avg=${ytDlpAvgSpeed} MB/s retries=${ytDlpRetryCount} blocks=${ytDlpBlockCount} merge=${ytDlpMuxLabel}s"
+                        downloadTelemetrySummaries[downloadId] = ytDlpSummary to "yt-dlp • ${ytDlpDlLabel}s • ${ytDlpAvgSpeed} MB/s"
                         if (!isAudio && !containsVideoTrack(newFile)) {
                             newFile.delete()
                             throw IllegalStateException("Downloaded file has no video track; audio-only output was rejected.")
