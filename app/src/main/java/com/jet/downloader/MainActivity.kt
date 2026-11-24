@@ -2264,6 +2264,12 @@ class MainActivity : AppCompatActivity() {
                 val audioDownloadedBytes = AtomicLong(0L)
                 val videoTotalBytes = AtomicLong(0L)
                 val audioTotalBytes = AtomicLong(0L)
+                fun contentLengthFromUrl(streamUrl: String?): Long {
+                    if (streamUrl.isNullOrBlank()) return 0L
+                    return runCatching { Uri.parse(streamUrl).getQueryParameter("clen")?.toLongOrNull()?.takeIf { it > 0L } ?: 0L }.getOrDefault(0L)
+                }
+                videoTotalBytes.set(contentLengthFromUrl(selectedUrl))
+                audioTotalBytes.set(contentLengthFromUrl(audioUrl))
                 val progressLock = Any()
                 var lastSpeedSampleAt = System.currentTimeMillis()
                 var lastSpeedSampleBytes = 0L
