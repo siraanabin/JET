@@ -15,3 +15,8 @@
 -keepclasseswithmembers class * {
     native <methods>;
 }
+
+# Rhino's optional Java SE integration references APIs absent on Android.
+# These JavaBeans and javax.script adapters are not available/used on Android.
+-dontwarn java.beans.**
+-dontwarn javax.script.**
