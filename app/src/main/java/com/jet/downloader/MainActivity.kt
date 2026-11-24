@@ -2820,20 +2820,43 @@ class MainActivity : AppCompatActivity() {
                         .toString())
                 }
             }
-            fun seed(isAudio: Boolean, size: Long) {
+            fun restorePrefetched(isAudio: Boolean, itag: Int, size: Long, channel: FileChannel?): ByteArray {
+                if (channel == null || itag <= 0 || (if (isAudio) "a:0" else "v:0") in completed) return ByteArray(0)
+                val cacheKey = videoId + ":" + itag
+                val cached = prefetchedStreamChunks.get(cacheKey)
+                val valid = cached?.takeIf {
+                    System.currentTimeMillis() - it.cachedAtMs in 0..prefetchedStreamChunkTtlMs &&
+                        it.totalBytes == size && it.bytes.isNotEmpty() && it.bytes.size.toLong() <= size
+                }
+                if (cached != null && valid == null) prefetchedStreamChunks.remove(cacheKey)
+                val bytes = valid?.bytes ?: return ByteArray(0)
+                val buffer = ByteBuffer.wrap(bytes)
+                var position = 0L
+                while (buffer.hasRemaining()) {
+                    val written = channel.write(buffer, position)
+                    if (written <= 0) throw IOException("Could not restore prefetched stream bytes")
+                    position += written.toLong()
+                }
+                downloaded.addAndGet(position)
+                return bytes
+            }
+            val cachedVideo = restorePrefetched(false, videoItag, videoSize, videoChannel)
+            val cachedAudio = restorePrefetched(true, audioItag, audioSize, audioChannel)
+            fun seed(isAudio: Boolean, size: Long, cachedBytes: ByteArray) {
                 var start = 0L
                 var index = 0
                 while (start < size) {
                     val end = minOf(size - 1L, start + CHUNK_SIZE_BYTES - 1L)
                     val key = (if (isAudio) "a:" else "v:") + index
-                    if (key !in completed) queue.add(Task(isAudio, start, end, index))
-                    else downloaded.addAndGet(end - start + 1L)
+                    val resumeStart = if (index == 0) maxOf(start, cachedBytes.size.toLong()) else start
+                    if (key !in completed && resumeStart <= end) queue.add(Task(isAudio, resumeStart, end, index))
+                    else if (key in completed) downloaded.addAndGet(end - start + 1L)
                     start = end + 1L
                     index++
                 }
             }
-            seed(true, audioSize)
-            seed(false, videoSize)
+            seed(true, audioSize, cachedAudio)
+            seed(false, videoSize, cachedVideo)
             fun poll(wantAudio: Boolean): Task? {
                 for (task in queue) if (task.audio == wantAudio && queue.remove(task)) return task
                 return null
