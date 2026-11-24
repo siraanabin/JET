@@ -163,6 +163,10 @@ class PlayerPlaybackService : MediaSessionService() {
             startForeground(NOTIFICATION_ID, buildMediaNotification())
         }
         try {
+            if (intent?.action == ACTION_STOP_PLAYBACK) {
+                stopBackgroundPlayback(startId)
+                return START_NOT_STICKY
+            }
             if (initializationFailed || player == null || session == null) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)
@@ -175,10 +179,6 @@ class PlayerPlaybackService : MediaSessionService() {
                     return START_NOT_STICKY
                 }
                 ACTION_TOGGLE_PLAYBACK -> toggleBackgroundPlayback()
-                ACTION_STOP_PLAYBACK -> {
-                    stopBackgroundPlayback(startId)
-                    return START_NOT_STICKY
-                }
                 ACTION_SLEEP_TIMER -> {
                     timerHandler.removeCallbacks(sleepTimer)
                     val minutes = intent.getIntExtra(EXTRA_SLEEP_TIMER_MINUTES, 0).coerceIn(0, 240)
@@ -315,9 +315,18 @@ class PlayerPlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(
+                if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+            )
             .setContentTitle(title)
             .setContentText(
+                if (backgroundVideoMode) {
+                    if (isPlaying) "Playing in background" else "Paused"
+                } else {
+                    "Media playback"
+                }
+            )
+            .setSubText(
                 if (backgroundVideoMode) {
                     if (isPlaying) "Playing in background" else "Paused"
                 } else {
