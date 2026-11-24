@@ -2128,8 +2128,8 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val speedRegex = Regex("at\\s+([0-9.]+\\s*[KMG]i?B/s)")
-                    val downloadedBytesRegex = Regex("""^.*?([0-9]+(?:\\.[0-9]+)?)\\s*(B|KiB|MiB|GiB)\\b""")
-                    val totalBytesRegex = Regex("""of\\s+~?([0-9]+(?:\\.[0-9]+)?)\\s*(B|KiB|MiB|GiB)\\b""")
+                    val downloadedBytesRegex = Regex("""^.*?([0-9]+(?:\.[0-9]+)?)\s*(B|KiB|MiB|GiB)\b""")
+                    val totalBytesRegex = Regex("""of\s+~?([0-9]+(?:\.[0-9]+)?)\s*(B|KiB|MiB|GiB)\b""")
                     var lastReportedProgress = 0
                     var lastBytesRead = 0L
                     var lastTotalBytes = 0L
