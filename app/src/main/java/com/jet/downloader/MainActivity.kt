@@ -408,6 +408,7 @@ class MainActivity : AppCompatActivity() {
     private val streamInfoCacheTtlMs=15*60*1000L
     private val exactStreamSizeCache = ConcurrentHashMap<String, Long>()
     private val verifiedNewPipeSourceSizes = ConcurrentHashMap<String, Long>()
+    private val downloadTelemetrySummaries = ConcurrentHashMap<String, Pair<String, String>>()
 
     private fun normalizeMediaInfoUrl(rawUrl:String):String {
         return try {
@@ -2717,7 +2718,11 @@ class MainActivity : AppCompatActivity() {
                     val finalConn = activeConnectionLimit.get()
                     val retryCount = downloadRetryCount
                     val blockCount = downloadBlockCount
-                    Log.d("DL_DEBUG", "conn=${finalConn} chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=${retryCount.get()} blocks=${blockCount.get()} merge=${mergeSec}s")
+                    val telemetrySummary = "conn=${finalConn} chunk=${CHUNK_SIZE_BYTES / (1024 * 1024)}MB video=${videoMb}MB audio=${audioMb}MB download=${dlSec}s avg=${avgMbps} MB/s retries=${retryCount.get()} blocks=${blockCount.get()} merge=${mergeSec}s"
+                    val displaySeconds = String.format(Locale.US, "%.1f", dlSec)
+                    val displayAvgMbps = String.format(Locale.US, "%.1f", totalDownloadedBytes.get() / (1024.0 * 1024.0) / dlSec)
+                    downloadTelemetrySummaries[downloadId] = telemetrySummary to "$finalConn conn • ${displaySeconds}s • ${displayAvgMbps} MB/s"
+                    Log.d("DL_DEBUG", telemetrySummary)
                     callJs(
                         "onNativeDownloadProgress",
                         listOf(
@@ -3042,7 +3047,12 @@ class MainActivity : AppCompatActivity() {
             pauseRequestedDownloads.remove(downloadId)
             pausedDownloads.remove(downloadId)
             runCatching { DownloadNotificationService.completed(this@MainActivity, downloadId, file.nameWithoutExtension, sizeStr, thumbnailUrl) }
-            callJs("onNativeDownloadComplete", json.encodeToString(payload))
+            val completedPayloadJson = JSONObject(json.encodeToString(payload))
+            downloadTelemetrySummaries.remove(downloadId)?.let { telemetry ->
+                completedPayloadJson.put("telemetrySummary", telemetry.first)
+                completedPayloadJson.put("telemetryDisplay", telemetry.second)
+            }
+            callJs("onNativeDownloadComplete", completedPayloadJson.toString())
             pushScannedLibraryToWeb()
         }
 
