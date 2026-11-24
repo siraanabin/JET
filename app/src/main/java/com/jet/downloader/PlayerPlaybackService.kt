@@ -223,7 +223,7 @@ class PlayerPlaybackService : MediaSessionService() {
         runCatching { player?.stop() }
         runCatching { player?.clearMediaItems() }
         backgroundVideoMode = false
-        PlaybackStateTracker.clearActive()
+        PlaybackStateTracker.clearActive(this)
         abandonMusicAudioFocus()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

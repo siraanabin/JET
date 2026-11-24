@@ -80,10 +80,22 @@ object PlaybackStateTracker {
 
     fun active(): PlaybackSnapshot? = activeSnapshot
 
-    fun clearActive(mediaId: String? = null) {
-        val current = activeSnapshot ?: return
-        if (mediaId == null || current.mediaKey == normalizeMediaKey(mediaId)) {
+    fun clearActive(context: Context, mediaId: String? = null) {
+        val current = activeSnapshot
+        val key = mediaId?.let(::normalizeMediaKey)
+        val matches = mediaId == null ||
+            current?.mediaKey == key ||
+            context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("active_media_key", null) == key
+        if (matches) {
             activeSnapshot = null
+            context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove("active_media_key")
+                .remove("active_position_ms")
+                .remove("active_is_playing")
+                .remove("active_background_mode")
+                .apply()
         }
     }
 }

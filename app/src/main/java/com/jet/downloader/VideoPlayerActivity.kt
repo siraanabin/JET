@@ -225,6 +225,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         exo.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(File(path))))
         exo.seekTo(resumePositionMs)
         exo.playWhenReady = resumeWasPlaying
+        PlaybackStateTracker.save(this, path, resumePositionMs, 0L, resumeWasPlaying, false)
         exo.setPlaybackSpeed(playerPrefs.savedPlaybackSpeed)
         applyGranularVolumePercent(this, exo, volumePercent)
         updateVolumeIcon(volumePercent)
