@@ -108,7 +108,7 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    suspend fun isDiagnosticsEnabled(): Boolean = context.jetDataStore.data.first()[DIAGNOSTICS_ENABLED_KEY] ?: false
+    suspend fun isDiagnosticsEnabled(): Boolean = context.jetDataStore.data.first()[DIAGNOSTICS_ENABLED_KEY] ?: true
     suspend fun isTopLinkCountingEnabled(): Boolean = context.jetDataStore.data.first()[TOP_LINK_ENABLED_KEY] ?: false
     suspend fun setDiagnosticPreference(name: String, enabled: Boolean) {
         context.jetDataStore.edit { prefs ->
