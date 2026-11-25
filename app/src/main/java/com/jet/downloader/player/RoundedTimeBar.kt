@@ -31,6 +31,12 @@ class RoundedTimeBar @JvmOverloads constructor(
     private var scrubbing = false
     private var keyTimeIncrementMs: Long? = null
     private var keyCountIncrement = 20
+    private var playedColor: Int = 0xFF7FA8FF.toInt()
+
+    fun setPlayedColor(color: Int) {
+        playedColor = color
+        invalidate()
+    }
 
     override fun addListener(listener: TimeBar.OnScrubListener) { listeners.add(listener) }
     override fun removeListener(listener: TimeBar.OnScrubListener) { listeners.remove(listener) }
@@ -74,7 +80,7 @@ class RoundedTimeBar @JvmOverloads constructor(
             canvas.drawRoundRect(RectF(track.left, track.top, min(track.right, bufferedX), track.bottom), radius, radius, paint)
         }
         if (playedX > track.left) {
-            paint.color = if (isEnabled) 0xFF7FA8FF.toInt() else 0x807FA8FF.toInt()
+            paint.color = if (isEnabled) playedColor else android.graphics.Color.argb(128, android.graphics.Color.red(playedColor), android.graphics.Color.green(playedColor), android.graphics.Color.blue(playedColor))
             canvas.drawRoundRect(RectF(track.left, track.top, min(track.right, playedX), track.bottom), radius, radius, paint)
         }
         val scrubberX = playedX.coerceIn(track.left + thumbRadius, track.right - thumbRadius)

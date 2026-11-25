@@ -24,6 +24,18 @@ class PlayerPrefsManager(context: Context) {
     var savedPlaybackSpeed: Float
         get() = prefs.getFloat("playback_speed", 1f).coerceIn(0.25f, 4f)
         set(value) = prefs.edit().putFloat("playback_speed", value.coerceIn(0.25f, 4f)).apply()
+
+    var savedPlayerColor: String
+        get() = prefs.getString("player_color", "blue")?.takeIf { it in setOf("blue", "purple", "green", "orange", "red") } ?: "blue"
+        set(value) = prefs.edit().putString("player_color", value.takeIf { it in setOf("blue", "purple", "green", "orange", "red") } ?: "blue").apply()
+
+    var autoPlayNext: Boolean
+        get() = prefs.getBoolean("auto_play_next", false)
+        set(value) = prefs.edit().putBoolean("auto_play_next", value).apply()
+
+    var keepScreenOn: Boolean
+        get() = prefs.getBoolean("keep_screen_on", true)
+        set(value) = prefs.edit().putBoolean("keep_screen_on", value).apply()
 }
 
 fun applyGranularVolumePercent(context: Context, player: Player, percent: Int) {

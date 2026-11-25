@@ -6,6 +6,7 @@ import com.jet.downloader.network.MAX_RETRIES
 import com.jet.downloader.network.DISK_BUFFER_BYTES
 import com.jet.downloader.network.CHUNK_SIZE_BYTES
 import com.jet.downloader.network.DEFAULT_MAX_CONNECTIONS
+import com.jet.downloader.player.PlayerPrefsManager
 import android.net.wifi.WifiManager
 import android.Manifest
 import android.annotation.SuppressLint
@@ -1947,6 +1948,34 @@ class MainActivity : AppCompatActivity() {
                 runCatching { preferencesManager.setDownloadPreference(key, value) }
                     .onFailure { Log.w("JET-Settings", "Invalid preference: " + key, it) }
             }
+        }
+
+        @JavascriptInterface
+        fun getAppVersionName(): String = packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
+
+        @JavascriptInterface
+        fun getPlayerSettingsJson(): String {
+            val prefs = PlayerPrefsManager(this@MainActivity)
+            return JSONObject().apply {
+                put("playerColor", prefs.savedPlayerColor)
+                put("playbackSpeed", prefs.savedPlaybackSpeed.toDouble())
+                put("autoPlayNext", prefs.autoPlayNext)
+                put("keepScreenOn", prefs.keepScreenOn)
+            }.toString()
+        }
+
+        @JavascriptInterface
+        fun setPlayerPreference(key: String, value: String) {
+            runCatching {
+                val prefs = PlayerPrefsManager(this@MainActivity)
+                when (key) {
+                    "playerColor" -> prefs.savedPlayerColor = value
+                    "playbackSpeed" -> prefs.savedPlaybackSpeed = value.toFloat().coerceIn(0.5f, 2f)
+                    "autoPlayNext" -> prefs.autoPlayNext = value.toBooleanStrict()
+                    "keepScreenOn" -> prefs.keepScreenOn = value.toBooleanStrict()
+                    else -> throw IllegalArgumentException("Unknown player preference")
+                }
+            }.onFailure { Log.w("JET-PlayerSettings", "Invalid player preference: " + key, it) }
         }
 
         @JavascriptInterface

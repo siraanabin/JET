@@ -162,7 +162,6 @@ class VideoPlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_video_player)
         applyImmersivePlayerMode()
         playerView = findViewById(R.id.player_view)
@@ -206,6 +205,18 @@ class VideoPlayerActivity : AppCompatActivity() {
         val resumeWasPlaying = backgroundHandoff?.wasPlaying ?: savedPlayback?.isPlaying ?: true
         updatePlayerTitle(intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { File(path).nameWithoutExtension })
         playerPrefs = PlayerPrefsManager(this)
+        if (playerPrefs.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val playerAccentColor = when (playerPrefs.savedPlayerColor) {
+            "purple" -> 0xFFB58CFF.toInt()
+            "green" -> 0xFF5CD6A0.toInt()
+            "orange" -> 0xFFFFA45B.toInt()
+            "red" -> 0xFFFF6B75.toInt()
+            else -> 0xFF7FA8FF.toInt()
+        }
+        seek.setPlayedColor(playerAccentColor)
+        findViewById<ImageButton>(R.id.player_speed).setColorFilter(playerAccentColor)
+        findViewById<TextView>(R.id.player_speed_label).setTextColor(playerAccentColor)
         volumePercent = playerPrefs.savedVolumePercent
         val savedResizeModes = intArrayOf(
             AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -253,7 +264,10 @@ class VideoPlayerActivity : AppCompatActivity() {
                 if (isPlaying) handler.postDelayed(hideControls, 3000L)
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) recordPlaybackPosition(false)
+                if (playbackState == Player.STATE_ENDED) {
+                    recordPlaybackPosition(false)
+                    if (playerPrefs.autoPlayNext) playNextInPlaylist()
+                }
             }
         })
         exo.prepare()
@@ -780,6 +794,16 @@ class VideoPlayerActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.player_speed_label).text = labels[which]
         }.show()
     }
+    private fun playNextInPlaylist() {
+        val next = playlistAdapter.nextFile(currentPath) ?: return
+        currentPath = next.absolutePath
+        updatePlayerTitle(next.nameWithoutExtension)
+        player?.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(next)))
+        player?.prepare()
+        player?.play()
+        refreshSelection()
+    }
+
     private var playlistLoadGeneration = 0
     private fun populatePlaylist(folder: File?) {
         val generation = ++playlistLoadGeneration
@@ -916,6 +940,11 @@ class VideoPlayerActivity : AppCompatActivity() {
             holder.image.tag = null
             holder.row.tag = null
             super.onViewRecycled(holder)
+        }
+
+        fun nextFile(path: String): File? {
+            val index = items.indexOfFirst { it.absolutePath == path }
+            return if (index >= 0) items.getOrNull(index + 1) else null
         }
 
         fun submitFiles(next: List<File>) {

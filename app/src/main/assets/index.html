@@ -441,9 +441,6 @@
         <div class="surface-card rounded-3xl p-4 space-y-4">
           <div><p class="text-sm font-extrabold text-app-text">Bug reports</p><p class="text-[11px] text-app-secondary mt-1">সমস্যা শনাক্ত করতে সীমিত, অজ্ঞাতনামা ডায়াগনস্টিক তথ্য স্বয়ংক্রিয়ভাবে পাঠানো হবে। ডিফল্ট ON; যেকোনো সময় বন্ধ করতে পারবেন।</p></div>
           <label class="flex items-start justify-between gap-3"><span class="min-w-0"><span class="block text-xs font-bold text-app-text">Send bug reports anonymously</span><span class="block text-[11px] text-app-secondary mt-1">শুধু status, initStep/initError, engine/fallbackReason, app ও Android version, ফোন মডেল, network type, speed/time এবং format/resolution পাঠানো হবে। নাম, ইমেইল, URL, title, path বা raw logs report body-তে থাকবে না। Random install ID শুধু header-এ থাকবে এবং একই installation-এর রিপোর্ট মিলাতে সাহায্য করবে।</span><span id="diagnostics-key-note" class="block text-[10px] text-app-muted mt-1 hidden">INGEST key খালি; আপলোড বন্ধ।</span></span><input id="diagnostics-toggle" type="checkbox" class="mt-1 h-5 w-5 accent-blue-600"></label>
-          <button id="diagnostics-what-sent" type="button" class="text-xs font-bold text-app-primary">কী পাঠানো হয় দেখুন</button>
-          <div class="border-t border-app-border pt-3 space-y-2"><p class="text-xs font-bold text-app-text">Bug report</p><p class="text-[11px] text-app-secondary">ব্যক্তিগত তথ্য, ফোন নম্বর, ইমেইল, URL বা গোপন তথ্য লিখবেন না। পাঠানোর আগে category, description ও সংযুক্ত অনুমোদিত ডায়াগনস্টিক তথ্য preview দেখানো হবে।</p><button id="diagnostics-report" type="button" class="w-full rounded-xl bg-app-primaryTint text-app-primary px-3 py-3 text-xs font-bold">রিপোর্ট পাঠান</button></div>
-          <div class="border-t border-app-border pt-3 space-y-2"><p class="text-[11px] text-app-secondary">আপনার পাঠানো কাঁচা ডেটা মুছবে; অজ্ঞাত সারাংশ গণনা থাকে।</p><button id="diagnostics-delete" type="button" class="w-full rounded-xl bg-app-elevated text-app-danger px-3 py-3 text-xs font-bold">আমার ডেটা মুছুন</button></div>
         </div>
         <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
           <button id="settings-theme-row" type="button"
@@ -515,6 +512,32 @@
             </div>
           </div>
         </div>
+        <div class="space-y-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">PLAYER SETTINGS</p>
+          <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+            <label class="p-4 flex items-center justify-between gap-3">
+              <span class="min-w-0"><span class="block text-xs font-bold text-app-text">Player color</span><span class="block text-[11px] text-app-secondary mt-0.5">Change the player accent color</span></span>
+              <select id="player-color-setting" class="rounded-xl bg-app-elevated border border-app-border px-3 py-2 text-xs font-bold text-app-text">
+                <option value="blue">Blue</option><option value="purple">Purple</option><option value="green">Green</option><option value="orange">Orange</option><option value="red">Red</option>
+              </select>
+            </label>
+            <label class="p-4 flex items-center justify-between gap-3">
+              <span class="min-w-0"><span class="block text-xs font-bold text-app-text">Default playback speed</span><span class="block text-[11px] text-app-secondary mt-0.5">Speed used when a video starts</span></span>
+              <select id="player-speed-setting" class="rounded-xl bg-app-elevated border border-app-border px-3 py-2 text-xs font-bold text-app-text">
+                <option value="0.5">0.5×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+              </select>
+            </label>
+            <div class="p-4 flex items-center justify-between gap-3">
+              <span class="min-w-0"><span class="block text-xs font-bold text-app-text">Auto-play next</span><span class="block text-[11px] text-app-secondary mt-0.5">Play the next video in the playlist</span></span>
+              <button id="player-autoplay-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button>
+            </div>
+            <div class="p-4 flex items-center justify-between gap-3">
+              <span class="min-w-0"><span class="block text-xs font-bold text-app-text">Keep screen on</span><span class="block text-[11px] text-app-secondary mt-0.5">Prevent the screen from sleeping during playback</span></span>
+              <button id="player-keep-screen-toggle" type="button" aria-checked="true" class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span></button>
+            </div>
+          </div>
+        </div>
+
         <div class="space-y-2"><p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">INFO</p><div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
           <button id="feedback-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="help-circle" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Feedback</span></button>
           <button id="share-app-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="share-2" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Share App</span></button>
@@ -626,7 +649,7 @@
     </section>
     <section id="about-modal" class="hidden fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5"><div class="surface-card w-full max-w-sm rounded-3xl p-5 space-y-4">
       <div class="flex items-center justify-between"><h3 class="text-base font-extrabold text-app-text">About JET</h3><button id="about-close" class="w-9 h-9 rounded-full flex items-center justify-center text-app-secondary"><i data-lucide="x" class="w-5 h-5"></i></button></div>
-      <div class="flex items-center gap-3"><img src="./images/jet-logo.svg" class="w-12 h-12 rounded-xl" alt="JET"><div><p class="font-extrabold text-app-text">JET</p><p class="text-xs text-app-secondary">Version v0.9.14</p></div></div>
+      <div class="flex items-center gap-3"><img src="./images/jet-logo.svg" class="w-12 h-12 rounded-xl" alt="JET"><div><p class="font-extrabold text-app-text">JET</p><p id="about-version" class="text-xs text-app-secondary">Version v0.9.14</p></div></div>
       <div class="max-h-[55vh] overflow-y-auto space-y-4 pr-1">
         <p class="text-sm leading-6 text-app-secondary">Search, watch and download videos and music from YouTube and the web. Share any link to JET to download without leaving the app you're in.</p>
         <div class="pt-3 border-t border-app-border space-y-2">
@@ -643,7 +666,7 @@
         </div>
         <div class="pt-3 border-t border-app-border space-y-1.5">
           <h4 class="text-xs font-extrabold uppercase tracking-wider text-app-text">Disclaimer</h4>
-          <p class="text-xs leading-5 text-app-secondary">Only download content you have the right to save. Respect the terms of the sites you use.</p>
+          <p class="text-xs leading-5 text-app-secondary">Only download content you have the right to save. Respect the terms of the sites you use. Use this app at your own risk. You are solely responsible for how you use it and for any consequences arising from its use.</p>
         </div>
       </div>
       <div class="pt-3 border-t border-app-border flex items-center justify-between text-xs"><span class="text-app-muted">Developed by</span><span class="font-bold text-app-text">JET Developer</span></div>
@@ -2990,29 +3013,60 @@
 
 <script>
 (function(){
- const $=id=>document.getElementById(id);
+ const toggle=document.getElementById("diagnostics-toggle");
+ const note=document.getElementById("diagnostics-key-note");
  const bridge=()=>window.JetAndroid&&typeof window.JetAndroid.getDiagnosticSettingsJson==="function";
- let cfg={diagnosticsEnabled:true,apiKeyConfigured:false};
- function sync(){if(!bridge())return;try{
-  cfg=JSON.parse(window.JetAndroid.getDiagnosticSettingsJson()||"{}");
-  $("diagnostics-toggle").disabled=!cfg.apiKeyConfigured;
-  $("diagnostics-toggle").checked=!!cfg.diagnosticsEnabled;
-  $("diagnostics-key-note").classList.toggle("hidden",!!cfg.apiKeyConfigured);
- }catch(_){}}
- $("diagnostics-toggle").addEventListener("change",e=>{if(bridge())window.JetAndroid.setDiagnosticPreference("diagnostics",e.target.checked);sync();});
- $("diagnostics-what-sent").addEventListener("click",()=>alert("স্বয়ংক্রিয়ভাবে পাঠানো হতে পারে: status, initStep, initError, engine, fallbackReason, app version, Android version, ফোন মডেল, network type, speed, duration, format ও resolution।\n\nReport body-তে থাকবে না: নাম, ইমেইল, IP, GPS, URL, video title, file path, raw logs বা timestamp। তবে সার্ভার/Cloudflare নেটওয়ার্ক request-এর source IP দেখতে পারে। Random install ID শুধু request header-এ থাকবে এবং একই installation-এর রিপোর্টগুলো মিলাতে পারে।"));
- $("diagnostics-report").addEventListener("click",()=>{
-  if(!bridge())return;
-  const category=(prompt("Category: bug, crash, performance, other")||"").trim().toLowerCase();
-  if(!["bug","crash","performance","other"].includes(category))return;
-  const description=(prompt("বর্ণনা (সর্বোচ্চ ৫০০ অক্ষর)")||"").trim().slice(0,500);if(!description)return;
-  let logs=[];if(cfg.diagnosticsEnabled){try{logs=JSON.parse(window.JetAndroid.getRecentDiagnosticLogsJson()||"[]");}catch(_){}}
-  const payload={category,description,logs};
-  if(!confirm("পাঠানোর আগে preview:\n\n"+JSON.stringify(payload,null,2)+"\n\nএই তথ্য পাঠাবেন?"))return;
-  window.JetAndroid.sendDiagnosticReport(JSON.stringify(payload));
+ function sync(){
+  if(!bridge()||!toggle)return;
+  try{
+   const cfg=JSON.parse(window.JetAndroid.getDiagnosticSettingsJson()||"{}");
+   toggle.disabled=!cfg.apiKeyConfigured;
+   toggle.checked=!!cfg.diagnosticsEnabled;
+   if(note)note.classList.toggle("hidden",!!cfg.apiKeyConfigured);
+  }catch(_){}
+ }
+ if(toggle)toggle.addEventListener("change",e=>{
+  if(bridge())window.JetAndroid.setDiagnosticPreference("diagnostics",e.target.checked);
+  sync();
  });
- $("diagnostics-delete").addEventListener("click",()=>{if(bridge()&&confirm("আপনার পাঠানো কাঁচা ডেটা মুছতে চান? অজ্ঞাত সারাংশ গণনা থাকবে।"))window.JetAndroid.deleteDiagnosticData();});
- window.onNativeDiagnosticResult=(ok,message)=>{alert(message||(ok?"সম্পন্ন।":"অনুরোধ ব্যর্থ হয়েছে।"));sync();};sync();
+ sync();
+})();
+</script>
+<script>
+(function(){
+ const $=id=>document.getElementById(id);
+ const bridge=()=>window.JetAndroid;
+ function paintToggle(id,enabled){
+  const el=$(id);if(!el)return;
+  el.setAttribute("aria-checked",String(!!enabled));
+  el.classList.toggle("bg-app-primary",!!enabled);
+  el.classList.toggle("border-app-primary",!!enabled);
+  el.classList.toggle("bg-app-elevated",!enabled);
+  el.classList.toggle("border-app-border",!enabled);
+  el.querySelector(".toggle-thumb")?.classList.toggle("translate-x-5",!!enabled);
+ }
+ function save(key,value){
+  if(bridge()&&window.JetAndroid.setPlayerPreference)window.JetAndroid.setPlayerPreference(key,String(value));
+ }
+ const color=$("player-color-setting"),speed=$("player-speed-setting");
+ const auto=$("player-autoplay-toggle"),keep=$("player-keep-screen-toggle");
+ if(color)color.addEventListener("change",()=>save("playerColor",color.value));
+ if(speed)speed.addEventListener("change",()=>save("playbackSpeed",speed.value));
+ if(auto)auto.addEventListener("click",()=>{const enabled=auto.getAttribute("aria-checked")!=="true";paintToggle("player-autoplay-toggle",enabled);save("autoPlayNext",enabled);});
+ if(keep)keep.addEventListener("click",()=>{const enabled=keep.getAttribute("aria-checked")!=="true";paintToggle("player-keep-screen-toggle",enabled);save("keepScreenOn",enabled);});
+ if(bridge()&&window.JetAndroid.getPlayerSettingsJson){
+  try{
+   const cfg=JSON.parse(window.JetAndroid.getPlayerSettingsJson()||"{}");
+   if(color)color.value=cfg.playerColor||"blue";
+   if(speed)speed.value=String(cfg.playbackSpeed||1);
+   paintToggle("player-autoplay-toggle",!!cfg.autoPlayNext);
+   paintToggle("player-keep-screen-toggle",cfg.keepScreenOn!==false);
+  }catch(_){}
+ }
+ const versionEl=$("about-version");
+ if(versionEl&&bridge()&&window.JetAndroid.getAppVersionName){
+  try{const value=String(window.JetAndroid.getAppVersionName()||"").replace(/^v/i,"");if(value)versionEl.textContent="Version v"+value;}catch(_){}
+ }
 })();
 </script>
 </body>

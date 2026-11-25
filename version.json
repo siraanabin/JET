@@ -1,8 +1,11 @@
 {
-  "versionCode": 357,
-  "versionName": "0.9.14",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.14/app-universal-release.apk",
+  "versionCode": 358,
+  "versionName": "0.9.15",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.15/app-universal-release.apk",
   "changelog": [
+    "Added Player Settings for accent color, default playback speed, autoplay next and keep-screen-on",
+    "Removed manual bug-report, sent-data details and data-deletion controls; anonymous diagnostics toggle remains",
+    "Updated About disclaimer and made the displayed app version read from the installed APK",
     "Updated About section with app description, open-source library credits and download disclaimer",
     "Added detailed yt-dlp initialization diagnostics to ENGINE_DEBUG and Settings telemetry",
     "Fixed Library scan delivery when media permission is denied",
