@@ -4470,6 +4470,21 @@ class MainActivity : AppCompatActivity() {
                             throw IllegalStateException("The matching ${if (isDebugApp) "JET Debug" else "JET Release"} APK asset is missing from the Official Release Channel.")
                         }
 
+                        if (versionIsNewer && !apkSha256.matches(Regex("^sha256:[a-fA-F0-9]{64}$"))) {
+                            val checksumRequest = okhttp3.Request.Builder()
+                                .url("$apkUrl.sha256")
+                                .header("User-Agent", "JET-Android-Updater")
+                                .header("Cache-Control", "no-cache")
+                                .build()
+                            val checksumText = okHttpClient.newCall(checksumRequest).execute().use { response ->
+                                if (!response.isSuccessful) throw IllegalStateException("Official APK SHA-256 checksum is unavailable.")
+                                response.body?.string()?.trim().orEmpty()
+                            }
+                            val checksum = Regex("(?i)\\b[a-f0-9]{64}\\b").find(checksumText)?.value
+                                ?: throw IllegalStateException("Official APK SHA-256 checksum is invalid.")
+                            apkSha256 = "sha256:$checksum"
+                        }
+
                         val appLabel = if (isDebugApp) "JET Debug" else "JET"
                         val result = JSONObject().apply {
                             put("ok", true)
