@@ -950,8 +950,20 @@
 
       let lastDownloadsRenderKey = '';
       let libraryRenderGeneration = 0;
-      let libraryRefreshRequested = false;
+      let libraryScanTimeout = null;
       let libraryPermissionState = 'unknown';
+      function clearLibraryScanTimeout() { if (libraryScanTimeout) { clearTimeout(libraryScanTimeout); libraryScanTimeout = null; } }
+      function startLibraryScanTimeout() {
+        clearLibraryScanTimeout();
+        libraryScanTimeout = setTimeout(() => {
+          libraryScanTimeout = null;
+          if (state.screen !== 'library' || !document.getElementById('library-items-container')) return;
+          if (!state.libraryScanBuffer && !state.library.length) {
+            $('library-location-label').textContent = 'Media scan did not respond';
+            $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-6 text-center text-xs text-app-secondary col-span-full"><p class="mb-3">Library scan did not respond. Check media access and try again.</p><button type="button" id="library-permission-retry" class="px-4 py-2 rounded-xl bg-app-primary text-white font-bold">Grant Storage Permission</button></div>';
+          }
+        }, 10000);
+      }
       // Navigation
       function switchScreen(target) {
         try {
@@ -980,10 +992,12 @@
           // Paint cached items in this frame; keep the native scan off the tap stack.
           if (target === 'library') {
             if (Array.isArray(state.library) && state.library.length) renderLibrary();
-            if (!libraryRefreshRequested && hasAndroid() && window.JetAndroid && window.JetAndroid.refreshLibrary) {
-              libraryRefreshRequested = true;
+            if (hasAndroid() && window.JetAndroid && window.JetAndroid.refreshLibrary) {
               setTimeout(() => {
-                if (state.screen === 'library' && window.JetAndroid && window.JetAndroid.refreshLibrary) window.JetAndroid.refreshLibrary();
+                if (state.screen === 'library' && window.JetAndroid && window.JetAndroid.refreshLibrary) {
+                  startLibraryScanTimeout();
+                  window.JetAndroid.refreshLibrary();
+                }
               }, 0);
             }
           }
@@ -1766,11 +1780,13 @@
         const label = $('library-location-label');
         const container = $('library-items-container');
         if (permissionState === 'requesting') {
+          startLibraryScanTimeout();
           label.textContent = 'Requesting audio and video access…';
           container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Allow media access in the Android permission prompt to scan your device.</div>';
         } else if (permissionState === 'denied') {
-          label.textContent = 'Media access not granted · showing JET downloads';
-          container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning files downloaded by JET…</div>';
+          clearLibraryScanTimeout();
+          label.textContent = 'Storage permission required';
+          container.innerHTML = '<div class="surface-card rounded-3xl p-6 text-center text-xs text-app-secondary col-span-full"><p class="mb-3">Storage permission required to scan device media</p><button type="button" id="library-permission-retry" class="px-4 py-2 rounded-xl bg-app-primary text-white font-bold">Allow Permission</button></div>'; 
         } else if (permissionState === 'partial') {
           label.textContent = 'Partial media access · showing permitted files';
         } else if (permissionState === 'granted') {
@@ -1783,6 +1799,7 @@
       };
 
       window.onNativeLibraryScanStarted = function () {
+        startLibraryScanTimeout();
         state.libraryScanBuffer = [];
         $('library-location-label').textContent = state.library.length ? 'Updating device media…' : 'Scanning device media…';
         if (!state.library.length) $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
@@ -1809,6 +1826,7 @@
         $('library-location-label').textContent = (isFinal ? sourceLabel : 'Scanning device media · ') + scanCount + ' files';
         if (!isFinal) return;
 
+        clearLibraryScanTimeout();
         state.library = state.libraryScanBuffer;
         delete state.libraryScanBuffer;
         try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
@@ -1846,6 +1864,7 @@
       };
 
       window.onNativeLibraryScanFailed = function (message) {
+        clearLibraryScanTimeout();
         delete state.libraryScanBuffer;
         $('library-location-label').textContent = state.library.length ? 'Library refresh failed · showing cached files' : 'Media scan failed';
         if (!state.library.length) {
@@ -2351,6 +2370,14 @@
           window.JetAndroid.showLibraryMenu(filePath, Math.round(rect.right), Math.round(rect.bottom));
         });
       }
+
+      document.addEventListener('click', (event) => {
+        if (event.target && event.target.closest('#library-permission-retry')) {
+          event.preventDefault();
+          if (hasAndroid() && window.JetAndroid && window.JetAndroid.requestLibraryPermission) window.JetAndroid.requestLibraryPermission();
+          else if (hasAndroid() && window.JetAndroid && window.JetAndroid.refreshLibrary) window.JetAndroid.refreshLibrary();
+        }
+      });
 
       $('refresh-library-btn').addEventListener('click', () => {
         if (hasAndroid() && window.JetAndroid.forceRefreshLibrary) {
