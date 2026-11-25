@@ -565,7 +565,7 @@
               <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="gauge" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Show Download Speed Stats</span><span class="block text-[11px] text-app-secondary mt-0.5">Show detailed telemetry in Settings</span></span></span><button id="show-download-speed-stats-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
               <div id="download-telemetry-table-wrap" class="hidden mt-3 rounded-2xl border border-app-border bg-app-elevated/30 overflow-hidden">
                 <div class="flex items-center justify-between gap-2 p-3">
-                  <div class="min-w-0"><p class="text-xs font-bold text-app-text">Recent Download Telemetry</p><p class="text-[10px] text-app-secondary mt-0.5">Latest 4 download attempts · tap a row to copy its log</p></div>
+                  <div class="min-w-0"><p class="text-xs font-bold text-app-text">Performance & Download Logs</p><p class="text-[10px] text-app-secondary mt-0.5">Download diagnostics and page navigation timings</p></div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     <button id="telemetry-copy-all" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-primaryTint text-app-primary text-[10px] font-bold">Copy All (0)</button>
                     <button id="telemetry-clear" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-elevated text-app-secondary text-[10px] font-bold">Clear Logs</button>
@@ -578,6 +578,13 @@
                     </tr></thead>
                     <tbody id="download-telemetry-table-body"></tbody>
                   </table>
+                </div>
+                <div class="border-t border-app-border p-3">
+                  <div class="flex items-center justify-between gap-2 mb-2"><p class="text-xs font-bold text-app-text">Recent Navigation Performance</p><span class="text-[10px] text-app-secondary">Last 10 page switches</span></div>
+                  <div class="overflow-x-auto overscroll-x-contain"><table class="w-full min-w-[520px] text-left">
+                    <thead><tr class="border-b border-app-border text-[10px] uppercase tracking-wide text-app-muted"><th class="px-2 py-2">From → To</th><th class="px-2 py-2">Time</th><th class="px-2 py-2">Breakdown / likely bottleneck</th></tr></thead>
+                    <tbody id="navigation-telemetry-table-body"></tbody>
+                  </table></div>
                 </div>
               </div>
             </div>
@@ -1021,6 +1028,7 @@
         clipboardAutoDetect: true,
         showDownloadSpeedStats: (() => { try { return localStorage.getItem('jet_show_dl_stats') === 'true'; } catch (_) { return false; } })(),
         telemetryLast4: (() => { try { const value = JSON.parse(localStorage.getItem('jet-telemetry-last4-v1') || '[]'); return Array.isArray(value) ? value.slice(0, 4) : []; } catch (_) { return []; } })(),
+        navigationTelemetryLast10: (() => { try { const value = JSON.parse(localStorage.getItem('jet-navigation-telemetry-v1') || '[]'); return Array.isArray(value) ? value.slice(0, 10) : []; } catch (_) { return []; } })(),
         dlTab: 'active',
         libFilter: 'all',
         libView: 'grid',
@@ -1099,6 +1107,8 @@
       let libraryScanTimeout = null;
       let libraryPermissionState = 'unknown';
       let libraryScanStartedEmpty = false;
+      let libraryScanPerfStartedAt = 0;
+      let pendingLibraryNavigationRecord = null;
       function clearLibraryScanTimeout() { if (libraryScanTimeout) { clearTimeout(libraryScanTimeout); libraryScanTimeout = null; } }
       function startLibraryScanTimeout() {
         clearLibraryScanTimeout();
@@ -1113,6 +1123,8 @@
       }
       // Navigation
       function switchScreen(target) {
+        const navigationStartedAt = performance.now();
+        const fromScreen = state.screen || 'home';
         const libraryNavStartedAt = target === 'library' ? performance.now() : 0;
         try {
           state.screen = target;
@@ -1165,6 +1177,19 @@
           if (target === 'library') {
             console.info('[JET-Library-Perf] screen_switch_total_ms=' + (performance.now() - libraryNavStartedAt).toFixed(1));
           }
+          const switchMs = performance.now() - navigationStartedAt;
+          const navRecord = {
+            from: fromScreen, to: target, totalMs: Math.round(switchMs),
+            timestamp: new Date().toLocaleTimeString(),
+            reason: switchMs > 120 ? 'Slow synchronous UI work (screen DOM/render update)' : 'Screen switch UI work completed quickly'
+          };
+          persistNavigationTelemetry(navRecord);
+          if (target === 'library' && !state.libraryHasLoaded) pendingLibraryNavigationRecord = navRecord;
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            navRecord.paintMs = Math.round(performance.now() - navigationStartedAt);
+            if (navRecord.paintMs > 300 && navRecord.totalMs <= 120) navRecord.reason = 'UI update was quick; extra time was in browser paint/transition';
+            persistNavigationTelemetry(navRecord);
+          }));
         } catch (err) {
           console.error("UI Switch Error:", err);
         }
@@ -1260,6 +1285,13 @@
         if (!wrap || !body) return;
         wrap.classList.toggle('hidden', !state.showDownloadSpeedStats);
         const rows = Array.isArray(state.telemetryLast4) ? state.telemetryLast4.slice(0, 4) : [];
+        const navBody = $('navigation-telemetry-table-body');
+        const navRows = Array.isArray(state.navigationTelemetryLast10) ? state.navigationTelemetryLast10.slice(0, 10) : [];
+        if (navBody) navBody.innerHTML = navRows.length ? navRows.map((item) =>
+          '<tr class="border-b border-app-border last:border-0"><td class="px-2 py-2 text-[10px] font-bold text-app-text">' + telemetryEscape(item.from) + ' → ' + telemetryEscape(item.to) + '<div class="text-[9px] font-normal text-app-secondary">' + telemetryEscape(item.timestamp) + '</div></td>' +
+          '<td class="px-2 py-2 text-[10px] font-bold text-app-text whitespace-nowrap">' + telemetryEscape(item.totalMs) + ' ms</td>' +
+          '<td class="px-2 py-2 text-[10px] text-app-secondary whitespace-normal">' + telemetryEscape(item.reason) + (item.scanMs ? '<div class="mt-1">Media scan: ' + telemetryEscape(item.scanMs) + ' ms</div>' : '') + '</td></tr>'
+        ).join('') : '<tr><td colspan="3" class="px-2 py-4 text-center text-[10px] text-app-secondary">No navigation logs yet. Switch between pages to collect timings.</td></tr>';
         const copyAll = $('telemetry-copy-all');
         if (copyAll) copyAll.textContent = 'Copy All (' + rows.length + ')';
         if (!rows.length) {
@@ -1291,6 +1323,13 @@
         }
       }
 
+      function persistNavigationTelemetry(record) {
+        if (!record) return;
+        state.navigationTelemetryLast10 = [record, ...(state.navigationTelemetryLast10 || [])].slice(0, 10);
+        try { localStorage.setItem('jet-navigation-telemetry-v1', JSON.stringify(state.navigationTelemetryLast10)); } catch (_) {}
+        renderTelemetryTable();
+      }
+
       function persistTelemetryLast4(record) {
         if (!record || !record.rawLog) return;
         state.telemetryLast4 = [record, ...(state.telemetryLast4 || [])].slice(0, 4);
@@ -1316,15 +1355,18 @@
         });
         $('telemetry-copy-all')?.addEventListener('click', async () => {
           const logs = (state.telemetryLast4 || []).slice(0, 4).map((item) => item.rawLog).filter(Boolean);
-          if (!logs.length) { showToast('No logs to copy'); return; }
-          try { await copyTelemetryText(logs.join('\n')); showToast('Logs copied'); }
+          const navLogs = (state.navigationTelemetryLast10 || []).slice(0, 10).map((item) => 'NAVIGATION ' + item.from + ' -> ' + item.to + ' | ' + item.totalMs + ' ms | ' + item.reason + (item.scanMs ? ' | Media scan: ' + item.scanMs + ' ms' : ''));
+          const allLogs = [...logs, ...navLogs];
+          if (!allLogs.length) { showToast('No logs to copy'); return; }
+          try { await copyTelemetryText(allLogs.join('\n')); showToast('Performance logs copied'); }
           catch (_) { showToast('Could not copy logs'); }
         });
         $('telemetry-clear')?.addEventListener('click', () => {
           state.telemetryLast4 = [];
-          try { localStorage.removeItem('jet-telemetry-last4-v1'); } catch (_) {}
+          state.navigationTelemetryLast10 = [];
+          try { localStorage.removeItem('jet-telemetry-last4-v1'); localStorage.removeItem('jet-navigation-telemetry-v1'); } catch (_) {}
           renderTelemetryTable();
-          showToast('Logs cleared');
+          showToast('Performance logs cleared');
         });
       }
 
@@ -1963,6 +2005,7 @@
       };
 
       window.onNativeLibraryScanStarted = function () {
+        libraryScanPerfStartedAt = performance.now();
         startLibraryScanTimeout();
         libraryScanStartedEmpty = state.library.length === 0;
         state.libraryScanBuffer = [];
@@ -2003,6 +2046,15 @@
         }
 
         clearLibraryScanTimeout();
+        if (pendingLibraryNavigationRecord && libraryScanPerfStartedAt) {
+          pendingLibraryNavigationRecord.scanMs = Math.round(performance.now() - libraryScanPerfStartedAt);
+          pendingLibraryNavigationRecord.reason = pendingLibraryNavigationRecord.scanMs > 1000
+            ? 'Device media scan was the main extra wait after opening Library'
+            : 'Device media scan completed quickly; screen UI was not the main delay';
+          persistNavigationTelemetry(pendingLibraryNavigationRecord);
+          pendingLibraryNavigationRecord = null;
+          libraryScanPerfStartedAt = 0;
+        }
         state.library = state.libraryScanBuffer;
         state.libraryDataRevision++;
         libraryFilteredCacheKey = '';
