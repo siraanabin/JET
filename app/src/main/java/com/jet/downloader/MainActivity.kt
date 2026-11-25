@@ -596,11 +596,13 @@ class MainActivity : AppCompatActivity() {
             else -> "denied"
         }
         callJs("onNativeLibraryPermissionState", JSONObject.quote(state))
-        if (hasVideo || hasAudio) {
-            pushScannedLibraryToWeb()
-        } else {
-            Toast.makeText(this, "Allow audio and video access to load your Library.", Toast.LENGTH_LONG).show()
+        // Even when device-wide access is denied, always scan JET's own Downloads/JET
+        // directory so files created by this app remain visible in Library.
+        if (!hasVideo && !hasAudio) {
+            Toast.makeText(this, "Media access was not granted. Showing JET downloads only.", Toast.LENGTH_LONG).show()
         }
+        // Force a fresh scan: the startup cache may have been created before permission was granted.
+        pushScannedLibraryToWeb(force = true)
     }
 
     private val feedbackMediaPicker = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(9)) { uris ->
@@ -1423,6 +1425,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun pushScannedLibraryToWeb(force: Boolean = false) {
         lifecycleScope.launch(Dispatchers.IO) {
+            var scanFinalized = false
+            var scanFailureMessage: String? = null
             try {
                 if (!force) {
                     val diskItems = cachedLibraryItems ?: runCatching {
@@ -1434,6 +1438,7 @@ class MainActivity : AppCompatActivity() {
                         val audioBytes = if (hasAudioReadPermission()) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
                         val videoBytes = if (hasVideoReadPermission()) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
                         pushStorageStats(audioBytes, videoBytes)
+                        scanFinalized = true
                         return@launch
                     }
                 }
@@ -1519,15 +1524,23 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                if (videoPermission) queryCollection(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video")
-                if (audioPermission) queryCollection(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, "audio")
+                // A MediaStore provider/query failure must not prevent scanning the app-owned
+                // Downloads/JET folder below.
+                if (videoPermission) runCatching {
+                    queryCollection(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video")
+                }.onFailure { Log.w("JET-Library", "Video MediaStore scan failed; continuing with local downloads", it) }
+                if (audioPermission) runCatching {
+                    queryCollection(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, "audio")
+                }.onFailure { Log.w("JET-Library", "Audio MediaStore scan failed; continuing with local downloads", it) }
 
                 val dir = getJetDownloadDir()
                 val files = dir.listFiles()
                     ?.filter { it.isFile && !it.name.startsWith(".") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
                     ?.sortedByDescending { it.lastModified() }
                     ?: emptyList()
-                val savedByPath = pushCompletedDownloadHistoryToWeb(files)
+                val savedByPath = runCatching { pushCompletedDownloadHistoryToWeb(files) }
+                    .onFailure { Log.w("JET-Library", "Could not restore download metadata; continuing with local files", it) }
+                    .getOrDefault(emptyMap())
 
                 for (file in files) {
                     val lower = file.name.lowercase(Locale.US)
@@ -1553,13 +1566,23 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
                 flushChunk(isFinal = true)
+                scanFinalized = true
                 cachedLibraryItems = allItems.toList()
                 runCatching { libraryCacheFile.writeText(json.encodeToString(allItems)) }
                     .onFailure { Log.w("JET-Library", "Could not persist Library cache", it) }
                 Log.i("JET-Library", "Media scan delivered $sentCount items in 50-item chunks")
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
+                scanFailureMessage = error.message ?: "Media scan failed"
                 Log.e("JET-Library", "Device media scan failed", error)
-                callJs("onNativeLibraryScanFailed", JSONObject.quote(error.message ?: "Media scan failed"))
+            } finally {
+                // Always close the JS-side chunk buffer so the Library cannot remain
+                // on its scanning placeholder after a failed or interrupted scan.
+                if (!scanFinalized) {
+                    callJs("onNativeLibraryChunk", "[], true")
+                    scanFailureMessage?.let {
+                        callJs("onNativeLibraryScanFailed", JSONObject.quote(it))
+                    }
+                }
             }
         }
     }
@@ -1627,7 +1650,7 @@ class MainActivity : AppCompatActivity() {
 
             if (missing.isEmpty()) {
                 callJs("onNativeLibraryPermissionState", JSONObject.quote("granted"))
-                pushScannedLibraryToWeb()
+                pushScannedLibraryToWeb(force = true)
                 return@runOnUiThread
             }
 
@@ -1646,7 +1669,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     .setNegativeButton("Not now") { _, _ ->
                         callJs("onNativeLibraryPermissionState", JSONObject.quote(if (hasVideoReadPermission() || hasAudioReadPermission()) "partial" else "denied"))
-                        if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb()
+                        pushScannedLibraryToWeb(force = true)
                     }
                     .show()
                 return@runOnUiThread

@@ -951,6 +951,7 @@
       let lastDownloadsRenderKey = '';
       let libraryRenderGeneration = 0;
       let libraryRefreshRequested = false;
+      let libraryPermissionState = 'unknown';
       // Navigation
       function switchScreen(target) {
         try {
@@ -1761,14 +1762,15 @@
       };
 
       window.onNativeLibraryPermissionState = function (permissionState) {
+        libraryPermissionState = permissionState;
         const label = $('library-location-label');
         const container = $('library-items-container');
         if (permissionState === 'requesting') {
           label.textContent = 'Requesting audio and video access…';
           container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Allow media access in the Android permission prompt to scan your device.</div>';
         } else if (permissionState === 'denied') {
-          label.textContent = 'Media access is required to scan device files';
-          container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Media access was not granted. Open Library again and allow audio and video access, or enable it in Android App settings.</div>';
+          label.textContent = 'Media access not granted · showing JET downloads';
+          container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning files downloaded by JET…</div>';
         } else if (permissionState === 'partial') {
           label.textContent = 'Partial media access · showing permitted files';
         } else if (permissionState === 'granted') {
@@ -1801,7 +1803,10 @@
         if (!Array.isArray(state.libraryScanBuffer)) state.libraryScanBuffer = [];
         state.libraryScanBuffer.push(...mapped);
         const scanCount = state.libraryScanBuffer.length;
-        $('library-location-label').textContent = (isFinal ? 'All device audio and video · ' : 'Scanning device media · ') + scanCount + ' files';
+        const sourceLabel = libraryPermissionState === 'denied'
+          ? 'JET downloads only · '
+          : 'All device audio and video · ';
+        $('library-location-label').textContent = (isFinal ? sourceLabel : 'Scanning device media · ') + scanCount + ' files';
         if (!isFinal) return;
 
         state.library = state.libraryScanBuffer;

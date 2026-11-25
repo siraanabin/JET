@@ -16,12 +16,19 @@
 -keep class okhttp3.** { *; }
 -dontwarn okhttp3.**
 
+# Preserve application JSON payloads, models, events and Room data models used by reflection/serialization.
+-keep class com.jet.downloader.model.** { *; }
+-keep class com.jet.downloader.data.** { *; }
+
 # Preserve Kotlin serialization models and generated serializers.
 -keep @kotlinx.serialization.Serializable class ** { *; }
 -keepclassmembers class **$$serializer { *; }
 -keep class kotlinx.serialization.** { *; }
 
-# Keep methods exposed to the WebView JavaScript bridge.
+# Preserve WebView bridge annotations and every exposed bridge method.
+-keepattributes JavascriptInterface,RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,AnnotationDefault
+-keep class com.jet.downloader.MainActivity$JetNativeBridge { *; }
+-keep class com.jet.downloader.MainActivity$JetNetworkBridge { *; }
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
