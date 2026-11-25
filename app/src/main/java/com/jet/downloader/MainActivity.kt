@@ -126,6 +126,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.util.Locale
 import java.util.zip.ZipFile
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
@@ -4318,43 +4319,36 @@ class MainActivity : AppCompatActivity() {
          * Reading every ZIP entry forces CRC/size checks instead of trusting the APK manifest
          * parser, which can sometimes read package metadata from an incomplete archive.
          */
-        private fun verifyDownloadedApk(apkFile: File): Long {
-            if (!apkFile.isFile || apkFile.length() <= 0L) {
-                throw IllegalStateException("Downloaded APK is missing or empty.")
+        private fun verifyDownloadedApk(apkFile: File, expectedSha256: String): Long {
+            if (!apkFile.isFile || apkFile.length() <= 0L) throw IllegalStateException("Downloaded APK is missing or empty.")
+            val expected = expectedSha256.trim().removePrefix("sha256:").lowercase(Locale.ROOT)
+            if (!expected.matches(Regex("^[a-f0-9]{64}$"))) throw IllegalStateException("Official SHA-256 checksum unavailable; update blocked.")
+            val digest = MessageDigest.getInstance("SHA-256")
+            FileInputStream(apkFile).use { input ->
+                val buffer = ByteArray(131072)
+                while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
             }
-
+            val actual = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!actual.equals(expected, true)) throw IllegalStateException("APK SHA-256 verification failed.")
             ZipFile(apkFile).use { zip ->
-                val entries = zip.entries()
-                val buffer = ByteArray(64 * 1024)
-                var verifiedEntries = 0
+                val entries = zip.entries(); val buffer = ByteArray(65536); var count = 0
                 while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    verifiedEntries++
-                    if (!entry.isDirectory) {
-                        zip.getInputStream(entry).use { input ->
-                            while (input.read(buffer) != -1) {
-                                // Consume every entry so ZIP integrity checks are performed.
-                            }
-                        }
-                    }
+                    val entry = entries.nextElement(); count++
+                    if (!entry.isDirectory) zip.getInputStream(entry).use { input -> while (input.read(buffer) != -1) { } }
                 }
-                if (verifiedEntries == 0) {
-                    throw IllegalStateException("Downloaded file contains no APK archive entries.")
-                }
+                if (count == 0) throw IllegalStateException("APK archive is empty.")
             }
-
-            val archiveInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
-                ?: throw IllegalStateException("Downloaded file is not a valid, complete APK archive.")
-            if (archiveInfo.packageName != packageName) {
-                throw IllegalStateException("Downloaded APK does not match this JET app variant.")
+            val flags = PackageManager.GET_SIGNING_CERTIFICATES
+            val archive = packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags) ?: throw IllegalStateException("Invalid APK archive.")
+            if (archive.packageName != packageName) throw IllegalStateException("APK package does not match this app.")
+            val installed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong())) else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, flags)
             }
-
-            val installedInfo = packageManager.getPackageInfo(packageName, 0)
-            if (PackageInfoCompat.getLongVersionCode(archiveInfo) <=
-                PackageInfoCompat.getLongVersionCode(installedInfo)
-            ) {
-                throw IllegalStateException("Downloaded APK is not newer than the installed app.")
-            }
+            if (PackageInfoCompat.getLongVersionCode(archive) <= PackageInfoCompat.getLongVersionCode(installed)) throw IllegalStateException("APK version is not newer.")
+            val newSigners = archive.signingInfo?.apkContentsSigners?.map { it.toCharsString() }?.toSet().orEmpty()
+            val oldSigners = installed.signingInfo?.apkContentsSigners?.map { it.toCharsString() }?.toSet().orEmpty()
+            if (newSigners.isEmpty() || oldSigners.isEmpty() || newSigners != oldSigners) throw IllegalStateException("APK signing certificate does not match installed app.")
             return apkFile.length()
         }
 
@@ -4436,6 +4430,7 @@ class MainActivity : AppCompatActivity() {
                         val assets = release.optJSONArray("assets")
                         val expectedAssetName = if (isDebugApp) "JET-debug.apk" else "app-universal-release.apk"
                         var apkUrl = ""
+                        var apkSha256 = ""
                         if (assets != null) {
                             for (index in 0 until assets.length()) {
                                 val asset = assets.optJSONObject(index) ?: continue
@@ -4443,6 +4438,7 @@ class MainActivity : AppCompatActivity() {
                                     val url = asset.optString("browser_download_url", "")
                                     if (url.startsWith("https://github.com/")) {
                                         apkUrl = url
+                                        apkSha256 = asset.optString("digest", "")
                                         break
                                     }
                                 }
@@ -4474,6 +4470,7 @@ class MainActivity : AppCompatActivity() {
                             put("releaseName", "Official Release Channel")
                             put("changelog", releaseNotes.ifBlank { "No release notes provided." })
                             put("apkUrl", apkUrl)
+                            put("apkSha256", apkSha256)
                             put("releaseUrl", release.optString("html_url", ""))
                         }
                         callJs("onNativeAppUpdateResult", result.toString())
@@ -4489,7 +4486,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun downloadAndInstallAppUpdate(apkUrl: String) {
+        fun downloadAndInstallAppUpdate(apkUrl: String, expectedSha256: String) {
             pendingVerifiedAppUpdateFile = null
             val parsedUrl = Uri.parse(apkUrl)
             if (parsedUrl.scheme != "https" || parsedUrl.host != "github.com") {
@@ -4658,7 +4655,7 @@ class MainActivity : AppCompatActivity() {
                         if (!apkFile.isFile || apkFile.length() != totalBytes) {
                             throw IllegalStateException("Downloaded APK size verification failed")
                         }
-                        verifyDownloadedApk(apkFile)
+                        verifyDownloadedApk(apkFile, expectedSha256)
                     }
 
                     pendingVerifiedAppUpdateFile = apkFile
