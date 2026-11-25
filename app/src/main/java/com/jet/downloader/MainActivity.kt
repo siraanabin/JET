@@ -967,13 +967,15 @@ class MainActivity : AppCompatActivity() {
         val window = window
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         val isDarkMode = isDarkTheme(themeMode)
-        // Match the Android status bar to the app's theme surface, not the page canvas.
-        val statusColor = when (themeMode) {
+        // Match the Android status bar (time, signal, Wi-Fi, battery) to the
+        // actual Home/page background in every theme.
+        val statusColor = windowBackgroundColor(themeMode)
+        // Keep the bottom navigation bar on its existing surface color.
+        val navigationColor = when (themeMode) {
             PreferencesManager.THEME_WARM -> "#F4ECE4"
             PreferencesManager.THEME_OCEAN -> "#0D1D2B"
             else -> if (isDarkMode) "#121826" else "#FFFFFF"
         }
-        val navigationColor = statusColor
         window.statusBarColor = Color.parseColor(statusColor)
         window.navigationBarColor = Color.parseColor(navigationColor)
         window.isStatusBarContrastEnforced = false
