@@ -1047,6 +1047,7 @@
         activeDownloads: [],
         doneDownloads: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-done-downloads-v1') || '[]'); return Array.isArray(cached) ? cached.map(({ telemetrySummary, telemetryDisplay, ...item }) => item) : []; } catch (_) { return []; } })(),
         library: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-library-snapshot-v1') || '[]'); return Array.isArray(cached) ? cached : []; } catch (_) { return []; } })(),
+        libraryHasLoaded: (() => { try { return localStorage.getItem('jet-library-snapshot-v1') !== null; } catch (_) { return false; } })(),
         downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true },
         libraryGridColumns: 3
       };
@@ -1128,8 +1129,10 @@
 
           // Paint cached items in this frame; keep the native scan off the tap stack.
           if (target === 'library') {
-            if (Array.isArray(state.library) && state.library.length) renderLibrary();
-            if (hasAndroid() && window.JetAndroid && window.JetAndroid.refreshLibrary) {
+            if (Array.isArray(state.library)) renderLibrary();
+            // Keep the current file count and list stable when returning to Library.
+            // The explicit refresh button and native MediaStore observer handle updates.
+            if (!state.libraryHasLoaded && hasAndroid() && window.JetAndroid && window.JetAndroid.refreshLibrary) {
               setTimeout(() => {
                 if (state.screen === 'library' && window.JetAndroid && window.JetAndroid.refreshLibrary) {
                   startLibraryScanTimeout();
@@ -1977,6 +1980,7 @@
 
         clearLibraryScanTimeout();
         state.library = state.libraryScanBuffer;
+        state.libraryHasLoaded = true;
         delete state.libraryScanBuffer;
         try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
         if (wasEmpty && state.library.length > 0) {
@@ -2438,7 +2442,7 @@
           return matchCat && matchSearch;
         });
 
-        $('library-item-count').textContent = `${filtered.length} files`;
+        $('library-item-count').textContent = `${state.library.length} files`;
         const container = $('library-items-container');
         const renderKey = JSON.stringify([state.libView,state.libFilter,state.libSearch,state.libraryGridColumns,filtered.map(item => [item.filePath,item.title,item.size,item.duration,item.resolution,item.thumbnailUrl])]);
         if (container.dataset.renderKey === renderKey) return;
