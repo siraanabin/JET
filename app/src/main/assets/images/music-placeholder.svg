@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+      <stop offset="0" stop-color="#1B2430"/>
+      <stop offset="1" stop-color="#0A0E13"/>
+    </radialGradient>
+    <radialGradient id="disc" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#1A1A1A"/>
+      <stop offset="1" stop-color="#050505"/>
+    </radialGradient>
+    <radialGradient id="label" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#FF7A3D"/>
+      <stop offset="1" stop-color="#FF5A1F"/>
+    </radialGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.2"/>
+      <stop offset="0.6" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8A929C"/>
+      <stop offset="0.5" stop-color="#F1F3F5"/>
+      <stop offset="1" stop-color="#7B838D"/>
+    </linearGradient>
+    <clipPath id="discClip"><circle cx="50" cy="50" r="44"/></clipPath>
+  </defs>
+  <rect width="100" height="100" fill="url(#bg)"/>
+  <circle cx="51.5" cy="53" r="44" fill="#000" opacity="0.45"/>
+  <g>
+    <circle cx="50" cy="50" r="44" fill="url(#disc)"/>
+    <circle cx="50" cy="50" r="44" fill="none" stroke="#2A2F36" stroke-width="0.6"/>
+    <g fill="none" stroke="#fff" stroke-opacity="0.07" stroke-width="0.25">
+      <circle cx="50" cy="50" r="43"/>
+      <circle cx="50" cy="50" r="41.8"/>
+      <circle cx="50" cy="50" r="40.6"/>
+    </g>
+    <g fill="none" stroke="#fff" stroke-opacity="0.15" stroke-width="0.35">
+      <circle cx="50" cy="50" r="41.5"/>
+    </g>
+    <circle cx="50" cy="50" r="40" fill="url(#label)"/>
+    <circle cx="50" cy="50" r="38" fill="#10151C"/>
+    <circle cx="50" cy="50" r="38" fill="none" stroke="#FFB020" stroke-width="0.6" opacity="0.8"/>
+    <g transform="translate(50 50) scale(0.9) translate(-50 -54)">
+      <path d="M50 66 L74 90 L50 82 L26 90 Z" fill="#FF5A1F"/>
+      <path d="M50 70 L64 84 L50 79 L36 84 Z" fill="#FFB020"/>
+      <path d="M50 18 L90 62 L78 66 L68 60 L58 68 L50 62 L42 68 L32 60 L22 66 L10 62 Z" fill="#F4F4F2"/>
+      <path d="M46 34 L54 34 L52 42 L48 42 Z" fill="#10151C"/>
+    </g>
+  </g>
+  <g clip-path="url(#discClip)">
+    <path d="M50 50 L20 -10 L55 -10 Z" fill="url(#sheen)"/>
+    <path d="M50 50 L80 110 L45 110 Z" fill="url(#sheen)"/>
+  </g>
+</svg>

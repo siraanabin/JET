@@ -11,19 +11,23 @@ val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 
+val feedbackHelperUrl = providers.gradleProperty("JET_FEEDBACK_HELPER_URL").orElse(providers.environmentVariable("JET_FEEDBACK_HELPER_URL").orElse("")).get().replace("\\", "\\\\").replace("\"", "\\\"")
+
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.jet.downloader"
     compileSdk = 34
 
     defaultConfig {
         applicationId = "com.jet.downloader"
-        minSdk = 24
+        minSdk = 29
         targetSdk = 34
-        versionCode = 342
-        versionName = "3.4.2"
+        versionCode = 413
+        versionName = "3.9.23"
+        buildConfigField("String", "JET_FEEDBACK_HELPER_URL", "\"$feedbackHelperUrl\"")
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
     }
 
@@ -39,15 +43,26 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("release")
             resValue("string", "app_name", "JET Debug")
         }
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
         }
     }
 
@@ -100,12 +115,15 @@ dependencies {
     // Core AndroidX & WebView
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.activity:activity-ktx:1.9.1")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.webkit:webkit:1.11.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     // NewPipe Extractor (GPLv3)
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.24.2")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")
 
     // AndroidX Media3 (Apache 2.0)
     val media3Version = "1.4.1"
@@ -141,7 +159,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Native yt-dlp + FFmpeg fallback & muxing engine
-    val youtubeDlVersion = "0.17.2"
+    val youtubeDlVersion = "0.18.1"
     implementation("io.github.junkfood02.youtubedl-android:library:$youtubeDlVersion")
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$youtubeDlVersion")
 }

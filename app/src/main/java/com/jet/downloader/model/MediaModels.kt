@@ -4,7 +4,13 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class StreamSizePayload(
-    val sizeText: String = "Auto"
+    val sizeText: String = "Auto",
+    val sizeBytes: Long = 0L,
+    val available: Boolean = false,
+    val itag: Int? = null,
+    val height: Int? = null,
+    val shortSide: Int? = null,
+    val resolution: String = ""
 )
 
 @Serializable
@@ -25,7 +31,10 @@ data class DownloadCompletePayload(
     val title: String,
     val size: String,
     val filePath: String,
-    val fileUri: String
+    val fileUri: String,
+    val thumbnailUrl: String = "",
+    val resolution: String = "",
+    val format: String = ""
 )
 
 @Serializable
@@ -42,7 +51,25 @@ data class LibraryItemPayload(
     val meta: String,
     val duration: String,
     val filePath: String,
-    val fileUri: String
+    val fileUri: String,
+    val thumbnailUrl: String = "",
+    val size: String = "",
+    val format: String = "",
+    val dominantColor: String = "#20242E",
+    val resolution: String = ""
+)
+
+@Serializable
+data class DownloadHistoryPayload(
+    val id: String,
+    val title: String,
+    val format: String,
+    val size: String,
+    val filePath: String,
+    val fileUri: String,
+    val thumbnailUrl: String,
+    val date: String,
+    val resolution: String = ""
 )
 
 @Serializable

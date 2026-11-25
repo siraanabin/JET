@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>(function(){try{var m=localStorage.getItem("jet-theme-mode")||"system";var sd=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;var d=m==="dark"||(m==="system"&&sd);document.documentElement.classList.toggle("dark",d);document.documentElement.style.backgroundColor=d?"#090C14":"#F4F6FB";}catch(e){}})();</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>JET — Download at Full Speed.</title>
@@ -28,16 +29,16 @@
     }
 
     html.dark {
-      --bg-canvas: #090C14;
-      --bg-surface: #111624;
-      --bg-elevated: #171E31;
-      --border-subtle: #1E2740;
+      --bg-canvas: #080B12;
+      --bg-surface: #121826;
+      --bg-elevated: #1A2235;
+      --border-subtle: #2A3550;
       --accent-primary: #4F7CFF;
       --accent-hover: #3B66F5;
       --accent-tint: rgba(79, 124, 255, 0.14);
       --text-primary: #F8FAFC;
-      --text-secondary: #94A3B8;
-      --text-muted: #64748B;
+      --text-secondary: #CBD5E1;
+      --text-muted: #94A3B8;
       --status-success: #22C55E;
       --status-warning: #F59E0B;
       --status-danger: #EF4444;
@@ -86,9 +87,121 @@
 
     .toggle-track { transition: background-color 200ms ease, border-color 200ms ease; }
     .toggle-thumb { transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+    nav[aria-label="Main navigation"] { padding: 6px 0 !important; }
+    .nav-btn { position: relative; min-height: 54px; background: transparent; -webkit-tap-highlight-color: transparent; }
+    .nav-btn:active .nav-pill { transform: scale(0.92); transition: transform 0.18s ease; }
+    .nav-btn .nav-pill { width: 60px; height: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; position: relative; transition: transform 0.12s ease; }
+    .nav-btn .icon-solid { display: none; }
+    .nav-btn .icon-outline { display: block; width: 20px; height: 20px; }
+    .nav-btn .nav-label { font-weight: 500; font-size: 11px; }
+    .nav-btn.active-nav .nav-pill,
+    .nav-btn[aria-current="page"] .nav-pill { background-color: rgba(59, 130, 246, 0.22); }
+    .nav-btn.active-nav .icon-outline,
+    .nav-btn[aria-current="page"] .icon-outline { display: none; }
+    .nav-btn.active-nav .icon-solid,
+    .nav-btn[aria-current="page"] .icon-solid { display: block; width: 22px; height: 22px; transform: scale(1.06); }
+    .nav-btn.active-nav .nav-label,
+    .nav-btn[aria-current="page"] .nav-label { font-weight: 700; }
+    .feedback-field{width:100%;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-primary);border-radius:16px;padding:13px 14px;outline:none;font:inherit;font-size:13px}
+    .feedback-field:focus{border-color:var(--accent-primary)}.feedback-send:disabled{opacity:.42}
+    .feedback-media-tile{border:1px dashed var(--border-subtle);border-radius:14px;min-height:78px;background:var(--bg-elevated)}
+    #url-input-shell{border:1.5px solid #334155;padding-right:12px;transition:border-color .18s ease,box-shadow .18s ease}html.dark #url-input-shell{border-color:rgba(255,255,255,.78)}html:not(.dark) #url-input-shell{border-color:#1E293B}#url-input-shell:focus-within{border-color:var(--accent-primary);box-shadow:0 0 0 2px rgba(79,124,255,.12)}#url-input-shell #url-input{padding-right:8px;min-width:0}
+    #jet-fast-scroll-track{position:fixed;z-index:9998;top:8px;right:0;bottom:calc(82px + env(safe-area-inset-bottom));width:20px;opacity:0;pointer-events:none;transition:opacity .22s ease;touch-action:none}#jet-fast-scroll-track.visible{opacity:1;pointer-events:auto}#jet-fast-scroll-thumb{position:absolute;top:0;right:5px;width:6px;min-height:30px;border-radius:999px;background:rgba(71,85,105,.78);transform:translateY(0);will-change:transform,height;touch-action:none}html.dark #jet-fast-scroll-thumb{background:rgba(203,213,225,.78)}
+  
+#music-player-overlay{position:fixed;inset:0;z-index:10000;display:none;flex-direction:column;overflow:hidden;color:#F8FAFC;background:radial-gradient(ellipse at 50% 22%,rgba(73,104,177,.30),transparent 42%),radial-gradient(ellipse at 12% 85%,rgba(39,79,145,.22),transparent 42%),linear-gradient(160deg,#10192B 0%,#080B12 55%,#05070C 100%);padding:env(safe-area-inset-top) 22px env(safe-area-inset-bottom)}
+#music-player-overlay:not(.hidden){display:flex}#music-player-overlay:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.035),transparent 30%,rgba(0,0,0,.16))}
+.music-topbar,.music-content,.music-controls,.music-utility{position:relative;z-index:1}.music-topbar{min-height:58px;display:grid;grid-template-columns:48px 1fr 48px;align-items:center}
+.music-icon-btn{width:44px;height:44px;border:0;border-radius:50%;color:#E2E8F0;background:rgba(255,255,255,.075);display:flex;align-items:center;justify-content:center;font-size:22px}
+#music-source-label{text-align:center;color:#A9B8D2;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+.music-content{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding:8px 0 12px}
+#music-title-viewport{width:100%;max-width:340px;overflow:hidden;text-align:center}
+.music-title-track{display:flex;width:100%;justify-content:center;align-items:center;white-space:nowrap}
+#music-title,#music-title-copy{display:block;flex:none;width:max-content;min-width:100%;max-width:none;text-align:center;font-size:clamp(19px,5vw,24px);line-height:1.25;font-weight:800;color:#F8FAFC;white-space:nowrap}
+#music-title-copy[hidden]{display:none}
+.music-title-track.is-overflowing{width:max-content;min-width:100%;justify-content:flex-start;gap:48px;animation:jet-music-marquee 20s linear infinite}
+.music-title-track.is-overflowing #music-title,.music-title-track.is-overflowing #music-title-copy{min-width:0;text-align:left}
+@keyframes jet-music-marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--marquee-distance)))}}
+#music-subtitle{width:100%;max-width:320px;margin-top:7px;text-align:center;font-size:13px;color:#A6B3C8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#music-time-display{display:flex;justify-content:space-between;width:100%;max-width:340px;margin-top:7px;font-size:11px;color:#D5DEEF;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.music-disc-stage{position:relative;width:min(76vw,330px);aspect-ratio:1;display:flex;align-items:center;justify-content:center;margin:4px 0;touch-action:manipulation}
+.music-seekbar{width:100%;max-width:340px;height:28px;display:flex;align-items:center;touch-action:pan-y;cursor:pointer}
+.music-seek-track{position:relative;width:100%;height:8px;border-radius:9999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.13)}
+.music-seek-fill{position:absolute;inset:0 auto 0 0;width:0;border-radius:9999px;background:#78AFFF;box-shadow:0 0 9px rgba(96,165,250,.45)}
+.music-seek-thumb{position:absolute;top:50%;left:0;width:13px;height:13px;border:2px solid #FFFFFF;border-radius:50%;background:#78AFFF;box-shadow:0 1px 7px rgba(0,0,0,.6);transform:translate(-50%,-50%)}
+#music-disc-spin{width:69%;height:69%;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:repeating-radial-gradient(circle,#171A22 0 2px,#0B0D12 3px 5px);border:7px solid #252A35;box-shadow:0 22px 65px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.12)}
+#music-disc-spin{animation:jet-vinyl-spin 16s linear infinite;animation-play-state:paused}#music-disc-spin.is-playing{animation-play-state:running}#music-artwork{position:absolute;width:100%;height:100%;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.3);box-shadow:0 4px 18px rgba(0,0,0,.5)}
+.music-vinyl-hole{position:absolute;width:7%;height:7%;border-radius:50%;background:#0B0D12;border:2px solid rgba(255,255,255,.45);z-index:2}
+@keyframes jet-vinyl-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.music-controls{display:flex;width:100%;max-width:390px;justify-content:space-between;align-items:center;padding:12px 0 6px}
+.music-control-btn{width:48px;height:54px;border:0;background:transparent;color:#D8E1F0;display:flex;align-items:center;justify-content:center;font-size:23px}
+#music-play-pause-btn{width:64px;height:64px;min-width:64px;min-height:64px;border-radius:50%;border:0;color:#0F172A;background:#FFFFFF;box-shadow:0 8px 28px rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;padding:0}#music-play-pause-btn svg{width:24px;height:24px;display:block}#music-mini-play svg{width:21px;height:21px;display:block}#music-player-overlay button svg{flex-shrink:0;display:block}
+.music-utility{display:flex;width:100%;max-width:320px;align-items:center;justify-content:space-around;padding:10px 0 12px;color:#AAB8CE}
+.music-utility button{width:48px;height:44px;border:0;background:transparent;color:inherit;font-size:19px;display:flex;align-items:center;justify-content:center;border-radius:14px}
+.music-utility button.active{color:#8CB5FF;background:rgba(96,165,250,.13)}
+.music-volume-control{position:relative;z-index:1;display:flex;width:100%;max-width:320px;align-items:center;gap:12px;padding:5px 0 8px;color:#D8E1F0}
+.music-volume-toggle{width:34px;height:34px;flex:none;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.075);color:#D8E1F0}
+.music-volume-toggle.active{color:#8CB5FF;background:rgba(96,165,250,.16)}
+#music-volume-slider{flex:1;min-width:0;height:5px;accent-color:#78AFFF;cursor:pointer;touch-action:pan-x}
+#music-volume-value{width:38px;text-align:right;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;color:#D5DEEF}
+#music-queue-drawer{position:absolute;z-index:4;left:0;right:0;bottom:0;height:min(66vh,560px);border-radius:24px 24px 0 0;background:#111827;border:1px solid rgba(148,163,184,.18);box-shadow:0 -20px 60px rgba(0,0,0,.5);padding:18px 18px calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;transform:translateY(110%);transition:transform .25s ease}
+#music-queue-drawer.open{transform:translateY(0)}.music-queue-heading{display:flex;align-items:center;justify-content:space-between;color:#F8FAFC;font-weight:800;margin-bottom:12px}
+#music-queue-list{overflow:auto;min-height:0}.music-queue-item{width:100%;display:flex;gap:12px;align-items:center;padding:12px 8px;border:0;border-radius:12px;background:transparent;color:#E2E8F0;text-align:left}
+.music-queue-item.current{background:rgba(79,124,255,.16);color:#93B4FF}.music-queue-index{width:24px;color:#8493AA;font-size:11px;text-align:center}
+#music-mini-bar{position:fixed;z-index:10001;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));min-height:62px;border:1px solid rgba(148,163,184,.22);border-radius:18px;background:rgba(17,24,39,.97);color:#F8FAFC;box-shadow:0 10px 36px rgba(0,0,0,.42);display:none;align-items:center;gap:12px;padding:8px 12px}
+#music-mini-bar:not(.hidden){display:flex}#music-mini-art{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#222B3C}
+#music-mini-title{flex:1;min-width:0;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#music-mini-play{border:0;background:transparent;color:#F8FAFC;width:42px;height:42px;font-size:20px}
+@media(max-height:700px){.music-disc-stage{width:min(60vw,280px)}.music-content{justify-content:center;gap:5px}.music-controls{padding-top:4px}}
+
+
+    #jet-intro-overlay{position:fixed;inset:0;z-index:20000;overflow:hidden;background:radial-gradient(120% 80% at 30% 40%,#17234c,#0a0f22);opacity:1;transition:opacity .35s ease;pointer-events:auto}
+    #jet-intro-overlay.jet-intro-fading{opacity:0;pointer-events:none}
+    #jet-intro-stage{position:absolute;left:50%;top:50%;width:580px;height:800px;margin:-400px 0 0 -290px;transform-origin:center center}
+    #jet-intro-row{position:absolute;left:0;right:0;top:345px;height:110px;display:flex;justify-content:center;align-items:center;gap:30px}
+    #jet-intro-mark{position:relative;flex:none;width:110px;height:110px}
+    #jet-intro-tile,#jet-intro-rocket,#jet-intro-ring{position:absolute;left:0;top:0;width:110px;height:110px}
+    #jet-intro-tile{border-radius:28px;background:linear-gradient(145deg,#1a222e,#0c1118);box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.07);opacity:0}
+    #jet-intro-ring{border-radius:28px;border:3px solid #ff7a30;opacity:0;box-sizing:border-box}
+    #jet-intro-rocket{opacity:0;z-index:2}
+    #jet-intro-rocket i{position:absolute;left:50%;top:50%;width:260%;height:260%;margin:-130% 0 0 -130%;border-radius:50%;background:radial-gradient(circle,rgba(255,190,50,.6),rgba(255,90,31,.3) 28%,rgba(255,90,31,0) 62%)}
+    #jet-intro-rocket svg{position:relative;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 4px 6px rgba(0,0,0,.35))}
+    .jet-intro-flame{transform-origin:50px 66px;animation:jet-intro-flame .09s infinite alternate}
+    .jet-intro-particle{position:absolute;left:31px;width:48px;height:48px;border-radius:50%;opacity:0;background:radial-gradient(circle,#f1f3f6,rgba(176,183,194,.65) 48%,rgba(150,156,164,0) 72%)}
+    #jet-intro-copy{display:flex;flex-direction:column;justify-content:center}
+    #jet-intro-title{margin:0;font-size:72px;line-height:1;font-weight:900;letter-spacing:1px;color:#fff;opacity:0;text-shadow:0 4px 18px rgba(255,120,40,.25)}
+    #jet-intro-tagline{margin:10px 0 0;font-size:32px;line-height:1.1;color:#c3cde3;letter-spacing:.3px;opacity:0;white-space:nowrap}
+    .jet-intro-go #jet-intro-tile{animation:jet-intro-show .3s ease-out 1.2s forwards}
+    .jet-intro-go #jet-intro-ring{animation:jet-intro-ring .7s ease-out 1.2s forwards}
+    .jet-intro-go #jet-intro-rocket{opacity:1;animation:jet-intro-fly 1.2s cubic-bezier(.5,1,.89,1) both,jet-intro-pop .35s ease-out 1.2s}
+    .jet-intro-go #jet-intro-rocket i{animation:jet-intro-aura 1s ease-out 1.2s forwards}
+    .jet-intro-go .jet-intro-particle{animation:jet-intro-trail .9s ease-out var(--t) forwards}
+    .jet-intro-go #jet-intro-title{animation:jet-intro-reveal .4s ease-out 1.4s forwards}
+    .jet-intro-go #jet-intro-tagline{animation:jet-intro-reveal .4s ease-out 1.6s forwards}
+    @keyframes jet-intro-fly{from{translate:0 950px}to{translate:0 0}}
+    @keyframes jet-intro-pop{50%{scale:1.14}}
+    @keyframes jet-intro-aura{to{opacity:0}}
+    @keyframes jet-intro-show{to{opacity:1}}
+    @keyframes jet-intro-ring{from{opacity:.9;scale:.9}to{opacity:0;scale:1.9}}
+    @keyframes jet-intro-trail{from{opacity:.6;scale:.4}to{opacity:0;scale:2.7;translate:var(--d) 50px}}
+    @keyframes jet-intro-reveal{from{opacity:0;translate:-14px 0}to{opacity:1;translate:0 0}}
+    @keyframes jet-intro-flame{to{transform:scaleY(1.35)}}
+    @media(prefers-reduced-motion:reduce){.jet-intro-flame{animation:none!important}#jet-intro-overlay{transition:opacity .2s ease}}
+
+    .jet-download-prebyte-shimmer{background:linear-gradient(90deg,rgba(79,124,255,.45),rgba(147,180,255,.95),rgba(79,124,255,.45));background-size:200% 100%;animation:jet-download-shimmer 1.15s ease-in-out infinite}
+    @keyframes jet-download-shimmer{0%{background-position:100% 0;opacity:.65}50%{opacity:1}100%{background-position:-100% 0;opacity:.65}}
   </style>
 </head>
 <body>
+
+  <div id="jet-intro-overlay" aria-label="JET Downloader intro" role="presentation">
+    <div id="jet-intro-stage"><div id="jet-intro-row">
+      <div id="jet-intro-mark"><div id="jet-intro-tile"></div><div id="jet-intro-ring"></div>
+        <div id="jet-intro-rocket"><i></i><svg viewBox="0 0 100 100" aria-hidden="true"><g transform="translate(50 50) scale(.8) translate(-50 -54)"><g class="jet-intro-flame"><path d="M50 66 74 90 50 82 26 90Z" fill="#FF5A1F"/><path d="M50 70 64 84 50 79 36 84Z" fill="#FFB020"/></g><path d="M50 18 90 62 78 66 68 60 58 68 50 62 42 68 32 60 22 66 10 62Z" fill="#F4F4F2"/><path d="M46 34h8l-2 8h-4z" fill="#10151C"/></g></svg></div>
+      </div>
+      <div id="jet-intro-copy"><h1 id="jet-intro-title">JET</h1><p id="jet-intro-tagline">Download at Full Speed.</p></div>
+    </div></div>
+  </div>
+
 
   <div class="relative w-full h-[100dvh] bg-app-bg overflow-hidden flex flex-col select-none">
     <div class="ambient-glow absolute inset-x-0 top-0 h-64 pointer-events-none z-0"></div>
@@ -111,14 +224,11 @@
           </div>
 
           <div class="flex items-center gap-2">
-            <button id="topbar-theme-btn" type="button" aria-label="Toggle Dark Mode"
+            <button id="topbar-theme-btn" type="button" aria-label="Choose app theme"
               class="w-10 h-10 rounded-full surface-card flex items-center justify-center text-app-secondary active:scale-95 transition">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon w-5 h-5 pointer-events-none" id="topbar-theme-icon" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
             </button>
-            <button type="button" data-nav-target="settings" aria-label="Settings"
-              class="w-10 h-10 rounded-full surface-card flex items-center justify-center text-app-secondary active:scale-95 transition">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
+
           </div>
         </header>
 
@@ -158,7 +268,7 @@
 
         <!-- Unified Download Hero Card -->
         <div class="surface-card rounded-3xl p-4 space-y-3.5">
-          <div class="flex items-center gap-2 bg-app-elevated border border-app-border focus-within:border-app-primary rounded-2xl pl-3.5 pr-1.5 py-1.5 transition">
+          <div id="url-input-shell" class="flex items-center gap-2 bg-app-surface shadow-sm rounded-2xl pl-3.5 py-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-4 h-4 text-app-muted shrink-0" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             <input id="url-input" type="url" placeholder="Paste YouTube, SoundCloud, PeerTube or video link..."
               class="bg-transparent text-sm text-app-text placeholder-app-muted focus:outline-none flex-1 min-w-0" />
@@ -266,13 +376,26 @@
         <header class="pt-1 flex items-center justify-between gap-2">
           <div>
             <h1 class="text-2xl font-extrabold tracking-tight text-app-text">Library</h1>
-            <p class="text-xs font-medium text-app-secondary mt-0.5">Internal Storage / Download / JET</p>
+            <p id="library-location-label" class="text-xs font-medium text-app-secondary mt-0.5">Scanning device media…</p>
           </div>
           <button id="refresh-library-btn" type="button" class="px-3 py-1.5 rounded-full surface-card text-[11px] font-bold text-app-primary flex items-center gap-1 active:scale-95 transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw w-3 h-3" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
             <span id="library-item-count" class="tabular-nums">0 files</span>
           </button>
         </header>
+
+        <div class="surface-card rounded-2xl border border-app-border px-3.5 py-3 space-y-2 shadow-sm">
+          <div class="flex items-center justify-between gap-2 min-w-0"><p class="text-xs font-extrabold text-app-text shrink-0">Device storage</p><p id="storage-total-label" class="text-[10px] font-semibold text-app-muted tabular-nums text-right truncate">Calculating…</p></div>
+          <div id="storage-progress-bar" class="flex h-2 w-full overflow-hidden rounded-full bg-[#292D35] ring-1 ring-black/5" role="img" aria-label="Storage usage by media type">
+            <span id="storage-audio-segment" class="h-full bg-red-500" style="width:0%"></span><span id="storage-video-segment" class="h-full bg-orange-500" style="width:0%"></span><span id="storage-other-segment" class="h-full bg-green-500" style="width:0%"></span><span id="storage-free-segment" class="h-full bg-[#292D35]" style="width:100%"></span>
+          </div>
+          <div class="flex flex-nowrap items-center justify-between gap-1 whitespace-nowrap text-[10px] leading-tight font-bold tabular-nums overflow-hidden">
+            <span class="inline-flex items-center gap-1 shrink-0 text-app-secondary"><i class="w-1.5 h-1.5 rounded-full bg-red-500"></i>Aud <b id="storage-audio-label" class="text-app-text">0%</b></span>
+            <span class="inline-flex items-center gap-1 shrink-0 text-app-secondary"><i class="w-1.5 h-1.5 rounded-full bg-orange-500"></i>Vid <b id="storage-video-label" class="text-app-text">0%</b></span>
+            <span class="inline-flex items-center gap-1 shrink-0 text-app-secondary"><i class="w-1.5 h-1.5 rounded-full bg-green-500"></i>Oth <b id="storage-other-label" class="text-app-text">0%</b></span>
+            <span class="inline-flex items-center gap-1 shrink-0 text-app-secondary"><i class="w-1.5 h-1.5 rounded-full bg-[#292D35]"></i>Free <b id="storage-free-label" class="text-app-text">0%</b></span>
+          </div>
+        </div>
 
         <div class="surface-card flex items-center gap-2.5 focus-within:!border-app-primary rounded-2xl px-3.5 h-11 transition">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search w-4 h-4 text-app-muted shrink-0" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -311,29 +434,85 @@
         </header>
 
         <!-- Preferences (Persisted via AndroidX DataStore) -->
+        <div class="surface-card rounded-3xl p-4 flex items-center justify-between gap-3">
+          <span class="flex min-w-0 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="grid-3x3" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Library grid columns</span><span class="block text-[11px] text-app-secondary mt-0.5">Videos per row</span></span></span>
+          <select id="library-grid-columns-setting" class="rounded-xl bg-app-elevated border border-app-border px-3 py-2 text-xs font-bold text-app-text"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+        </div>
         <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
-          <div class="p-4 flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-bold text-app-text">Dark Mode</p>
-              <p class="text-[11px] text-app-secondary">Saved with AndroidX DataStore</p>
-            </div>
-            <button id="settings-dark-toggle" type="button" role="switch" aria-checked="false"
-              class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center">
-              <span id="settings-dark-thumb" class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span>
-            </button>
-          </div>
+          <button id="settings-theme-row" type="button"
+            class="w-full p-4 flex items-center justify-between gap-3 text-left active:bg-app-elevated/60 transition">
+            <span class="flex min-w-0 flex-1 items-center gap-3">
+              <span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="palette" class="w-4 h-4"></i></span>
+              <span class="min-w-0">
+                <span class="block text-xs font-bold text-app-text">Theme</span>
+                <span id="settings-theme-value" class="block text-[11px] text-app-secondary mt-0.5">System Default</span>
+              </span>
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-app-muted" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
 
           <div class="p-4 flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-bold text-app-text">Auto-Detect Clipboard Links</p>
-              <p class="text-[11px] text-app-secondary">Show 1-tap banner when a URL is copied</p>
-            </div>
+            <span class="flex min-w-0 flex-1 items-center gap-3">
+              <span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="clipboard-check" class="w-4 h-4"></i></span>
+              <span class="min-w-0">
+                <span class="block text-xs font-bold text-app-text">Auto-Detect Clipboard Links</span>
+                <span class="block text-[11px] text-app-secondary">Show 1-tap banner when a URL is copied</span>
+              </span>
+            </span>
             <button id="clipboard-pref-toggle" type="button" aria-checked="true"
               class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center">
               <span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span>
             </button>
           </div>
         </div>
+
+        <div class="space-y-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">Download Settings</p>
+          <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+            <div class="p-4"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">STORAGE</p><div class="mt-2 flex items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-4 h-4"></i></span><div class="min-w-0 flex-1"><p class="text-xs font-bold text-app-text">Download path</p><p id="download-path-value" class="text-[11px] text-app-secondary mt-0.5 break-all">Loading…</p></div></div></div>
+            <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">DOWNLOADS</p>
+              <label class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="hd" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Default quality</span><span class="block text-[11px] text-app-secondary mt-0.5">Preselected format</span></span></span><select id="default-quality-setting" class="max-w-[145px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="vid-360">360p</option><option value="vid-480">480p</option><option value="vid-720">720p</option><option value="vid-1080">1080p</option><option value="vid-2k">2K</option><option value="vid-4k">4K</option><option value="aud-fast">Audio Fast</option><option value="aud-128">MP3 128K</option><option value="aud-320">MP3 320K</option></select></label>
+              <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="closed-caption" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Save subtitles</span><span class="block text-[11px] text-app-secondary mt-0.5">Include English auto-captions for videos</span></span></span><button id="save-subtitles-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
+              <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="gauge" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Show Download Speed Stats</span><span class="block text-[11px] text-app-secondary mt-0.5">Show detailed telemetry in Settings</span></span></span><button id="show-download-speed-stats-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
+              <div id="download-telemetry-table-wrap" class="hidden mt-3 rounded-2xl border border-app-border bg-app-elevated/30 overflow-hidden">
+                <div class="flex items-center justify-between gap-2 p-3">
+                  <div class="min-w-0"><p class="text-xs font-bold text-app-text">Recent Download Telemetry</p><p class="text-[10px] text-app-secondary mt-0.5">Latest 4 completed downloads · tap a row to copy its log</p></div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button id="telemetry-copy-all" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-primaryTint text-app-primary text-[10px] font-bold">Copy All (0)</button>
+                    <button id="telemetry-clear" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-elevated text-app-secondary text-[10px] font-bold">Clear Logs</button>
+                  </div>
+                </div>
+                <div class="overflow-x-auto overscroll-x-contain">
+                  <table class="w-full min-w-[900px] table-fixed border-collapse text-left">
+                    <thead><tr class="border-y border-app-border text-[10px] uppercase tracking-wide text-app-muted">
+                      <th class="w-[31%] px-3 py-2">File</th><th class="w-[23%] px-3 py-2">Timing (DL / Convert / Mux / Total)</th><th class="w-[20%] px-3 py-2">Speed</th><th class="w-[26%] px-3 py-2">Engine / Health</th>
+                    </tr></thead>
+                    <tbody id="download-telemetry-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="p-4 space-y-3"><p class="text-[10px] font-extrabold tracking-wider text-app-muted">NETWORK</p>
+              <label class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="list" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Max download tasks</span></span>
+                <select id="max-download-tasks" class="rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="1">1 task</option><option value="2">2 tasks</option><option value="3">3 tasks</option><option value="4">4 tasks</option><option value="5">5 tasks</option></select>
+              </label>
+              <label class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="zap" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Download speed limit</span></span>
+                <select id="download-speed-limit" class="max-w-[150px] rounded-xl bg-app-elevated border border-app-border px-2 py-2 text-[11px] font-bold text-app-text"><option value="0">Unlimited</option><option value="256">256 KB/s</option><option value="512">512 KB/s</option><option value="1024">1 MB/s</option><option value="2048">2 MB/s</option><option value="5120">5 MB/s</option><option value="10240">10 MB/s</option></select>
+              </label>
+              <div class="flex items-center justify-between gap-3">
+                <span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="wifi" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Download via mobile data</span><span class="block text-[11px] text-app-secondary mt-0.5">Allow cellular downloads</span></span></span>
+                <button id="mobile-data-toggle" type="button" aria-checked="true" class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-2"><p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">INFO</p><div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
+          <button id="feedback-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="help-circle" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Feedback</span></button>
+          <button id="share-app-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="share-2" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Share App</span></button>
+          <button id="about-setting" type="button" class="w-full p-3.5 flex items-center gap-3 text-left"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="info" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">About</span></button>
+        </div></div>
 
         <!-- Updates & Engine Section -->
         <div class="space-y-2">
@@ -400,36 +579,82 @@
     </main>
 
     <!-- Bottom Navigation Bar -->
-    <nav class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-2 grid grid-cols-4 shrink-0">
-      <button type="button" data-nav-target="home"
-        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-primary font-bold transition">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-        <span class="text-[11px] pointer-events-none">Home</span>
-      </button>
-
-      <button type="button" data-nav-target="downloads"
-        class="nav-btn relative flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
-        <div class="relative pointer-events-none">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download w-5 h-5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-          <span id="nav-dl-badge" class="hidden absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-app-primary text-white text-[9px] font-extrabold flex items-center justify-center tabular-nums">0</span>
-        </div>
-        <span class="text-[11px] pointer-events-none">Downloads</span>
-      </button>
-
-      <button type="button" data-nav-target="library"
-        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
-        <span class="text-[11px] pointer-events-none">Library</span>
-      </button>
-
-      <button type="button" data-nav-target="settings"
-        class="nav-btn flex flex-col items-center justify-center gap-1 py-1.5 rounded-2xl text-app-secondary font-semibold transition">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings w-5 h-5 pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span class="text-[11px] pointer-events-none">Settings</span>
-      </button>
-    </nav>
+    <nav aria-label="Main navigation" class="relative z-30 pointer-events-auto bg-app-nav backdrop-blur-md border-t border-app-border px-2 py-0 grid grid-cols-4 shrink-0">
+  <button type="button" data-nav-target="home" class="nav-btn active-nav flex flex-col items-center justify-center gap-1 rounded-2xl text-app-primary" aria-current="page">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path d="M13.29 2.47a2 2 0 0 0-2.58 0l-7 6A2 2 0 0 0 3 10v9a2 2 0 0 0 2 2h4a1 1 0 0 0 1-1v-6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v6a1 1 0 0 0 1 1h4a2 2 0 0 0 2-2v-9a2 2 0 0 0-.71-1.53l-7-6Z"/></svg>
+    </div><span class="nav-label pointer-events-none">Home</span>
+  </button>
+  <button type="button" data-nav-target="downloads" class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path d="M13 3a1 1 0 1 0-2 0v8.59l-2.3-2.3a1 1 0 1 0-1.4 1.42l4 4a1 1 0 0 0 1.4 0l4-4a1 1 0 0 0-1.4-1.42L13 11.59V3Z"/><path d="M3 15a1 1 0 0 1 1 1v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2a1 1 0 1 1 2 0v2a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-2a1 1 0 0 1 1-1Z"/></svg>
+      <span id="nav-dl-badge" class="hidden absolute -top-1 -right-1 z-20 min-w-[16px] h-4 px-1 rounded-full bg-app-primary text-white text-[9px] font-extrabold flex items-center justify-center tabular-nums">0</span>
+    </div><span class="nav-label pointer-events-none">Downloads</span>
+  </button>
+  <button type="button" data-nav-target="library" class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path d="M2 5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5Z"/></svg>
+    </div><span class="nav-label pointer-events-none">Library</span>
+  </button>
+  <button type="button" data-nav-target="settings" class="nav-btn flex flex-col items-center justify-center gap-1 rounded-2xl text-app-secondary">
+    <div class="nav-pill">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-outline pointer-events-none" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon-solid pointer-events-none" aria-hidden="true"><path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.49 7.49 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.925 1.925 0 0 0-2.207.76l-1.018 1.763a1.925 1.925 0 0 0 .385 2.302l1.016.92c.11.1.18.232.18.385a7.51 7.51 0 0 0 0 1.155c0 .153-.07.285-.18.384l-1.016.92a1.925 1.925 0 0 0-.385 2.303l1.018 1.763a1.925 1.925 0 0 0 2.207.759l1.018-.38c.115-.043.283-.031.45.082.32.215.65.399.986.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h2.036c.917 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.336-.17.666-.354.986-.57.167-.114.335-.125.45-.082l1.018.38a1.925 1.925 0 0 0 2.207-.76l1.018-1.763a1.925 1.925 0 0 0-.385-2.302l-1.016-.92c-.11-.1-.18-.232-.18-.385a7.51 7.51 0 0 0 0-1.155c0-.153.07-.285.18-.384l1.016-.92a1.925 1.925 0 0 0 .385-2.303l-1.018-1.763a1.925 1.925 0 0 0-2.207-.759l-1.018.38c-.115.043-.283-.031-.45-.082a7.49 7.49 0 0 0-.986-.57c-.182-.088-.277-.228-.297-.35l-.178-1.071a1.875 1.875 0 0 0-1.85-1.567h-2.036Zm.922 5.25a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" clip-rule="evenodd"/></svg>
+    </div><span class="nav-label pointer-events-none">Settings</span>
+  </button>
+</nav>
 
     <!-- ==================== OVERLAYS & MODALS ==================== -->
+
+    <section id="feedback-screen" class="hidden fixed inset-0 z-[85] bg-app-bg flex flex-col">
+      <header class="h-14 shrink-0 flex items-center gap-3 px-4 border-b border-app-border"><button id="feedback-back" type="button" aria-label="Back" class="w-10 h-10 rounded-full flex items-center justify-center text-app-text"><i data-lucide="arrow-left" class="w-5 h-5"></i></button><h2 class="text-base font-extrabold text-app-text">Send feedback</h2></header>
+      <div class="flex-1 overflow-y-auto no-scrollbar px-4 py-5 pb-28 space-y-5">
+        <div class="space-y-2"><label for="feedback-details" class="block text-xs font-bold text-app-text">Details <span class="text-app-danger">*</span></label><textarea id="feedback-details" maxlength="1000" rows="6" class="feedback-field resize-none" placeholder="Tell us a bit more about your questions or suggestions."></textarea><div class="text-right text-[11px] text-app-muted"><span id="feedback-count">0</span>/1000</div></div>
+        <div class="space-y-2"><label for="feedback-contact" class="block text-xs font-bold text-app-text">Contact details <span class="font-normal text-app-muted">(Optional)</span></label><input id="feedback-contact" class="feedback-field" type="text" maxlength="160" placeholder="WhatsApp number or email" autocomplete="off"></div>
+        <div class="space-y-2"><div class="flex items-center justify-between"><label class="text-xs font-bold text-app-text">Photos and videos</label><span id="feedback-media-count" class="text-[11px] text-app-muted">0/9</span></div><div id="feedback-media-grid" class="grid grid-cols-3 gap-2"><button id="feedback-add-media" type="button" class="feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary"><i data-lucide="plus" class="w-6 h-6"></i><span class="text-[10px] font-semibold">Add media</span></button></div></div>
+      </div><div class="shrink-0 p-4 border-t border-app-border bg-app-bg"><button id="feedback-send" type="button" disabled class="feedback-send w-full h-12 rounded-full bg-app-primary text-white text-sm font-extrabold">Send</button></div>
+    </section>
+    <section id="about-modal" class="hidden fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5"><div class="surface-card w-full max-w-sm rounded-3xl p-5 space-y-4">
+      <div class="flex items-center justify-between"><h3 class="text-base font-extrabold text-app-text">About JET</h3><button id="about-close" class="w-9 h-9 rounded-full flex items-center justify-center text-app-secondary"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+      <div class="flex items-center gap-3"><img src="./images/jet-logo.svg" class="w-12 h-12 rounded-xl" alt="JET"><div><p class="font-extrabold text-app-text">JET</p><p class="text-xs text-app-secondary">Version v3.7.3</p></div></div>
+      <p class="text-sm leading-6 text-app-secondary">A lightweight, ad-free, stroke-minimalist media player engineered for ultra-fluid playback, precise gestures, and effortless local and offline media management.</p>
+      <div class="pt-3 border-t border-app-border flex items-center justify-between text-xs"><span class="text-app-muted">Developed by</span><span class="font-bold text-app-text">JET Developer</span></div>
+    </div></section>
+    <!-- Theme Selection Sheet -->
+    <div id="theme-modal" class="hidden fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex flex-col justify-end">
+      <div class="sheet-up bg-app-surface border-t border-app-border rounded-t-3xl p-5 space-y-3">
+        <div class="w-10 h-1 rounded-full bg-app-border mx-auto -mt-1"></div>
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-extrabold text-app-text">Choose theme</h3>
+            <p class="text-[11px] text-app-secondary mt-0.5">Select how JET should look</p>
+          </div>
+          <button type="button" data-close-theme class="w-9 h-9 rounded-full bg-app-elevated text-app-secondary flex items-center justify-center" aria-label="Close theme selector">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="space-y-1">
+          <button type="button" data-theme-option="system" role="radio" aria-checked="true" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span><span class="block text-sm font-bold text-app-text">System Default</span><span class="block text-[11px] text-app-secondary mt-0.5">Follow your device appearance</span></span>
+            <span data-theme-check class="text-app-primary font-extrabold text-lg">✓</span>
+          </button>
+          <button type="button" data-theme-option="dark" role="radio" aria-checked="false" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span><span class="block text-sm font-bold text-app-text">Dark</span><span class="block text-[11px] text-app-secondary mt-0.5">Always use dark appearance</span></span>
+            <span data-theme-check class="hidden text-app-primary font-extrabold text-lg">✓</span>
+          </button>
+          <button type="button" data-theme-option="light" role="radio" aria-checked="false" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span><span class="block text-sm font-bold text-app-text">Light</span><span class="block text-[11px] text-app-secondary mt-0.5">Always use light appearance</span></span>
+            <span data-theme-check class="hidden text-app-primary font-extrabold text-lg">✓</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <section id="library-rename-modal" class="hidden fixed inset-0 z-[95] bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="library-rename-title"><div class="w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-3xl border border-app-border bg-app-surface p-5 shadow-2xl space-y-4"><div class="flex items-center justify-between gap-3"><h3 id="library-rename-title" class="text-base font-extrabold text-app-text">Rename file</h3><button type="button" id="library-rename-close" class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center" aria-label="Close rename dialog"><i data-lucide="x" class="w-4 h-4"></i></button></div><label for="library-rename-input" class="block text-xs font-bold text-app-secondary">File name</label><input id="library-rename-input" type="text" maxlength="100" autocomplete="off" class="w-full h-12 rounded-2xl border border-app-border bg-app-elevated px-3.5 text-sm font-semibold text-app-text outline-none focus:border-app-primary" placeholder="Enter file name"><p id="library-rename-extension" class="text-[11px] text-app-muted">File extension will be preserved.</p><div class="flex gap-2 pt-1"><button type="button" id="library-rename-cancel" class="h-11 px-4 rounded-2xl bg-app-elevated text-app-secondary text-xs font-bold">Cancel</button><button type="button" id="library-rename-save" class="flex-1 h-11 rounded-2xl bg-app-primary text-white text-xs font-extrabold">Save</button></div></div></section>
+    <section id="library-delete-modal" class="hidden fixed inset-0 z-[95] bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true" aria-labelledby="library-delete-title"><div class="w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-3xl border border-app-border bg-app-surface p-5 shadow-2xl space-y-4"><div class="flex items-center justify-between gap-3"><h3 id="library-delete-title" class="text-base font-extrabold text-app-text">Delete file?</h3><button type="button" id="library-delete-close" class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center" aria-label="Close delete dialog"><i data-lucide="x" class="w-4 h-4"></i></button></div><div class="rounded-2xl border border-app-border bg-app-elevated p-3"><p id="library-delete-filename" class="text-sm font-bold text-app-text break-words"></p></div><p class="text-xs leading-5 text-app-secondary">This file will be permanently deleted from your device. This action cannot be undone.</p><div class="flex gap-2 pt-1"><button type="button" id="library-delete-cancel" class="h-11 px-4 rounded-2xl bg-app-elevated text-app-secondary text-xs font-bold">Cancel</button><button type="button" id="library-delete-confirm" class="flex-1 h-11 rounded-2xl bg-app-danger text-white text-xs font-extrabold">Delete</button></div></div></section>
 
     <!-- 1. Format Selection Sheet -->
     <div id="format-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end">
@@ -437,6 +662,7 @@
         <div class="w-10 h-1 rounded-full bg-app-border mx-auto -mt-1"></div>
 
         <div class="flex items-center justify-between gap-2">
+          <img id="format-stream-thumbnail" class="hidden w-20 h-14 rounded-xl object-cover bg-app-elevated shrink-0" alt="Video thumbnail" />
           <div class="min-w-0 flex-1">
             <h3 class="text-base font-extrabold text-app-text">Download video as</h3>
             <p id="format-stream-title" class="text-[11px] text-app-secondary truncate mt-0.5">Fetching video details...</p>
@@ -550,7 +776,7 @@
 
   </div>
 
-  <!-- GitHub Release App Update Modal -->
+  <!-- Official Release Channel App Update Modal -->
   <div id="app-update-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-5 py-6" role="dialog" aria-modal="true" aria-labelledby="app-update-title">
     <div class="surface-card w-full max-w-md rounded-3xl p-5 space-y-4 shadow-2xl border border-app-border">
       <div class="flex items-start justify-between gap-3">
@@ -559,7 +785,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
           </div>
           <div class="min-w-0">
-            <h2 id="app-update-title" class="text-lg font-extrabold text-app-text">Update available</h2>
+            <h2 id="app-update-title" class="text-lg font-extrabold text-app-text">JET Update Available</h2>
             <p id="app-update-version" class="text-xs text-app-secondary">A new JET version is ready.</p>
           </div>
         </div>
@@ -569,15 +795,36 @@
         <p class="text-[11px] font-bold uppercase tracking-wide text-app-secondary">What's new</p>
         <div id="app-update-notes" class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-app-text">Release notes will appear here.</div>
       </div>
-      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">A signed APK will be downloaded from GitHub Releases.</p>
+      <div id="app-update-progress" class="hidden space-y-2" aria-live="polite">
+        <div class="flex items-center justify-between gap-3">
+          <span id="app-update-progress-label" class="text-xs text-app-secondary">Preparing download…</span>
+          <span id="app-update-progress-percent" class="text-sm font-bold tabular-nums text-app-primary">0%</span>
+        </div>
+        <div class="h-2.5 w-full overflow-hidden rounded-full bg-app-elevated">
+          <div id="app-update-progress-bar" class="h-full rounded-full bg-app-primary transition-[width] duration-300" style="width:0%"></div>
+        </div>
+      </div>
+      <p id="app-update-status" class="text-xs text-app-secondary" aria-live="polite">The matching signed APK is provided through the Official Release Channel.</p>
       <div class="grid grid-cols-2 gap-2">
         <button id="app-update-later" type="button" class="h-11 rounded-xl surface-card text-sm font-bold text-app-secondary">Later</button>
-        <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download &amp; Install</button>
+        <button id="app-update-install" type="button" class="h-11 rounded-xl bg-app-primary text-white text-sm font-bold disabled:opacity-60">Download Update</button>
       </div>
     </div>
   </div>
 
-  <script>
+  
+<section id="music-player-overlay" class="music-overlay hidden" role="dialog" aria-modal="true" aria-label="Music player">
+ <header class="music-topbar"><button id="music-minimize-btn" class="music-icon-btn" type="button" aria-label="Minimize music player"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div id="music-source-label">LIBRARY</div><button id="music-menu-btn" class="music-icon-btn" type="button" aria-label="Open music queue"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></header>
+ <main class="music-content"><div class="w-full flex flex-col items-center"><div id="music-title-viewport"><div id="music-title-track" class="music-title-track"><span id="music-title">Not Playing</span><span id="music-title-copy" aria-hidden="true" hidden>Not Playing</span></div></div><p id="music-subtitle">Choose an audio file from Library or Downloads</p></div>
+  <div class="music-disc-stage"><div id="music-disc-spin"><img id="music-artwork" src="images/music-placeholder.svg" alt="Album artwork"><span class="music-vinyl-hole"></span></div></div>
+  <div class="w-full max-w-[340px] flex flex-col items-center"><div id="music-seekbar" class="music-seekbar" role="slider" tabindex="0" aria-label="Seek through track" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="music-seek-track"><div id="music-seek-fill" class="music-seek-fill"></div><div id="music-seek-thumb" class="music-seek-thumb"></div></div></div><div id="music-time-display"><span id="music-current-time">00:00</span><span id="music-duration-time">00:00</span></div></div>
+  <div class="music-controls"><button id="music-sleep-btn" class="music-control-btn" type="button" aria-label="Sleep timer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button><button id="music-prev-btn" class="music-control-btn" type="button" aria-label="Previous track"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6z"/><path d="M19 6v12L9 12z"/></svg></button><button id="music-play-pause-btn" class="w-16 h-16 rounded-full bg-white text-slate-950 shadow-lg flex items-center justify-center" type="button" aria-label="Play or pause"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 4.8a1 1 0 0 1 1.52-.85l10.2 6.35a2 2 0 0 1 0 3.4l-10.2 6.35A1 1 0 0 1 7 19.2z"/></svg></button><button id="music-next-btn" class="music-control-btn" type="button" aria-label="Next track"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2z"/><path d="M5 6v12l10-6z"/></svg></button><button id="music-fav-btn" class="music-control-btn" type="button" aria-label="Favorite track"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 8.8c0 5.2-8.8 10.2-8.8 10.2S3.2 14 3.2 8.8A4.8 4.8 0 0 1 12 6.1a4.8 4.8 0 0 1 8.8 2.7Z"/></svg></button></div>
+  <div class="music-volume-control"><button id="music-mute-btn" type="button" aria-label="Mute" class="music-volume-toggle"></button><input id="music-volume-slider" type="range" min="0" max="100" step="1" value="50" aria-label="Music volume"><span id="music-volume-value">50%</span></div>
+  <div class="music-utility"><button id="music-shuffle-btn" type="button" aria-label="Shuffle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M4 17h2.5a5 5 0 0 0 4-2l3-4a5 5 0 0 1 4-2H20"/><path d="m16 17 4 4-4 0"/><path d="M4 7h2.5a5 5 0 0 1 3.4 1.3"/><path d="m13 15 1 1a5 5 0 0 0 3.5 1H20"/></svg></button><button id="music-queue-btn" type="button" aria-label="Queue"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10"/><path d="M17 16v5m-2.5-2.5h5"/></svg></button><button id="music-repeat-btn" type="button" aria-label="Repeat"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg></button></div>
+ </main><aside id="music-queue-drawer" aria-label="Up next"><div class="music-queue-heading"><span>Up next</span><button id="music-queue-close" class="music-icon-btn" type="button" aria-label="Close queue"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg></button></div><div id="music-queue-list"></div></aside>
+</section><button id="music-mini-bar" class="hidden" type="button" aria-label="Restore music player"><img id="music-mini-art" src="images/music-placeholder.svg" alt=""><span id="music-mini-title">Not Playing</span><span id="music-mini-play"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 4.8a1 1 0 0 1 1.52-.85l10.2 6.35a2 2 0 0 1 0 3.4l-10.2 6.35A1 1 0 0 1 7 19.2z"/></svg></span></button>
+
+<script>
     (function () {
       const $ = (id) => document.getElementById(id);
       const defaultOssList = [
@@ -628,39 +875,59 @@
 
       const state = {
         screen: 'home',
-        darkMode: false,
+        themeMode: 'system',
+        systemDark: false,
         clipboardAutoDetect: true,
+        showDownloadSpeedStats: (() => { try { return localStorage.getItem('jet_show_dl_stats') === 'true'; } catch (_) { return false; } })(),
+        telemetryLast4: (() => { try { const value = JSON.parse(localStorage.getItem('jet-telemetry-last4-v1') || '[]'); return Array.isArray(value) ? value.slice(0, 4) : []; } catch (_) { return []; } })(),
         dlTab: 'active',
         libFilter: 'all',
         libView: 'grid',
         libSearch: '',
         ccEnabled: false,
         selectedFormatId: 'vid-1080',
+        videoStreamsReady: false,
         clipboardUrl: '',
         lastAutoOpenedClipboardUrl: '',
         pendingUrl: '',
         fetchedTitle: '',
+        fetchedThumbnail: '',
         formats: [
           { id: 'aud-fast', group: 'music', name: 'Fast', desc: 'M4A (128K), best for mobile play', sizeText: 'Calculating…', ext: 'm4a', bitrate: '128K', maxHeight: 0, compact: true },
           { id: 'aud-70', group: 'music', name: 'Classic MP3 (70K)', badge: 'Low', desc: 'Supports Bluetooth speakers, phones, car stereos', sizeText: 'Calculating…', ext: 'mp3', bitrate: '70K', maxHeight: 0, compact: false },
           { id: 'aud-128', group: 'music', name: 'Classic MP3 (128K)', desc: 'Supports Bluetooth speakers, phones, car stereos', sizeText: 'Calculating…', ext: 'mp3', bitrate: '128K', maxHeight: 0, compact: false },
           { id: 'aud-160', group: 'music', name: 'Classic MP3', desc: 'MP3 (160K), support Bluetooth speaker, phone, watch', sizeText: 'Calculating…', ext: 'mp3', bitrate: '160K', maxHeight: 0, compact: true },
           { id: 'aud-320', group: 'music', name: 'Classic MP3 (320K)', badge: 'HQ', desc: 'High bitrate studio audio for headphones', sizeText: 'Calculating…', ext: 'mp3', bitrate: '320K', maxHeight: 0, compact: false },
-          { id: 'vid-144', group: 'video', name: 'Fast (144p)', badge: 'Low', desc: 'Smallest file size', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 144, compact: false },
-          { id: 'vid-240', group: 'video', name: 'Fast (240p)', desc: 'Low quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 240, compact: false },
-          { id: 'vid-360', group: 'video', name: 'Fast (360p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 360, compact: true },
-          { id: 'vid-480', group: 'video', name: 'Fast (480p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 480, compact: false },
-          { id: 'vid-720', group: 'video', name: 'High quality (720p)', desc: 'HD clear view', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 720, compact: false },
-          { id: 'vid-1080', group: 'video', name: 'High quality (1080p)', desc: 'Full HD details for full screen play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1080, compact: true },
-          { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false },
-          { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false }
+          { id: 'vid-144', group: 'video', name: 'Fast (144p)', badge: 'Low', desc: 'Smallest file size', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 144, compact: false, available: null },
+          { id: 'vid-240', group: 'video', name: 'Fast (240p)', desc: 'Low quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 240, compact: false, available: null },
+          { id: 'vid-360', group: 'video', name: 'Fast (360p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 360, compact: true, available: null },
+          { id: 'vid-480', group: 'video', name: 'Fast (480p)', desc: 'Normal quality for quick play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 480, compact: false, available: null },
+          { id: 'vid-720', group: 'video', name: 'High quality (720p)', desc: 'HD clear view', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 720, compact: false, available: null },
+          { id: 'vid-1080', group: 'video', name: 'High quality (1080p)', desc: 'Full HD details for full screen play', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1080, compact: true, available: null },
+          { id: 'vid-2k', group: 'video', name: 'High quality (2K)', desc: 'Quad HD 1440p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 1440, compact: false, available: null },
+          { id: 'vid-4k', group: 'video', name: 'High quality (4K)', desc: 'Ultra HD 2160p details', sizeText: 'Calculating…', ext: 'mp4', bitrate: '', maxHeight: 2160, compact: false, available: null }
         ],
         activeDownloads: [],
-        doneDownloads: [],
-        library: []
+        doneDownloads: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-done-downloads-v1') || '[]'); return Array.isArray(cached) ? cached.map(({ telemetrySummary, telemetryDisplay, ...item }) => item) : []; } catch (_) { return []; } })(),
+        library: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-library-snapshot-v1') || '[]'); return Array.isArray(cached) ? cached : []; } catch (_) { return []; } })(),
+        downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true },
+        libraryGridColumns: 3
       };
 
       const hasAndroid = () => typeof window.JetAndroid === 'object' && window.JetAndroid !== null;
+
+      function formatFileSize(bytes) {
+        const value = Number(bytes);
+        if (!Number.isFinite(value) || value < 0) return 'Size N/A';
+        if (value < 1024) return value.toFixed(0) + ' B';
+        if (value < 1048576) return (value / 1024).toFixed(1) + ' KB';
+        if (value < 1073741824) return (value / 1048576).toFixed(1) + ' MB';
+        return (value / 1073741824).toFixed(2) + ' GB';
+      }
+
+      function formatVideoMetadata(size, resolution, format) {
+        return [size, resolution, format].filter(Boolean).join(' · ');
+      }
 
       function refreshIcons() {
         if (window.lucide && window.lucide.createIcons) {
@@ -681,52 +948,250 @@
         toastTimer = setTimeout(() => el.classList.add('hidden'), 2600);
       }
 
+      let lastDownloadsRenderKey = '';
+      let libraryRenderGeneration = 0;
+      let libraryRefreshRequested = false;
       // Navigation
       function switchScreen(target) {
-        state.screen = target;
-        ['home', 'downloads', 'library', 'settings'].forEach((s) => {
-          const sec = $('screen-' + s);
-          if (sec) sec.classList.toggle('hidden', s !== target);
-        });
-        document.querySelectorAll('.nav-btn').forEach((btn) => {
-          const active = btn.dataset.navTarget === target;
-          btn.classList.toggle('text-app-primary', active);
-          btn.classList.toggle('font-bold', active);
-          btn.classList.toggle('text-app-secondary', !active);
-          btn.classList.toggle('font-semibold', !active);
-        });
-        if (target === 'library' && hasAndroid() && window.JetAndroid.refreshLibrary) {
-          window.JetAndroid.refreshLibrary();
+        try {
+          state.screen = target;
+
+          // Switch main screens
+          ['home', 'downloads', 'library', 'settings'].forEach((s) => {
+            const sec = document.getElementById('screen-' + s) || document.querySelector(`[id$="${s}"]`);
+            if (sec) sec.classList.toggle('hidden', s !== target);
+          });
+
+          // Safely update Nav Buttons
+          document.querySelectorAll('.nav-btn').forEach((btn) => {
+            const active = btn.dataset.navTarget === target;
+            if (active) {
+              btn.classList.add('active-nav', 'text-app-primary');
+              btn.classList.remove('text-app-secondary');
+              btn.setAttribute('aria-current', 'page');
+            } else {
+              btn.classList.remove('active-nav', 'text-app-primary');
+              btn.classList.add('text-app-secondary');
+              btn.removeAttribute('aria-current');
+            }
+          });
+
+          // Paint cached items in this frame; keep the native scan off the tap stack.
+          if (target === 'library') {
+            if (Array.isArray(state.library) && state.library.length) renderLibrary();
+            if (!libraryRefreshRequested && hasAndroid() && window.JetAndroid && window.JetAndroid.refreshLibrary) {
+              libraryRefreshRequested = true;
+              setTimeout(() => {
+                if (state.screen === 'library' && window.JetAndroid && window.JetAndroid.refreshLibrary) window.JetAndroid.refreshLibrary();
+              }, 0);
+            }
+          }
+
+          const scrollContainer = document.getElementById('scroll-container');
+          if (scrollContainer) scrollContainer.scrollTop = 0;
+
+          // Keep icon refresh failures isolated from navigation and download controls.
+          if (typeof refreshIcons === 'function') {
+            try { refreshIcons(); } catch (e) { console.warn("refreshIcons bypassed for dual-svg nav:", e); }
+          }
+        } catch (err) {
+          console.error("UI Switch Error:", err);
         }
-        $('scroll-container').scrollTop = 0;
-        refreshIcons();
       }
 
       document.addEventListener('click', (e) => {
         const navBtn = e.target.closest('[data-nav-target]');
         if (navBtn) switchScreen(navBtn.dataset.navTarget);
       });
+      $('library-grid-columns-setting').addEventListener('change', (e) => {
+        state.libraryGridColumns = Math.max(2, Math.min(4, Number(e.target.value) || 3));
+        renderLibrary();
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('libraryGridColumns', String(state.libraryGridColumns));
+      });
 
-      // Theme Sync (DataStore persisted)
-      function applyTheme(isDark, persist = true) {
-        state.darkMode = isDark;
+      // Three-way theme selection is persisted natively in AndroidX DataStore.
+      const themeLabels = { system: 'System Default', dark: 'Dark', light: 'Light' };
+
+      function updateThemeSelector() {
+        const subtitle = $('settings-theme-value');
+        if (subtitle) subtitle.textContent = themeLabels[state.themeMode] || themeLabels.system;
+        document.querySelectorAll('[data-theme-option]').forEach((option) => {
+          const selected = option.dataset.themeOption === state.themeMode;
+          option.setAttribute('aria-checked', String(selected));
+          option.querySelector('[data-theme-check]')?.classList.toggle('hidden', !selected);
+          option.classList.toggle('bg-app-primaryTint', selected);
+        });
+      }
+
+      function applyTheme(themeMode, systemDark = state.systemDark, persist = true) {
+        const mode = Object.prototype.hasOwnProperty.call(themeLabels, themeMode) ? themeMode : 'system';
+        state.themeMode = mode;
+        state.systemDark = Boolean(systemDark);
+        const isDark = mode === 'dark' || (mode === 'system' && state.systemDark);
         document.documentElement.classList.toggle('dark', isDark);
         const topIcon = $('topbar-theme-icon');
         if (topIcon) topIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-        const darkToggle = $('settings-dark-toggle');
-        const darkThumb = $('settings-dark-thumb');
-        if (darkToggle && darkThumb) {
-          darkToggle.setAttribute('aria-checked', String(isDark));
-          darkToggle.classList.toggle('bg-app-primary', isDark);
-          darkToggle.classList.toggle('border-app-primary', isDark);
-          darkToggle.classList.toggle('bg-app-elevated', !isDark);
-          darkThumb.classList.toggle('translate-x-5', isDark);
-        }
-        if (persist && hasAndroid() && window.JetAndroid.setStatusBarTheme) {
-          window.JetAndroid.setStatusBarTheme(isDark);
+        updateThemeSelector();
+        try { localStorage.setItem('jet-theme-mode', mode); } catch (_) {}
+        if (persist && hasAndroid() && window.JetAndroid.setThemeMode) {
+          window.JetAndroid.setThemeMode(mode);
         }
         refreshIcons();
       }
+
+      function openThemeSelector() {
+        updateThemeSelector();
+        $('theme-modal').classList.remove('hidden');
+      }
+
+      function closeThemeSelector() {
+        $('theme-modal').classList.add('hidden');
+      }
+
+      function applyDownloadToggle(id, enabled, key) {
+        const btn = $(id);
+        if (!btn) return;
+        btn.setAttribute('aria-checked', String(enabled));
+        btn.classList.toggle('bg-app-primary', enabled);
+        btn.classList.toggle('border-app-primary', enabled);
+        btn.classList.toggle('bg-app-elevated', !enabled);
+        btn.classList.toggle('border-app-border', !enabled);
+        btn.querySelector('.toggle-thumb')?.classList.toggle('translate-x-5', enabled);
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference(key, String(enabled));
+      }
+
+      function applyDownloadStatsToggle(enabled, shouldRender = true) {
+        state.showDownloadSpeedStats = Boolean(enabled);
+        try { localStorage.setItem('jet_show_dl_stats', String(state.showDownloadSpeedStats)); } catch (_) {}
+        const btn = $('show-download-speed-stats-toggle');
+        if (btn) {
+          btn.setAttribute('aria-checked', String(state.showDownloadSpeedStats));
+          btn.classList.toggle('bg-app-primary', state.showDownloadSpeedStats);
+          btn.classList.toggle('border-app-primary', state.showDownloadSpeedStats);
+          btn.classList.toggle('bg-app-elevated', !state.showDownloadSpeedStats);
+          btn.classList.toggle('border-app-border', !state.showDownloadSpeedStats);
+          btn.querySelector('.toggle-thumb')?.classList.toggle('translate-x-5', state.showDownloadSpeedStats);
+        }
+        if (shouldRender) renderDownloads();
+        renderTelemetryTable();
+      }
+
+      function telemetryEscape(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      }
+
+      function renderTelemetryTable() {
+        const wrap = $('download-telemetry-table-wrap');
+        const body = $('download-telemetry-table-body');
+        if (!wrap || !body) return;
+        wrap.classList.toggle('hidden', !state.showDownloadSpeedStats);
+        const rows = Array.isArray(state.telemetryLast4) ? state.telemetryLast4.slice(0, 4) : [];
+        const copyAll = $('telemetry-copy-all');
+        if (copyAll) copyAll.textContent = 'Copy All (' + rows.length + ')';
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="4" class="px-3 py-6 text-center text-[11px] text-app-secondary">No download telemetry yet.</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map((item, index) => {
+          const title = telemetryEscape(item.title || 'Untitled download');
+          const fileMeta = [item.resolution || '', item.container || '', item.sizeText || '', item.timestamp || ''].filter(Boolean).map(telemetryEscape).join(' • ');
+          return '<tr data-telemetry-row="' + index + '" class="border-b border-app-border last:border-b-0 cursor-pointer hover:bg-app-elevated/70 active:bg-app-elevated">' +
+            '<td class="px-3 py-3 align-top"><p class="truncate text-[11px] font-bold text-app-text" title="' + title + '">' + title + '</p><p class="mt-1 truncate text-[10px] text-app-secondary">' + fileMeta + '</p></td>' +
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>DL: ' + telemetryEscape(item.downloadSec || '—') + '</div><div>Convert: ' + telemetryEscape(item.convertSec || '—') + '</div><div>FF init: ' + telemetryEscape(item.ffInitSec || '—') + '</div><div>FF prep: ' + telemetryEscape(item.ffPrepSec || '—') + '</div><div>FF exec: ' + telemetryEscape(item.ffExecSec || '—') + '</div><div>FF move: ' + telemetryEscape(item.ffMoveSec || '—') + '</div><div class="whitespace-normal break-all">FF speed: ' + telemetryEscape(item.ffSpeedLine || '—') + '</div><div>Mux: ' + telemetryEscape(item.muxSec || '—') + '</div><div class="font-bold text-app-text">Total: ' + telemetryEscape(item.totalSec || '—') + '</div></td>' +
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Net: ' + telemetryEscape(item.netSpeedText || '—') + '</div><div>Avg: ' + telemetryEscape(item.avgSpeedText || '—') + '</div></td>' +
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Engine: ' + telemetryEscape(item.engine || 'n/a') + '</div><div>Conn: ' + telemetryEscape(item.connections || 'n/a') + ' (' + telemetryEscape(item.chunkSize || 'n/a') + ')</div><div>Retries: ' + telemetryEscape(item.retries == null ? '—' : item.retries) + '</div><div>Blocks: ' + telemetryEscape(item.blocks == null ? '—' : item.blocks) + '</div><div class="mt-1 whitespace-normal break-all">Fallback: ' + telemetryEscape(item.fallbackReason || 'none') + '</div></td></tr>';
+        }).join('');
+      }
+
+      async function copyTelemetryText(value) {
+        if (!value) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const field = document.createElement('textarea');
+          field.value = value; field.setAttribute('readonly', '');
+          field.style.position = 'fixed'; field.style.opacity = '0';
+          document.body.appendChild(field); field.select();
+          const copied = document.execCommand('copy'); field.remove();
+          if (!copied) throw new Error('Clipboard copy failed');
+        }
+      }
+
+      function persistTelemetryLast4(record) {
+        if (!record || !record.rawLog) return;
+        state.telemetryLast4 = [record, ...(state.telemetryLast4 || [])].slice(0, 4);
+        try { localStorage.setItem('jet-telemetry-last4-v1', JSON.stringify(state.telemetryLast4)); } catch (_) {}
+        renderTelemetryTable();
+      }
+
+      const telemetryWrap = $('download-telemetry-table-wrap');
+      if (telemetryWrap && telemetryWrap.dataset.bound !== 'true') {
+        telemetryWrap.dataset.bound = 'true';
+        telemetryWrap.addEventListener('click', async (event) => {
+          const row = event.target.closest('[data-telemetry-row]');
+          if (!row) return;
+          const record = state.telemetryLast4[Number(row.dataset.telemetryRow)];
+          if (!record || !record.rawLog) return;
+          try { await copyTelemetryText(record.rawLog); showToast('Log copied'); }
+          catch (_) { showToast('Could not copy log'); }
+        });
+        $('telemetry-copy-all')?.addEventListener('click', async () => {
+          const logs = (state.telemetryLast4 || []).slice(0, 4).map((item) => item.rawLog).filter(Boolean);
+          if (!logs.length) { showToast('No logs to copy'); return; }
+          try { await copyTelemetryText(logs.join('\n')); showToast('Logs copied'); }
+          catch (_) { showToast('Could not copy logs'); }
+        });
+        $('telemetry-clear')?.addEventListener('click', () => {
+          state.telemetryLast4 = [];
+          try { localStorage.removeItem('jet-telemetry-last4-v1'); } catch (_) {}
+          renderTelemetryTable();
+          showToast('Logs cleared');
+        });
+      }
+
+      applyDownloadStatsToggle(state.showDownloadSpeedStats, false);
+      renderTelemetryTable();
+
+      window.onNativeDownloadSettings = function (settings) {
+        if (!settings || typeof settings !== 'object') return;
+        state.downloadSettings = { ...state.downloadSettings, ...settings };
+        if ($('download-path-value')) $('download-path-value').textContent = settings.downloadPath || 'Downloads/JET';
+        if ($('default-quality-setting')) $('default-quality-setting').value = settings.defaultQuality || 'vid-1080';
+        if ($('max-download-tasks')) $('max-download-tasks').value = String(settings.maxDownloadTasks || 3);
+        if ($('download-speed-limit')) $('download-speed-limit').value = String(settings.speedLimitKbps || 0);
+        applyDownloadToggle('save-subtitles-toggle', Boolean(settings.saveSubtitles), 'saveSubtitles');
+        applyDownloadToggle('mobile-data-toggle', settings.allowMobileData !== false, 'allowMobileData');
+        state.selectedFormatId = settings.defaultQuality || 'vid-1080';
+        state.libraryGridColumns = [2,3,4].includes(Number(settings.libraryGridColumns)) ? Number(settings.libraryGridColumns) : 3;
+        const gridColumnsSelect = $('library-grid-columns-setting');
+        if (gridColumnsSelect) gridColumnsSelect.value = String(state.libraryGridColumns);
+      };
+
+      window.onNativeStorageStats = function (stats) {
+        if (!stats || !Number(stats.totalBytes)) return;
+        const total = Math.max(1, Number(stats.totalBytes));
+        const free = Math.max(0, Number(stats.freeBytes) || 0);
+        const used = Math.max(0, total - free);
+        let audio = Math.max(0, Number(stats.audioBytes) || 0);
+        let video = Math.max(0, Number(stats.videoBytes) || 0);
+        let other = Math.max(0, Number(stats.otherBytes) || 0);
+        const mediaUsed = audio + video + other;
+        if (mediaUsed > used && mediaUsed > 0) {
+          const scale = used / mediaUsed;
+          audio *= scale; video *= scale; other *= scale;
+        }
+        const values = [audio, video, other, free];
+        const ids = ['audio', 'video', 'other', 'free'];
+        values.forEach((bytes, index) => {
+          const pct = Math.max(0, Math.min(100, bytes / total * 100));
+          const segment = $('storage-' + ids[index] + '-segment');
+          const label = $('storage-' + ids[index] + '-label');
+          if (segment) segment.style.width = pct.toFixed(2) + '%';
+          if (label) label.textContent = pct.toFixed(1) + '%';
+        });
+        const fmt = (bytes) => bytes >= 1073741824 ? (bytes / 1073741824).toFixed(1) + ' GB' : bytes >= 1048576 ? (bytes / 1048576).toFixed(0) + ' MB' : (bytes / 1024).toFixed(0) + ' KB';
+        $('storage-total-label').textContent = fmt(used) + ' / ' + fmt(total) + ' · ' + fmt(free) + ' free';
+      };
 
       function applyClipboardToggle(enabled, persist = true) {
         state.clipboardAutoDetect = enabled;
@@ -744,9 +1209,62 @@
         }
       }
 
-      $('topbar-theme-btn').addEventListener('click', () => applyTheme(!state.darkMode, true));
-      $('settings-dark-toggle').addEventListener('click', () => applyTheme(!state.darkMode, true));
+      $('topbar-theme-btn').addEventListener('click', openThemeSelector);
+      $('settings-theme-row').addEventListener('click', openThemeSelector);
+      $('theme-modal').addEventListener('click', (event) => {
+        const option = event.target.closest('[data-theme-option]');
+        if (option) {
+          const mode = option.dataset.themeOption;
+          applyTheme(mode, state.systemDark, false);
+          if (hasAndroid() && window.JetAndroid.setThemeMode) {
+            window.JetAndroid.setThemeMode(mode);
+          }
+          closeThemeSelector();
+          return;
+        }
+        if (event.target.id === 'theme-modal' || event.target.closest('[data-close-theme]')) {
+          closeThemeSelector();
+        }
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeThemeSelector();
+      });
       $('clipboard-pref-toggle').addEventListener('click', () => applyClipboardToggle(!state.clipboardAutoDetect, true));
+
+      $('default-quality-setting').addEventListener('change', (event) => {
+        const value = event.target.value;
+        state.downloadSettings.defaultQuality = value;
+        state.selectedFormatId = value;
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('defaultQuality', value);
+      });
+      $('max-download-tasks').addEventListener('change', (event) => {
+        state.downloadSettings.maxDownloadTasks = Number(event.target.value);
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('maxDownloadTasks', event.target.value);
+      });
+      $('download-speed-limit').addEventListener('change', (event) => {
+        state.downloadSettings.speedLimitKbps = Number(event.target.value);
+        if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('speedLimitKbps', event.target.value);
+      });
+      $('save-subtitles-toggle').addEventListener('click', () => {
+        const enabled = $('save-subtitles-toggle').getAttribute('aria-checked') !== 'true';
+        state.downloadSettings.saveSubtitles = enabled;
+        applyDownloadToggle('save-subtitles-toggle', enabled, 'saveSubtitles');
+      });
+      $('show-download-speed-stats-toggle').addEventListener('click', () => {
+        applyDownloadStatsToggle(!state.showDownloadSpeedStats);
+      });
+      $('mobile-data-toggle').addEventListener('click', () => {
+        const enabled = $('mobile-data-toggle').getAttribute('aria-checked') !== 'true';
+        state.downloadSettings.allowMobileData = enabled;
+        applyDownloadToggle('mobile-data-toggle', enabled, 'allowMobileData');
+      });
+      window.$ = $; window.hasAndroid = hasAndroid; window.showToast = showToast; window.refreshIcons = refreshIcons;
+      $('feedback-setting')?.addEventListener('click', (e) => window.openFeedbackScreen?.(e));
+      $('about-setting').addEventListener('click', () => $('about-modal').classList.remove('hidden'));
+      $('share-app-setting').addEventListener('click', () => {
+        if (hasAndroid() && window.JetAndroid.shareApp) window.JetAndroid.shareApp();
+      });
+
 
       // Open-source software modal
       function renderOssList() {
@@ -798,29 +1316,98 @@
       }
 
       let mediaInfoPrefetchTimer = null;
-      let lastPrefetchedUrl = '';
-
-      function scheduleMediaInfoPrefetch(rawUrl) {
-        const candidate = (rawUrl || '').trim();
-        if (!candidate.startsWith('http') || candidate === lastPrefetchedUrl) return;
-        clearTimeout(mediaInfoPrefetchTimer);
-        mediaInfoPrefetchTimer = setTimeout(() => {
-          if (hasAndroid() && window.JetAndroid.prefetchMediaInfo) {
-            lastPrefetchedUrl = candidate;
-            window.JetAndroid.prefetchMediaInfo(candidate);
-          }
-        }, 450);
+      let activePrefetchUrl = '';
+      const mediaInfoPrefetchCache = new Map();
+      const MEDIA_INFO_PREFETCH_TTL_MS = 15 * 60 * 1000;
+      let jetIntroFinished = !document.getElementById('jet-intro-overlay');
+      let autoClipboardCandidate = '';
+      let autoClipboardEdited = false;
+      function maybeAutoOpenPrefetchedClipboard() {
+        const candidate = autoClipboardCandidate;
+        if (!jetIntroFinished || !candidate || autoClipboardEdited || urlInput.value.trim() !== candidate) return;
+        if (state.lastAutoOpenedClipboardUrl === candidate) return;
+        const entry = mediaInfoPrefetchCache.get(normalizeMediaInfoUrl(candidate));
+        if (!entry || entry.status !== 'ready' || !entry.payload || !entry.payload.ok) return;
+        state.lastAutoOpenedClipboardUrl = candidate;
+        openFormatModal(candidate);
       }
-
-      urlInput.addEventListener('input', () => {
+      window.onJetIntroComplete = function () {
+        jetIntroFinished = true;
+        maybeAutoOpenPrefetchedClipboard();
+      };
+      function normalizeMediaInfoUrl(rawUrl) {
+        try {
+          const parsed = new URL(String(rawUrl || '').trim());
+          if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) return '';
+          parsed.hash = '';
+          parsed.hostname = parsed.hostname.toLowerCase();
+          const host = parsed.hostname;
+          let videoId = '';
+          if (host === 'youtu.be') videoId = parsed.pathname.split('/').filter(Boolean)[0] || '';
+          else if (host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtube-nocookie.com' || host.endsWith('.youtube-nocookie.com')) {
+            videoId = parsed.searchParams.get('v') || '';
+            if (!videoId) { const parts=parsed.pathname.split('/').filter(Boolean); if (['shorts','embed','live','v'].includes(parts[0])) videoId=parts[1]||''; }
+          }
+          if (/^[A-Za-z0-9_-]{11}$/.test(videoId)) return 'youtube:' + videoId;
+          return 'url:' + parsed.toString();
+        } catch (_) { return ''; }
+      }
+      function cancelMediaInfoPrefetch(rawUrl) {
+        const key = normalizeMediaInfoUrl(rawUrl);
+        if (!key) return;
+        const entry = mediaInfoPrefetchCache.get(key);
+        if (entry && entry.status === 'inFlight') {
+          mediaInfoPrefetchCache.delete(key);
+          if (hasAndroid() && window.JetAndroid.cancelMediaInfoPrefetch) window.JetAndroid.cancelMediaInfoPrefetch(rawUrl);
+        }
+      }
+      function prefetchMediaInfoSilently(rawUrl) {
+        const candidate = String(rawUrl || '').trim();
+        const key = normalizeMediaInfoUrl(candidate);
+        if (!key || !hasAndroid() || !window.JetAndroid.prefetchMediaInfo) return;
+        const now = Date.now(), cached = mediaInfoPrefetchCache.get(key);
+        if (cached && cached.expiresAt > now && (cached.status === 'ready' || cached.status === 'inFlight')) return;
+        mediaInfoPrefetchCache.delete(key);
+        clearTimeout(mediaInfoPrefetchTimer);
+        activePrefetchUrl = key;
+        mediaInfoPrefetchCache.set(key, {status:'inFlight',expiresAt:now+MEDIA_INFO_PREFETCH_TTL_MS,payload:null});
+        try { window.JetAndroid.prefetchMediaInfo(candidate); }
+        catch (_) { mediaInfoPrefetchCache.delete(key); }
+      }
+      function scheduleMediaInfoPrefetch(rawUrl) {
+        const candidate = String(rawUrl || '').trim();
+        if (!normalizeMediaInfoUrl(candidate)) return;
+        clearTimeout(mediaInfoPrefetchTimer);
+        mediaInfoPrefetchTimer = setTimeout(() => prefetchMediaInfoSilently(candidate), 120);
+      }
+      function handleUrlInputChanged() {
         updatePasteButtonState();
-        scheduleMediaInfoPrefetch(urlInput.value);
+        const candidate = urlInput.value.trim(), nextKey = normalizeMediaInfoUrl(candidate);
+        const previousUrl = urlInput.dataset ? urlInput.dataset.prefetchUrl : '';
+        if (activePrefetchUrl && activePrefetchUrl !== nextKey) cancelMediaInfoPrefetch(previousUrl || activePrefetchUrl);
+        if (urlInput.dataset) urlInput.dataset.prefetchUrl = candidate;
+        if (!candidate) {
+          clearTimeout(mediaInfoPrefetchTimer); mediaInfoPrefetchTimer = null;
+          if (activePrefetchUrl) cancelMediaInfoPrefetch(previousUrl || activePrefetchUrl);
+          activePrefetchUrl = '';
+          if (urlInput.dataset) delete urlInput.dataset.prefetchUrl;
+          state.pendingUrl = '';
+          $('fetching-info-bar').classList.add('hidden');
+          $('format-modal').classList.add('hidden');
+          hideJetRetryBanner();
+          return;
+        }
+        scheduleMediaInfoPrefetch(candidate);
+      }
+      urlInput.addEventListener('input', () => {
+        if (autoClipboardCandidate && urlInput.value.trim() !== autoClipboardCandidate) autoClipboardEdited = true;
+        handleUrlInputChanged();
       });
 
       $('paste-btn').addEventListener('click', async () => {
         if (urlInput.value.trim().length > 0) {
           urlInput.value = '';
-          updatePasteButtonState();
+          handleUrlInputChanged();
           return;
         }
         let clipText = '';
@@ -832,8 +1419,7 @@
         }
         if (clipText) {
           urlInput.value = clipText;
-          updatePasteButtonState();
-          scheduleMediaInfoPrefetch(clipText);
+          handleUrlInputChanged();
         } else {
           showToast('Copy a video link first, then tap Paste');
         }
@@ -841,15 +1427,13 @@
 
       $('clipboard-apply-btn').addEventListener('click', () => {
         urlInput.value = state.clipboardUrl;
-        updatePasteButtonState();
-        scheduleMediaInfoPrefetch(state.clipboardUrl);
+        handleUrlInputChanged();
         $('clipboard-chip').classList.add('hidden');
       });
 
       $('clipboard-download-btn').addEventListener('click', () => {
         urlInput.value = state.clipboardUrl;
-        updatePasteButtonState();
-        scheduleMediaInfoPrefetch(state.clipboardUrl);
+        handleUrlInputChanged();
         $('clipboard-chip').classList.add('hidden');
         openFormatModal(state.clipboardUrl);
       });
@@ -859,8 +1443,8 @@
       });
 
       // Native Android Bridge Callbacks
-      window.onNativePreferencesLoaded = function (isDark, clipEnabled) {
-        applyTheme(Boolean(isDark), false);
+      window.onNativePreferencesLoaded = function (themeMode, systemDark, clipEnabled) {
+        applyTheme(String(themeMode || 'system'), Boolean(systemDark), false);
         applyClipboardToggle(Boolean(clipEnabled), false);
       };
 
@@ -881,15 +1465,13 @@
         if (clipboardLabel) clipboardLabel.textContent = url.slice(url.indexOf('://') + 3);
         if (clipboardChip) clipboardChip.classList.remove('hidden');
 
-        // Open the download format sheet once for each newly copied URL.
-        if (state.lastAutoOpenedClipboardUrl !== url) {
-          state.lastAutoOpenedClipboardUrl = url;
-          urlInput.value = url;
-          updatePasteButtonState();
-          scheduleMediaInfoPrefetch(url);
-          if (clipboardChip) clipboardChip.classList.add('hidden');
-          openFormatModal(url);
-        }
+        // Auto-paste silently; a successful supported result may open after the intro.
+        autoClipboardCandidate = url;
+        autoClipboardEdited = false;
+        urlInput.value = url;
+        handleUrlInputChanged();
+        prefetchMediaInfoSilently(url);
+        maybeAutoOpenPrefetchedClipboard();
       };
 
       window.onNativeSharedUrl = function (url) {
@@ -901,34 +1483,223 @@
         openFormatModal(url);
       };
 
-      window.onNativeMediaInfo = function (info) {
+      function applyMediaInfoPayload(info) {
         $('fetching-info-bar').classList.add('hidden');
-        if (info && info.ok) hideJetRetryBanner();
-        if (!info || !info.ok) {
-          const failedUrl = state.pendingUrl;
-          showJetRetryBanner(info && info.error ? info.error : 'Could not load media information.', () => openFormatModal(failedUrl), 'Could not fetch media info');
-          state.formats.forEach((stream) => { stream.sizeText = 'Size N/A'; });
+        if(info&&info.ok)hideJetRetryBanner();
+        if(!info||!info.ok){
+          state.videoStreamsReady = true;
+          state.formats.forEach(stream=>{stream.sizeText='Size N/A';if(stream.group==='video')stream.available=false;});
           renderFormatLists();
-          $('format-stream-title').textContent = state.pendingUrl;
-          showToast(info && info.error ? info.error : 'Using direct stream mode');
+          $('format-stream-title').textContent='Could not fetch media information. Choose a format to retry.';
           return;
         }
-        state.fetchedTitle = info.title || state.pendingUrl;
-        $('format-stream-title').textContent = `${state.fetchedTitle} (${info.duration || ''}) · ${info.extractor || ''}`;
-        state.formats.forEach((stream) => {
-          stream.sizeText = info.streams?.[stream.id]?.sizeText || 'Size N/A';
+        state.fetchedTitle=info.title||state.pendingUrl;
+        state.fetchedThumbnail=info.thumbnail||'';
+        const thumbnail=$('format-stream-thumbnail');
+        thumbnail.src=state.fetchedThumbnail;
+        thumbnail.classList.toggle('hidden',!state.fetchedThumbnail);
+        $('format-stream-title').textContent=`${state.fetchedTitle} (${info.duration||''}) · ${info.extractor||''}`;
+        state.videoStreamsReady = true;
+        state.formats.forEach(stream => {
+          const metadata = info.streams?.[stream.id] || {};
+          if (stream.group === 'music') {
+            stream.sizeBytes = Number(metadata.sizeBytes) || 0;
+            stream.sizeText = metadata.available && stream.sizeBytes > 0 ? ((String(metadata.sizeText || '').startsWith('~') ? '~ ' : '') + formatFileSize(stream.sizeBytes)) : 'Size N/A';
+            stream.available = metadata.available !== false;
+            return;
+          }
+          stream.available = metadata.available === true && Number(metadata.shortSide) > 0;
+          stream.sizeBytes = Number(metadata.sizeBytes) || 0;
+          stream.sizeText = stream.available ? ((String(metadata.sizeText || '').startsWith('~') ? '~ ' : '') + formatFileSize(stream.sizeBytes)) : 'N/A';
+          stream.itag = Number(metadata.itag) || -1;
+          stream.height = Number(metadata.height) || 0;
+          stream.maxHeight = stream.height || stream.maxHeight;
+          stream.shortSide = Number(metadata.shortSide) || 0;
+          stream.resolution = metadata.resolution || '';
+          stream.sourceId = stream.id;
+          if (stream.available) stream.name = (stream.shortSide >= 720 ? 'High quality' : 'Fast') + ' (' + stream.resolution + ')';
         });
+        const actualVideoFormats = state.formats.filter(stream => stream.group === 'video' && stream.available).sort((a, b) => a.shortSide - b.shortSide);
+        const applyAlias = (aliasId, source) => {
+          const alias = state.formats.find(stream => stream.id === aliasId);
+          if (!alias || !source) return;
+          Object.assign(alias, { available:true, sizeBytes:source.sizeBytes, sizeText:source.sizeText,
+            itag:source.itag, height:source.height, shortSide:source.shortSide, resolution:source.resolution,
+            maxHeight:source.height, sourceId:source.id,
+            name:(aliasId === 'vid-360' ? 'Fast' : 'High quality') + ' (' + source.resolution + ')' });
+        };
+        const fastSource = actualVideoFormats.filter(stream => stream.shortSide <= 360).slice(-1)[0];
+        const highSource = actualVideoFormats.filter(stream => stream.shortSide <= 1080).slice(-1)[0];
+        applyAlias('vid-360', fastSource);
+        applyAlias('vid-1080', highSource);
+        if (!state.formats.some(stream => stream.id === state.selectedFormatId && stream.group === 'video' && stream.available)) {
+          state.selectedFormatId = highSource ? 'vid-1080' : fastSource ? 'vid-360' : (actualVideoFormats[0]?.id || 'aud-fast');
+        }
         renderFormatLists();
+      }
+      window.onNativeMediaInfo=function(info){
+        if($('format-modal').classList.contains('hidden')||!state.pendingUrl)return;
+        applyMediaInfoPayload(info);
+      };
+      window.onNativePrefetchedMediaInfo=function(rawUrl,info){
+        const key=normalizeMediaInfoUrl(rawUrl);
+        if(!key)return;
+        const entry=mediaInfoPrefetchCache.get(key);
+        if(!entry)return;
+        let payload=info;
+        if(typeof payload==='string'){try{payload=JSON.parse(payload);}catch(_){mediaInfoPrefetchCache.delete(key);return;}}
+        if(!payload||!payload.ok){mediaInfoPrefetchCache.delete(key);return;}
+        const wasInFlight=entry.status==='inFlight';
+        entry.status='ready';entry.payload=payload;entry.expiresAt=Date.now()+MEDIA_INFO_PREFETCH_TTL_MS;
+        mediaInfoPrefetchCache.set(key,entry);
+        if(!$('format-modal').classList.contains('hidden') &&
+           normalizeMediaInfoUrl(state.pendingUrl)===key) applyMediaInfoPayload(payload);
+        if(wasInFlight) maybeAutoOpenPrefetchedClipboard();
+      };
+      window.onNativePrefetchFailed=function(rawUrl){
+        const key=normalizeMediaInfoUrl(rawUrl),entry=mediaInfoPrefetchCache.get(key);
+        if(entry&&entry.status==='inFlight')mediaInfoPrefetchCache.delete(key);
+        if(!$('format-modal').classList.contains('hidden') &&
+           normalizeMediaInfoUrl(state.pendingUrl)===key &&
+           hasAndroid() && window.JetAndroid.fetchMediaInfo) window.JetAndroid.fetchMediaInfo(rawUrl);
+      };
+      const clampDownloadPercent = (percent) => Math.min(100, Math.max(0, Math.floor(Number(percent) || 0)));
+      const isPreByteDownload = (item) => ['PREPARING', 'CONNECTING'].includes(String(item.stage || '').toUpperCase()) && Number(item.bytesRead) <= 0;
+      const shownDownloadPercent = (item) => isPreByteDownload(item) ? 0 : clampDownloadPercent(item.progress);
+      const downloadBarWidth = (item) => isPreByteDownload(item) ? 8 : shownDownloadPercent(item);
+      const formatBytes = (bytes) => {
+        const value = Math.max(0, Number(bytes) || 0), units = ['B', 'KB', 'MB', 'GB'];
+        let amount = value, unit = 0; while (amount >= 1024 && unit < units.length - 1) { amount /= 1024; unit++; }
+        return amount.toFixed(1) + ' ' + units[unit];
+      };
+      const formatTransferred = (item) => {
+        const downloaded = Math.max(0, Number(item.downloadedBytes ?? item.bytesRead) || 0), total = Math.max(0, Number(item.totalBytes) || 0);
+        if (total <= 0) return formatBytes(downloaded);
+        const unit = total >= 1024 ** 3 ? 1024 ** 3 : total >= 1024 ** 2 ? 1024 ** 2 : total >= 1024 ? 1024 : 1;
+        const suffix = unit === 1024 ** 3 ? 'GB' : unit === 1024 ** 2 ? 'MB' : unit === 1024 ? 'KB' : 'B';
+        return (downloaded / unit).toFixed(1) + ' / ' + (total / unit).toFixed(1) + ' ' + suffix;
+      };
+      const formatDownloadMegabytes = (item) => {
+        const downloaded = Math.max(0, Number(item.downloadedBytes ?? item.bytesRead) || 0);
+        const total = Math.max(0, Number(item.totalBytes) || 0);
+        return (downloaded / 1048576).toFixed(1) + ' / ' + (total / 1048576).toFixed(1) + ' MB';
+      };
+      const downloadTelemetry = (item) => {
+        const transferred = formatTransferred(item);
+        const speed = String(item.speedText || '--');
+        const eta = String(item.etaText || '--');
+        const status = String(item.status || '').toLowerCase();
+        const stage = String(item.stage || '').toUpperCase();
+        if (status === 'paused') return { left: transferred + ' · Paused', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
+        if (isPreByteDownload(item)) return { left: 'Connecting...', right: '<b>0%</b>' };
+        if (stage === 'MERGING' || status === 'merging') return { left: 'Merging audio & video...', right: '<b>' + shownDownloadPercent(item) + '%</b>' };
+        return {
+          left: formatDownloadMegabytes(item) + (speed !== '--' ? ' · ' + speed : ''),
+          right: (eta !== '--' ? eta + ' left · ' : '') + '<b>' + shownDownloadPercent(item) + '%</b>'
+        };
+      };
+      window.onNativeDownloadProgress = function (
+        id, progress, speedLabel, stage, bytesRead, downloadedBytes, totalBytes,
+        speedBps, etaSec, speedText, etaText, exactTotalBytes, verifiedCompletion
+      ) {
+        const item = state.activeDownloads.find((d) => d.id === id);
+        if (!item) return;
+        const normalizedStage = String(stage || '').toUpperCase();
+        const previousDownloadedBytes = Math.max(0, Number(item.downloadedBytes) || 0);
+        const previousBytesRead = Math.max(0, Number(item.bytesRead) || 0);
+        item.downloadedBytes = Math.max(previousDownloadedBytes, Math.max(0, Number(downloadedBytes ?? bytesRead) || 0));
+        item.bytesRead = Math.max(previousBytesRead, Math.max(0, Number(bytesRead) || 0), item.downloadedBytes);
+        const incomingTotalBytes = Math.max(0, Number(totalBytes) || 0);
+        if (incomingTotalBytes > 0 && exactTotalBytes === true) {
+          item.totalBytes = incomingTotalBytes;
+          item.size = formatBytes(incomingTotalBytes);
+        } else if (incomingTotalBytes > 0) {
+          item.totalBytes = Math.max(Number(item.totalBytes) || 0, incomingTotalBytes);
+        }
+        const receivedFirstByte = previousDownloadedBytes > 0 || item.downloadedBytes > 0;
+        const previousStage = String(item.stage || '').toUpperCase();
+        item.stage = previousStage === 'MERGING'
+          ? 'MERGING'
+          : (receivedFirstByte && ['PREPARING', 'CONNECTING'].includes(normalizedStage)
+            ? 'DOWNLOADING'
+            : (['PREPARING', 'CONNECTING', 'DOWNLOADING', 'MERGING'].includes(normalizedStage)
+              ? normalizedStage
+              : (Number(progress) > 0 ? 'DOWNLOADING' : 'PREPARING')));
+        const enteredMerging = item.stage === 'MERGING' && previousStage !== 'MERGING';
+        item.speedBps = Math.max(0, Number(speedBps) || 0);
+        item.speedText = String(speedText || '--');
+        item.etaSec = Number.isFinite(Number(etaSec)) ? Number(etaSec) : -1;
+        item.etaText = String(etaText || '--');
+        const isVerifiedComplete = verifiedCompletion === true && Number(progress) === 100;
+        const safePercent = isVerifiedComplete || (item.stage === 'DOWNLOADING' &&
+          exactTotalBytes === true && incomingTotalBytes > 0 && item.downloadedBytes >= incomingTotalBytes &&
+          Number(progress) === 100)
+          ? 100
+          : Math.min(99, clampDownloadPercent(progress));
+        if (item.bytesRead > 0 && (item.stage === 'PREPARING' || item.stage === 'CONNECTING')) item.stage = 'DOWNLOADING';
+        if (isPreByteDownload(item)) {
+          item.status = 'preparing';
+          item.speed = item.stage === 'CONNECTING' ? 'Connecting...' : 'Preparing...';
+          item.progress = 0;
+          renderDownloads();
+          return;
+        }
+        if (item.stage === 'MERGING') {
+          item.status = 'merging';
+          item.speed = 'Merging audio & video...';
+          item.speedBps = 0;
+          item.speedText = '--';
+          item.etaSec = -1;
+          item.etaText = '--';
+          item.progress = enteredMerging ? safePercent : Math.max(clampDownloadPercent(item.progress), safePercent);
+        } else if (item.stage === 'DOWNLOADING' && (item.bytesRead > 0 || incomingTotalBytes > 0)) {
+          item.status = 'downloading';
+          item.speed = speedLabel || 'Downloading...';
+          item.progress = Math.max(clampDownloadPercent(item.progress), safePercent);
+        } else {
+          item.status = 'preparing';
+          item.speed = speedLabel || 'Connecting...';
+          item.progress = Math.max(clampDownloadPercent(item.progress), safePercent);
+        }
+        try {
+          localStorage.setItem('jet-active-download-progress-v1', JSON.stringify(state.activeDownloads.map((active) => ({
+            id: active.id, progress: active.progress, status: active.status, stage: active.stage,
+            downloadedBytes: active.downloadedBytes || 0, totalBytes: active.totalBytes || 0,
+            speedText: active.speedText || '--', etaText: active.etaText || '--'
+          }))));
+        } catch (_) {}
+        renderDownloads();
+      };      window.onNativeDownloadPaused = function (id) {
+        const item = state.activeDownloads.find((d) => d.id === id);
+        if (item) { item.status = 'paused'; item.speed = 'Paused'; renderDownloads(); }
       };
 
-      window.onNativeDownloadProgress = function (id, progress, speedLabel) {
-        const item = state.activeDownloads.find((d) => d.id === id);
-        if (item) {
-          item.progress = progress;
-          item.speed = speedLabel || 'Downloading...';
-          renderDownloads();
+      function renderLatestSavedPreview(item) {
+        if (!item) return;
+        const card = $('latest-download-card');
+        const preview = card && card.querySelector('.relative');
+        if (!preview) return;
+        const record = { title:item.title||'', filePath:item.filePath||'', fileUri:item.fileUri||'',
+          thumbnailUrl:item.thumbnailUrl||item.thumbnail||'', type:item.type||'video',
+          meta:item.meta||formatVideoMetadata(item.size||'Saved',item.resolution||'',item.format||'Media') };
+        card.dataset.filePath=record.filePath; card.dataset.fileUri=record.fileUri; card.dataset.mediaType=record.type;
+        try { localStorage.setItem('jet-latest-saved-file-v1',JSON.stringify(record)); } catch (_) {}
+        if (record.thumbnailUrl) {
+          if (record.type==='audio') preview.innerHTML=vinylDiscMarkup(record.thumbnailUrl,'w-12 h-12');
+          else { const img=document.createElement('img'); img.alt=''; img.decoding='async'; img.className='absolute inset-0 w-full h-full object-cover'; img.src=record.thumbnailUrl; img.onerror=()=>img.remove(); preview.replaceChildren(img); }
+        } else if (record.filePath||record.fileUri) {
+          const key=record.filePath||record.fileUri;
+          if (card.dataset.thumbnailRequest!==key) { card.dataset.thumbnailRequest=key;
+            if (hasAndroid()&&window.JetAndroid&&window.JetAndroid.requestFileThumbnail) window.JetAndroid.requestFileThumbnail(record.filePath,record.fileUri);
+          }
         }
-      };
+      }
+      function hydrateLatestSavedFromCache() {
+        try { const cached=JSON.parse(localStorage.getItem('jet-latest-saved-file-v1')||'null'); if(!cached)return;
+          $('latest-title').textContent=cached.title||'Latest saved file'; $('latest-meta').textContent=cached.meta||'Saved';
+          renderLatestSavedPreview(cached);
+        } catch (_) {}
+      }
 
       window.onNativeDownloadComplete = function (data) {
         state.retryDownloadArgs = null;
@@ -937,9 +1708,16 @@
         const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
         const existing = idx >= 0 ? state.activeDownloads[idx] : null;
         if (idx >= 0) state.activeDownloads.splice(idx, 1);
+        try {
+          const cachedActive = JSON.parse(localStorage.getItem('jet-active-download-progress-v1') || '[]');
+          localStorage.setItem('jet-active-download-progress-v1', JSON.stringify(
+            cachedActive.filter((active) => active.id !== data.id)
+          ));
+        } catch (_) {}
 
         const title = data.title || (existing ? existing.title : 'JET Download');
-        const fmtLabel = existing ? existing.format : 'Media';
+        const thumbnailUrl = data.thumbnailUrl || data.thumbnail || (existing && existing.thumbnailUrl) || '';
+        const fmtLabel = data.format || (existing ? existing.format : 'Media');
         state.doneDownloads.unshift({
           id: data.id,
           title: title,
@@ -947,53 +1725,128 @@
           size: data.size || 'Saved',
           filePath: data.filePath || '',
           fileUri: data.fileUri || '',
-          date: 'Just now'
+          thumbnailUrl,
+          date: 'Just now',
+          resolution: data.resolution || (existing && existing.resolution) || '',
         });
+        try { localStorage.setItem('jet-done-downloads-v1', JSON.stringify(state.doneDownloads.slice(0, 500))); } catch (_) {}
+        if (data.telemetry && typeof data.telemetry === 'object') persistTelemetryLast4(data.telemetry);
 
         $('latest-title').textContent = title;
-        $('latest-meta').textContent = `${data.size || 'Saved'} · ${fmtLabel}`;
+        const completedMeta = formatVideoMetadata(data.size || 'Saved', data.resolution || '', fmtLabel);
+        $('latest-meta').textContent = completedMeta;
         $('latest-download-card').dataset.filePath = data.filePath || '';
         $('latest-download-card').dataset.fileUri = data.fileUri || '';
+        renderLatestSavedPreview({title,filePath:data.filePath||'',fileUri:data.fileUri||'',thumbnailUrl,type:existing&&existing.type||'video',size:data.size||'Saved',format:fmtLabel,resolution:data.resolution||'',meta:completedMeta});
 
         renderDownloads();
         showToast(`Saved: ${title}`);
       };
 
       window.onNativeDownloadError = function (data) {
-        const idx = state.activeDownloads.findIndex((d) => d.id === data.id);
-        if (idx >= 0) state.activeDownloads.splice(idx, 1);
-        renderDownloads();
+        if (window.jetCancelledDownloadIds && window.jetCancelledDownloadIds.has(data.id)) {
+          window.jetCancelledDownloadIds.delete(data.id);
+          return;
+        }
+        const item = state.activeDownloads.find((d) => d.id === data.id);
+        if (item) { item.status = 'failed'; item.speed = data.error || 'Download failed'; renderDownloads(); }
         showToast(`Error: ${data.error || 'Download failed'}`);
-        if (state.retryDownloadArgs) {
-          const args = state.retryDownloadArgs;
-          const record = state.retryDownloadRecord;
-          showJetRetryBanner(data.error || 'Download failed.', () => {
-            if (!jetIsOnline) return;
-            if (record) state.activeDownloads.unshift({ ...record, progress: 2, speed: 'Retrying...' });
-            renderDownloads();
-            if (hasAndroid() && window.JetAndroid.startRealDownload) window.JetAndroid.startRealDownload(...args);
-          }, 'Download interrupted');
+      };
+
+      window.onNativeFileThumbnail = function (filePath, thumbnailUrl) {
+        const card=$('latest-download-card'); if(!thumbnailUrl||(filePath&&card.dataset.filePath!==filePath))return;
+        let cached={}; try{cached=JSON.parse(localStorage.getItem('jet-latest-saved-file-v1')||'{}')||{};}catch(_){}
+        cached.thumbnailUrl=thumbnailUrl; try{localStorage.setItem('jet-latest-saved-file-v1',JSON.stringify(cached));}catch(_){}
+        renderLatestSavedPreview(cached);
+      };
+
+      window.onNativeLibraryPermissionState = function (permissionState) {
+        const label = $('library-location-label');
+        const container = $('library-items-container');
+        if (permissionState === 'requesting') {
+          label.textContent = 'Requesting audio and video access…';
+          container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Allow media access in the Android permission prompt to scan your device.</div>';
+        } else if (permissionState === 'denied') {
+          label.textContent = 'Media access is required to scan device files';
+          container.innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Media access was not granted. Open Library again and allow audio and video access, or enable it in Android App settings.</div>';
+        } else if (permissionState === 'partial') {
+          label.textContent = 'Partial media access · showing permitted files';
+        } else if (permissionState === 'granted') {
+          label.textContent = 'Access granted · scanning device media…';
         }
       };
 
-      window.onNativeLibraryList = function (list) {
-        if (!Array.isArray(list)) return;
-        state.library = list.map((item) => ({
+      window.onNativeAppResumed = function () {
+        // Native MediaStore observer refreshes the persistent cache only when media changes.
+      };
+
+      window.onNativeLibraryScanStarted = function () {
+        state.libraryScanBuffer = [];
+        $('library-location-label').textContent = state.library.length ? 'Updating device media…' : 'Scanning device media…';
+        if (!state.library.length) $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
+      };
+
+      window.onNativeLibraryChunk = function (chunk, isFinal) {
+        if (!Array.isArray(chunk)) return;
+        const mapped = chunk.map((item) => ({
           ...item,
-          color: item.type === 'audio'
-            ? 'from-emerald-500 to-teal-700'
-            : item.type === 'document'
-              ? 'from-amber-500 to-orange-700'
-              : 'from-blue-500 to-indigo-700'
+          thumbnailUrl: item.type === 'audio'
+            ? (item.thumbnailUrl && item.thumbnailUrl.trim() ? item.thumbnailUrl : 'file:///android_asset/images/music-placeholder.svg')
+            : item.thumbnailUrl,
+          color: item.type === 'audio' ? 'from-emerald-500 to-teal-700'
+            : item.type === 'document' ? 'from-amber-500 to-orange-700'
+            : 'from-blue-500 to-indigo-700'
         }));
-        if (state.library.length > 0) {
+        const wasEmpty = state.library.length === 0;
+        if (!Array.isArray(state.libraryScanBuffer)) state.libraryScanBuffer = [];
+        state.libraryScanBuffer.push(...mapped);
+        const scanCount = state.libraryScanBuffer.length;
+        $('library-location-label').textContent = (isFinal ? 'All device audio and video · ' : 'Scanning device media · ') + scanCount + ' files';
+        if (!isFinal) return;
+
+        state.library = state.libraryScanBuffer;
+        delete state.libraryScanBuffer;
+        try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
+        if (wasEmpty && state.library.length > 0) {
           const first = state.library[0];
           $('latest-title').textContent = first.title;
-          $('latest-meta').textContent = first.meta;
+          $('latest-meta').textContent = first.meta || formatVideoMetadata(first.size, first.resolution, first.format);
           $('latest-download-card').dataset.filePath = first.filePath || '';
           $('latest-download-card').dataset.fileUri = first.fileUri || '';
+          renderLatestSavedPreview(first);
+          const preview = $('latest-download-card').querySelector('.relative');
+          if (preview) {
+            preview.className = 'relative w-16 h-14 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-slate-900 flex items-center justify-center shrink-0 overflow-hidden';
+            if (first.type === 'audio' && first.thumbnailUrl) preview.innerHTML = vinylDiscMarkup(first.thumbnailUrl, 'w-12 h-12');
+            else if (first.thumbnailUrl) preview.innerHTML = `<img src="${first.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover">`;
+            else preview.innerHTML = '<div class="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center text-white"><i data-lucide="play" class="w-3.5 h-3.5"></i></div>';
+            refreshIcons();
+          }
         }
         renderLibrary();
+      };
+
+      window.onNativeLibraryItemDeleted = function (filePath) {
+        state.doneDownloads = state.doneDownloads.filter((item) => item.filePath !== filePath);
+        renderDownloads();
+        const container = $('library-items-container');
+        const card = Array.from(container.querySelectorAll('[data-file-path]')).find((node) => node.dataset.filePath === filePath);
+        if (card) { card.style.transition = 'opacity 170ms ease, transform 170ms ease'; card.style.opacity = '0'; card.style.transform = 'scale(.96)'; }
+        setTimeout(() => {
+          state.library = state.library.filter((item) => item.filePath !== filePath);
+          try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
+          renderLibrary();
+          $('library-location-label').textContent = 'Device media · ' + state.library.length + ' files';
+        }, card ? 175 : 0);
+      };
+
+      window.onNativeLibraryScanFailed = function (message) {
+        delete state.libraryScanBuffer;
+        $('library-location-label').textContent = state.library.length ? 'Library refresh failed · showing cached files' : 'Media scan failed';
+        if (!state.library.length) {
+          $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full"></div>';
+          $('library-items-container').firstElementChild.textContent = String(message || 'Unable to scan device media');
+        }
       };
 
       window.onNativeEngineUpdated = function (res) {
@@ -1038,13 +1891,13 @@
           .filter((f) => f.group === 'music' && f.compact)
           .map((f) => renderFormatRow(f, false)).join('');
         $('compact-video-list').innerHTML = state.formats
-          .filter((f) => f.group === 'video' && f.compact)
+          .filter((f) => f.group === 'video' && f.compact && state.videoStreamsReady && f.available)
           .map((f) => renderFormatRow(f, false)).join('');
         $('full-music-list').innerHTML = state.formats
           .filter((f) => f.group === 'music')
           .map((f) => renderFormatRow(f, true)).join('');
         $('full-video-list').innerHTML = state.formats
-          .filter((f) => f.group === 'video')
+          .filter((f) => f.group === 'video' && state.videoStreamsReady && f.available && !(['vid-360','vid-1080'].includes(f.id) && f.sourceId !== f.id))
           .map((f) => renderFormatRow(f, true)).join('');
         refreshIcons();
       }
@@ -1057,7 +1910,11 @@
         }
         state.pendingUrl = cleanUrl;
         state.fetchedTitle = cleanUrl;
-        state.formats.forEach((stream) => { stream.sizeText = 'Calculating…'; });
+        state.fetchedThumbnail = '';
+        $('format-stream-thumbnail').removeAttribute('src');
+        $('format-stream-thumbnail').classList.add('hidden');
+        state.videoStreamsReady = false;
+        state.formats.forEach((stream) => { stream.sizeText = 'Calculating…'; stream.available = null; stream.sourceId = stream.id; });
 
         $('format-stream-title').textContent = cleanUrl;
         $('fetching-info-bar').classList.remove('hidden');
@@ -1067,13 +1924,28 @@
         $('format-modal').classList.remove('hidden');
         refreshIcons();
 
-        if (hasAndroid() && window.JetAndroid.fetchMediaInfo) {
+        clearTimeout(mediaInfoPrefetchTimer);
+        mediaInfoPrefetchTimer = null;
+        const prefetchKey=normalizeMediaInfoUrl(cleanUrl);
+        const prefetchEntry=mediaInfoPrefetchCache.get(prefetchKey);
+        if(prefetchEntry&&prefetchEntry.expiresAt>Date.now()&&prefetchEntry.status==='ready'&&prefetchEntry.payload){
+          applyMediaInfoPayload(prefetchEntry.payload);
+          return;
+        }
+        if(prefetchEntry&&prefetchEntry.expiresAt>Date.now()&&prefetchEntry.status==='inFlight') return;
+        if(hasAndroid()&&window.JetAndroid.fetchMediaInfo){
+          // Native getOrFetchStreamInfo joins the existing prefetch job.
           window.JetAndroid.fetchMediaInfo(cleanUrl);
         }
       }
 
       $('start-download-btn').addEventListener('click', () => openFormatModal(urlInput.value.trim()));
-      $('close-format-modal-btn').addEventListener('click', () => $('format-modal').classList.add('hidden'));
+      $('close-format-modal-btn').addEventListener('click', () => {
+        $('format-modal').classList.add('hidden');
+        $('fetching-info-bar').classList.add('hidden');
+        state.pendingUrl = '';
+        hideJetRetryBanner();
+      });
 
       $('cc-toggle-btn').addEventListener('click', () => {
         state.ccEnabled = !state.ccEnabled;
@@ -1105,22 +1977,29 @@
       });
 
       function startSelectedDownload() {
-        const fmt = state.formats.find((f) => f.id === state.selectedFormatId) || state.formats[10];
+        const fmt = state.formats.find((f) => f.id === state.selectedFormatId);
+        if (!fmt) { showToast('Selected format is unavailable'); return; }
         const targetUrl = state.pendingUrl || urlInput.value.trim();
         if (!targetUrl) return;
-
         const downloadId = String(Date.now());
         const displayTitle = state.fetchedTitle && state.fetchedTitle !== targetUrl
           ? state.fetchedTitle
           : targetUrl;
 
+        const selectedResolution = fmt.resolution || ({ 'vid-144':'144p', 'vid-240':'240p', 'vid-360':'360p', 'vid-480':'480p', 'vid-720':'720p', 'vid-1080':'1080p', 'vid-2k':'2K (1440p)', 'vid-4k':'4K (2160p)' }[fmt.id] || '');
         state.activeDownloads.unshift({
           id: downloadId,
           title: displayTitle,
-          format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
+          format: fmt.ext.toUpperCase(),
+          resolution: selectedResolution,
           size: fmt.sizeText || 'Size N/A',
-          progress: 2,
-          speed: 'Connecting...'
+          progress: 0,
+          speed: 'Preparing...',
+          status: 'preparing',
+          stage: 'PREPARING',
+          bytesRead: 0,
+          stageStartedAt: Date.now(),
+          thumbnailUrl: state.fetchedThumbnail
         });
 
         $('format-modal').classList.add('hidden');
@@ -1131,13 +2010,17 @@
 
         const requestArgs = [
           downloadId, targetUrl, displayTitle, fmt.group === 'music',
-          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 1080, state.ccEnabled
+          fmt.bitrate || '160K', fmt.ext || 'mp4', fmt.maxHeight || 0, Number(fmt.itag) || -1, state.ccEnabled, state.fetchedThumbnail, selectedResolution
         ];
+        const activeItem = state.activeDownloads.find((d) => d.id === downloadId);
+        if (activeItem) activeItem.requestArgs = requestArgs;
         state.retryDownloadArgs = requestArgs;
         state.retryDownloadRecord = {
           id: downloadId, title: displayTitle,
-          format: `${fmt.name} · ${fmt.ext.toUpperCase()}`,
-          size: fmt.sizeText || 'Size N/A', progress: 2, speed: 'Retrying...'
+          format: fmt.ext.toUpperCase(),
+          size: fmt.sizeText || 'Size N/A', progress: 0, speed: 'Preparing retry…', status: 'preparing',
+          stage: 'PREPARING', bytesRead: 0, stageStartedAt: Date.now(),
+          thumbnailUrl: state.fetchedThumbnail, resolution: selectedResolution, requestArgs
         };
         if (hasAndroid() && window.JetAndroid.startRealDownload) {
           window.JetAndroid.startRealDownload(...requestArgs);
@@ -1167,6 +2050,9 @@
 
       // Downloads Screen
       function renderDownloads() {
+        const renderKey = JSON.stringify([state.activeDownloads,state.doneDownloads,state.showDownloadSpeedStats]);
+        if (renderKey === lastDownloadsRenderKey) return;
+        lastDownloadsRenderKey = renderKey;
         const activeCount = state.activeDownloads.length;
         const doneCount = state.doneDownloads.length;
         $('dl-active-tab-count').textContent = activeCount;
@@ -1182,20 +2068,28 @@
           activeList.innerHTML = state.activeDownloads.map((item) => `
             <div class="surface-card rounded-2xl p-3.5 space-y-2.5">
               <div class="flex items-start justify-between gap-2">
+                <img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-20 h-14 rounded-xl object-cover bg-app-elevated shrink-0 ${item.thumbnailUrl ? "" : "hidden"}">
                 <div class="min-w-0">
                   <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}</p>
+                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}${item.resolution ? ' · ' + item.resolution : ''}</p>
                 </div>
-                <button type="button" data-dl-cancel="${item.id}" class="w-8 h-8 rounded-xl bg-app-elevated flex items-center justify-center text-app-danger shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x w-3.5 h-3.5" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                </button>
+                <div class="flex items-center gap-1 shrink-0">
+                  ${item.status === 'failed'
+                    ? `<button type="button" data-dl-retry="${item.id}" class="px-2.5 h-8 rounded-lg bg-app-primaryTint text-app-primary text-[11px] font-bold">Retry</button>`
+                    : item.status === 'paused'
+                      ? `<button type="button" data-dl-resume="${item.id}" class="px-2.5 h-8 rounded-lg bg-app-primaryTint text-app-primary text-[11px] font-bold">Resume</button>`
+                      : `<button type="button" data-dl-pause="${item.id}" class="px-2.5 h-8 rounded-lg bg-app-elevated text-app-text text-[11px] font-bold">${item.status === 'pausing' ? 'Pausing…' : 'Pause'}</button>`}
+                  <button type="button" data-dl-cancel="${item.id}" aria-label="Cancel download" class="w-8 h-8 rounded-xl bg-app-elevated flex items-center justify-center text-app-danger">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x w-3.5 h-3.5" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
+                </div>
               </div>
               <div class="w-full h-2 rounded-full bg-app-elevated overflow-hidden">
-                <div class="h-full rounded-full bg-app-primary transition-all duration-300" style="width:${item.progress}%"></div>
+                <div class="h-full rounded-full ${isPreByteDownload(item) ? 'jet-download-prebyte-shimmer' : 'bg-app-primary transition-all duration-300'}" style="width:${downloadBarWidth(item)}%"></div>
               </div>
-              <div class="flex justify-between text-[11px] font-semibold tabular-nums">
-                <span class="text-app-primary truncate">${item.speed}</span>
-                <span class="text-app-secondary shrink-0">${item.progress}%</span>
+              <div class="flex items-center justify-between gap-2 text-[10px] leading-4 font-semibold tabular-nums min-w-0 whitespace-nowrap">
+                <span class="${item.status === 'merging' ? 'text-amber-500' : 'text-app-primary'} shrink-0">${downloadTelemetry(item).left}</span>
+                <span class="text-app-secondary shrink-0 text-right">${downloadTelemetry(item).right}</span>
               </div>
             </div>
           `).join('');
@@ -1205,18 +2099,22 @@
         if (doneCount === 0) {
           doneList.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">Completed downloads appear here.</div>`;
         } else {
-          doneList.innerHTML = state.doneDownloads.map((item) => `
-            <div class="surface-card rounded-2xl p-3.5 flex items-center justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size} · ${item.date}</p>
-              </div>
-              <button type="button" data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
-                class="w-9 h-9 rounded-full bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play w-4 h-4" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-              </button>
-            </div>
-          `).join('');
+          doneList.innerHTML = state.doneDownloads.map((item) => {
+            const isAudio = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus|wma)$/i.test(item.filePath || '') || /^(MP3|M4A|AAC|WAV|FLAC|OGG|OGA|OPUS|WMA)$/i.test(item.format || '');
+            const thumbnail = item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" class="w-20 h-14 rounded-xl object-cover bg-app-elevated shrink-0">`
+              : isAudio ? `<div class="w-20 h-14 rounded-xl bg-app-elevated shrink-0 flex items-center justify-center">${vinylDiscMarkup('', 'w-12 h-12')}</div>`
+              : `<div class="w-20 h-14 rounded-xl bg-app-elevated shrink-0 flex items-center justify-center"><i data-lucide="film" class="w-5 h-5 text-app-muted"></i></div>`;
+            return `
+              <div class="surface-card rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                ${thumbnail}
+                <div class="min-w-0 flex-1"><p class="text-xs font-bold text-app-text truncate">${item.title}</p>
+                  <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.format} · ${item.size}${item.resolution ? ' · ' + item.resolution : ''} · ${item.date}</p>
+                </div>
+                <button type="button" data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${isAudio ? 'audio' : 'video'}" class="w-9 h-9 rounded-full bg-app-primaryTint text-app-primary flex items-center justify-center shrink-0" aria-label="Play ${item.title}">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play w-4 h-4" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </button>
+              </div>`;
+          }).join('');
         }
 
         refreshIcons();
@@ -1238,10 +2136,38 @@
         $('downloads-active-list').classList.add('hidden');
       });
 
+      window.jetCancelledDownloadIds = window.jetCancelledDownloadIds || new Set();
       document.addEventListener('click', (e) => {
+        const pauseBtn = e.target.closest('[data-dl-pause]');
+        if (pauseBtn) {
+          const id = pauseBtn.dataset.dlPause, item = state.activeDownloads.find((d) => d.id === id);
+          if (item && hasAndroid() && window.JetAndroid.pauseRealDownload) {
+            item.status = 'pausing'; item.speed = 'Pausing…'; window.JetAndroid.pauseRealDownload(id); renderDownloads();
+          }
+          return;
+        }
+        const resumeBtn = e.target.closest('[data-dl-resume]');
+        if (resumeBtn) {
+          const id = resumeBtn.dataset.dlResume, item = state.activeDownloads.find((d) => d.id === id);
+          if (item && hasAndroid() && window.JetAndroid.resumeRealDownload) {
+            item.status = 'preparing'; item.speed = 'Resuming…'; item.stage = 'PREPARING'; item.bytesRead = 0; item.stageStartedAt = Date.now(); window.JetAndroid.resumeRealDownload(id); renderDownloads();
+          }
+          return;
+        }
+        const retryBtn = e.target.closest('[data-dl-retry]');
+        if (retryBtn) {
+          const id = retryBtn.dataset.dlRetry, item = state.activeDownloads.find((d) => d.id === id);
+          if (item && hasAndroid() && window.JetAndroid.retryRealDownload) {
+            if (item.preByteRaf) window.cancelAnimationFrame(item.preByteRaf);
+            item.status = 'preparing'; item.progress = 0; item.speed = 'Retrying…'; item.stage = 'PREPARING'; item.bytesRead = 0; item.stageStartedAt = Date.now(); item.preByteRaf = 0;
+            window.JetAndroid.retryRealDownload(id); renderDownloads();
+          }
+          return;
+        }
         const cancelBtn = e.target.closest('[data-dl-cancel]');
         if (cancelBtn) {
           const id = cancelBtn.dataset.dlCancel;
+          window.jetCancelledDownloadIds.add(id);
           state.activeDownloads = state.activeDownloads.filter((d) => d.id !== id);
           if (hasAndroid() && window.JetAndroid.cancelRealDownload) {
             window.JetAndroid.cancelRealDownload(id);
@@ -1252,6 +2178,74 @@
       });
 
       // Library Screen
+      let pendingLibraryRename = null, pendingLibraryDelete = null;
+      function closeLibraryModal(id) { $(id).classList.add('hidden'); }
+      function openLibraryRenameModal(filePath, displayName) {
+        if (!filePath || !hasAndroid()) return;
+        const fullName = String(displayName || filePath.split('/').pop() || 'file');
+        const dot = fullName.lastIndexOf('.'), extension = dot > 0 ? fullName.slice(dot) : '';
+        pendingLibraryRename = { filePath, extension };
+        $('library-rename-input').value = extension ? fullName.slice(0, dot) : fullName;
+        $('library-rename-extension').textContent = extension ? 'Extension ' + extension + ' will be kept.' : 'No file extension.';
+        $('library-rename-modal').classList.remove('hidden'); $('library-rename-input').focus(); $('library-rename-input').select();
+      }
+      function openLibraryDeleteModal(filePath, displayName) {
+        if (!filePath || !hasAndroid()) return;
+        pendingLibraryDelete = { filePath };
+        $('library-delete-filename').textContent = String(displayName || filePath.split('/').pop() || 'Selected file');
+        $('library-delete-modal').classList.remove('hidden');
+      }
+      function handleLibraryAction(action, filePath) {
+        if (!filePath || !hasAndroid()) return;
+        const item = state.library.find((entry) => entry.filePath === filePath);
+        if (action === 'open') { if (window.JetAndroid.openFileExternal) window.JetAndroid.openFileExternal(filePath); return; }
+        if (action === 'rename') openLibraryRenameModal(filePath, item ? item.fileName || item.title : '');
+        if (action === 'delete') openLibraryDeleteModal(filePath, item ? item.fileName || item.title : '');
+      }
+      function submitLibraryRename() {
+        if (!pendingLibraryRename || !window.JetAndroid || !window.JetAndroid.renameLibraryFile) return;
+        const baseName = $('library-rename-input').value.trim(), extension = pendingLibraryRename.extension || '';
+        const cleanBase = extension && baseName.toLowerCase().endsWith(extension.toLowerCase()) ? baseName.slice(0, -extension.length).trim() : baseName;
+        if (!cleanBase) { showToast('Enter a valid file name'); return; }
+        const path = pendingLibraryRename.filePath; closeLibraryModal('library-rename-modal'); pendingLibraryRename = null;
+        window.JetAndroid.renameLibraryFile(path, cleanBase + extension);
+      }
+      function submitLibraryDelete() {
+        if (!pendingLibraryDelete || !window.JetAndroid || !window.JetAndroid.deleteLibraryFile) return;
+        const path = pendingLibraryDelete.filePath; closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null;
+        window.JetAndroid.deleteLibraryFile(path);
+      }
+      $('library-rename-close').addEventListener('click', () => { closeLibraryModal('library-rename-modal'); pendingLibraryRename = null; });
+      $('library-rename-cancel').addEventListener('click', () => { closeLibraryModal('library-rename-modal'); pendingLibraryRename = null; });
+      $('library-rename-save').addEventListener('click', submitLibraryRename);
+      $('library-rename-input').addEventListener('keydown', (event) => { if (event.key === 'Enter') submitLibraryRename(); });
+      $('library-rename-modal').addEventListener('click', (event) => { if (event.target.id === 'library-rename-modal') { closeLibraryModal('library-rename-modal'); pendingLibraryRename = null; } });
+      $('library-delete-close').addEventListener('click', () => { closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null; });
+      $('library-delete-cancel').addEventListener('click', () => { closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null; });
+      $('library-delete-confirm').addEventListener('click', submitLibraryDelete);
+      $('library-delete-modal').addEventListener('click', (event) => { if (event.target.id === 'library-delete-modal') { closeLibraryModal('library-delete-modal'); pendingLibraryDelete = null; } });
+      window.openLibraryRenameModal = openLibraryRenameModal; window.openLibraryDeleteModal = openLibraryDeleteModal;
+      window.onNativeLibraryItemRenamed = function (oldPath, newPath, newName) {
+        const title = String(newName || '').replace(/\\.[^.]+$/, '');
+        state.library = state.library.map((item) => item.filePath === oldPath ? { ...item, filePath: newPath, title } : item);
+        state.doneDownloads = state.doneDownloads.map((item) => item.filePath === oldPath ? { ...item, filePath: newPath, title } : item);
+        try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
+        renderLibrary(); renderDownloads(); showToast('File renamed');
+      };
+
+      function vinylDiscMarkup(artUrl, sizeClass = 'w-20 h-20') {
+        const art = artUrl
+          ? `<img src="${artUrl}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='file:///android_asset/images/music-placeholder.svg'" class="absolute inset-0 w-full h-full rounded-full object-cover">`
+          : `<div class="w-full h-full flex items-center justify-center bg-[#343945]"><i data-lucide="music-2" class="w-7 h-7 text-white"></i></div>`;
+        return `<div class="relative ${sizeClass} rounded-full bg-[#111318] border-[4px] border-[#292D35] shadow-xl flex items-center justify-center overflow-hidden">
+          ${art}<div class="absolute inset-[8%] rounded-full border border-white/20 pointer-events-none"></div>
+          <div class="absolute inset-[17%] rounded-full border border-black/30 pointer-events-none"></div>
+          <div class="absolute inset-[23%] rounded-full border border-white/10 pointer-events-none"></div>
+          <div class="absolute inset-[28%] rounded-full border border-white/10 pointer-events-none"></div>
+          <span class="absolute w-[18%] h-[18%] rounded-full bg-[#171A20] border-2 border-white/25 shadow-inner z-10"></span>
+        </div>`;
+      }
+
       function renderLibrary() {
         const filtered = state.library.filter((item) => {
           const matchCat = state.libFilter === 'all' || item.type === state.libFilter;
@@ -1261,55 +2255,105 @@
 
         $('library-item-count').textContent = `${filtered.length} files`;
         const container = $('library-items-container');
-        container.className = state.libView === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-2.5';
+        const renderKey = JSON.stringify([state.libView,state.libFilter,state.libSearch,state.libraryGridColumns,filtered.map(item => [item.filePath,item.title,item.size,item.duration,item.resolution,item.thumbnailUrl])]);
+        if (container.dataset.renderKey === renderKey) return;
+        container.dataset.renderKey = renderKey;
+        const generation = ++libraryRenderGeneration;
+        container.className = state.libView === 'grid' ? 'grid gap-2' : 'space-y-2.5';
+        container.style.gridTemplateColumns = state.libView === 'grid' ? 'repeat(' + state.libraryGridColumns + ', minmax(0, 1fr))' : '';
 
         if (filtered.length === 0) {
           container.className = 'block';
-          container.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">No files in Downloads/JET yet.</div>`;
+          container.innerHTML = `<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary">No media found. Allow media access and refresh the Library.</div>`;
           return;
         }
 
-        container.innerHTML = filtered.map((item) => {
+        const renderItem = (item) => {
           const icon = item.type === 'audio' ? 'music' : item.type === 'document' ? 'file-text' : 'play';
+          const accent = /^#[0-9A-Fa-f]{6}$/.test(item.dominantColor || '') ? item.dominantColor : '#20242E';
+          const audioBackground = 'background:linear-gradient(135deg,' + accent + ' 0%,#171A20 78%)';
           if (state.libView === 'grid') {
             return `
-              <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
-                class="surface-card rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition">
-                <div class="relative h-24 bg-gradient-to-br ${item.color} flex items-center justify-center text-white">
-                  <div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center">
-                    <i data-lucide="${icon}" class="w-4 h-4"></i>
-                  </div>
+              <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${item.type || 'video'}"
+                class="surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
+                <div class="relative aspect-video w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
+                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
                 </div>
-                <div class="p-2.5">
-                  <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                  <p class="text-[10px] text-app-secondary mt-0.5 truncate tabular-nums">${item.meta}</p>
+                <div class="p-1.5 flex items-center gap-1 min-w-0">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[9px] font-bold text-app-text truncate">${item.title}</p>
+                    <p class="mt-0.5 flex items-center gap-1 text-[8px] text-app-secondary truncate tabular-nums">
+                      <span class="shrink-0">${item.type === 'audio' ? '🎵' : item.type === 'document' ? '📄' : '🎬'}</span>
+                      <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}${item.resolution ? ' | ' + item.resolution : ''}</span>
+                    </p>
+                  </div>
+                  <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-5 h-5 rounded-md bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-3 h-3 pointer-events-none"></i></button>
                 </div>
               </div>
             `;
           }
           return `
-            <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}"
+            <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${item.type || 'video'}"
               class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
-              <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} text-white flex items-center justify-center shrink-0">
-                <i data-lucide="${icon}" class="w-5 h-5"></i>
+              <div class="${item.type === 'audio' ? 'w-16 h-16 rounded-2xl' : 'w-12 h-12 rounded-xl'} ${item.type === 'audio' ? '' : 'bg-[#141923]'} text-white flex items-center justify-center shrink-0 overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
+                ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover bg-[#141923]">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
-                <p class="text-[11px] text-app-secondary mt-0.5 tabular-nums">${item.meta}</p>
+                <p class="mt-1 flex items-center gap-1.5 text-[11px] text-app-secondary truncate tabular-nums">
+                  <span class="shrink-0">${item.type === 'audio' ? '🎵' : item.type === 'document' ? '📄' : '🎬'}</span>
+                  <span class="truncate">${item.duration || item.format || 'Media'} ${item.size ? ' | ' + item.size : ''}${item.resolution ? ' | ' + item.resolution : ''}</span>
+                </p>
               </div>
-              <span class="text-[10px] font-bold text-app-muted tabular-nums">${item.duration}</span>
+              <button type="button" data-lib-menu="${item.filePath || ''}" aria-label="More options" class="w-8 h-8 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="more-vertical" class="w-4 h-4"></i></button>
             </div>
           `;
-        }).join('');
-
+        };
+        container.innerHTML = filtered.slice(0, 15).map(renderItem).join('');
+        let offset = 15;
+        const appendChunk = () => {
+          if (generation !== libraryRenderGeneration || offset >= filtered.length) return;
+          const end = Math.min(offset + 20, filtered.length);
+          const template = document.createElement('template');
+          template.innerHTML = filtered.slice(offset, end).map(renderItem).join('');
+          container.appendChild(template.content);
+          offset = end;
+          refreshIcons();
+          bindLibraryMenuButtons();
+          if (offset < filtered.length) requestAnimationFrame(appendChunk);
+        };
         refreshIcons();
+        bindLibraryMenuButtons();
+        if (offset < filtered.length) requestAnimationFrame(appendChunk);
+      }
+
+      function bindLibraryMenuButtons() {
+        const container = $('library-items-container');
+        if (container.dataset.menuBound === 'true') return;
+        container.dataset.menuBound = 'true';
+        container.addEventListener('click', (e) => {
+          const menuButton = e.target.closest('[data-lib-menu]');
+          if (!menuButton || !container.contains(menuButton)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const filePath = menuButton.dataset.libMenu;
+          if (!filePath || !window.JetAndroid || !window.JetAndroid.showLibraryMenu) {
+            showToast('Library menu is unavailable for this file');
+            return;
+          }
+          const rect = menuButton.getBoundingClientRect();
+          window.JetAndroid.showLibraryMenu(filePath, Math.round(rect.right), Math.round(rect.bottom));
+        });
       }
 
       $('refresh-library-btn').addEventListener('click', () => {
-        if (hasAndroid() && window.JetAndroid.refreshLibrary) {
+        if (hasAndroid() && window.JetAndroid.forceRefreshLibrary) {
+          window.JetAndroid.forceRefreshLibrary();
+          showToast('Refreshing Library…');
+        } else if (hasAndroid() && window.JetAndroid.refreshLibrary) {
           window.JetAndroid.refreshLibrary();
-          showToast('Library refreshed');
+          showToast('Loading Library…');
         }
       });
 
@@ -1346,29 +2390,27 @@
       });
 
       // Play using AndroidX Media3 ExoPlayer
-      function playFileWithMedia3(title, filePath) {
-        if (!filePath) {
-          showToast('No file saved yet — download a video or audio first');
-          return;
-        }
-        if (hasAndroid() && window.JetAndroid.playInNativeMedia3) {
-          window.JetAndroid.playInNativeMedia3(title || 'JET Media', filePath);
-        }
+      function playFileWithMedia3(title, filePath, type, source) {
+        if (!filePath) { showToast('No file saved yet — download a video or audio first'); return; }
+        const extension=String(filePath).split('?')[0].split('.').pop().toLowerCase();
+        const isAudio=type==='audio'||['mp3','m4a','aac','wav','flac','ogg','oga','opus','wma'].includes(extension);
+        if(isAudio){openMusicPlayer(title||'JET Music',source||'Library');if(hasAndroid()&&window.JetAndroid&&window.JetAndroid.playAudio)window.JetAndroid.playAudio(filePath,title||'JET Music',source||'Library');return;}
+        if(hasAndroid()&&window.JetAndroid&&window.JetAndroid.playInNativeMedia3)window.JetAndroid.playInNativeMedia3(title||'JET Media',filePath);
       }
 
       $('latest-download-card').addEventListener('click', () => {
         const card = $('latest-download-card');
-        playFileWithMedia3($('latest-title').textContent, card.dataset.filePath);
+        playFileWithMedia3($('latest-title').textContent, card.dataset.filePath, card.dataset.mediaType, 'Downloads');
       });
 
       document.addEventListener('click', (e) => {
         const card = e.target.closest('[data-play-title]');
         if (card) {
-          playFileWithMedia3(card.dataset.playTitle, card.dataset.filePath);
+          playFileWithMedia3(card.dataset.playTitle, card.dataset.filePath, card.dataset.mediaType, state.screen === 'downloads' ? 'Downloads' : 'Library');
         }
       });
 
-      // GitHub Releases in-app APK updater
+      // Official Release Channel in-app APK updater
       let pendingApkUpdateUrl = '';
       const appUpdateModal = $('app-update-modal');
       const appUpdateVersion = $('app-update-version');
@@ -1383,13 +2425,13 @@
       function triggerAppUpdateCheck(isManual) {
         const sub = $('app-update-subtitle');
         const btn = $('check-app-update-btn');
-        if (isManual && sub) sub.textContent = 'Checking GitHub Releases...';
+        if (isManual && sub) sub.textContent = 'Checking JET Servers...';
         if (isManual && btn) btn.disabled = true;
         if (hasAndroid() && window.JetAndroid.checkForAppUpdate) {
           window.JetAndroid.checkForAppUpdate(Boolean(isManual));
         } else if (isManual) {
           if (btn) btn.disabled = false;
-          showToast('GitHub app updates are available in the Android app only.');
+          showToast('JET updates are available in the Android app only.');
         }
       }
 
@@ -1402,7 +2444,7 @@
         if (!res || !res.ok) {
           if (res && res.manual) {
             if (sub) sub.textContent = res.error || 'Update check failed';
-            showToast(res.error || 'Unable to check GitHub Releases');
+            showToast(res.error || 'Unable to check Official Release Channel');
           }
           return;
         }
@@ -1412,12 +2454,13 @@
           if (sub) sub.textContent = `v${res.latestVersion} available`;
           if (btn) btn.textContent = 'View Update';
           if (badge) badge.classList.remove('hidden');
-          appUpdateVersion.textContent = `JET v${res.latestVersion} is available`;
+          const updateAppName = res.appName || 'JET';
+          appUpdateVersion.textContent = `${updateAppName} v${res.latestVersion} is available`;
           appUpdateNotes.textContent = res.changelog || 'No release notes provided.';
           appUpdateStatus.textContent = res.releaseName || 'A new version is ready to install.';
           appUpdateStatus.classList.remove('hidden');
           appUpdateInstall.disabled = !pendingApkUpdateUrl;
-          appUpdateInstall.textContent = 'Download & Install';
+          appUpdateInstall.textContent = 'Download Update';
           appUpdateModal.classList.remove('hidden');
         } else {
           pendingApkUpdateUrl = '';
@@ -1428,20 +2471,35 @@
         }
       };
 
-      window.onNativeAppUpdateProgress = function (pct, label) {
+      window.onNativeAppUpdateProgress = function (pct, label, verifiedCompletion) {
         const sub = $('app-update-subtitle');
+        const progress = $('app-update-progress');
+        const progressLabel = $('app-update-progress-label');
+        const progressPercent = $('app-update-progress-percent');
+        const progressBar = $('app-update-progress-bar');
         if (sub) sub.textContent = label || 'Preparing APK download...';
+
         if (pct < 0) {
+          if (progress) progress.classList.add('hidden');
           appUpdateInstall.disabled = false;
           appUpdateInstall.textContent = 'Try Again';
           appUpdateStatus.textContent = label || 'Download failed.';
           appUpdateStatus.classList.remove('hidden');
-        } else {
-          appUpdateInstall.disabled = true;
-          appUpdateInstall.textContent = 'Download started';
-          appUpdateStatus.textContent = label || 'APK download started. Check your notifications for progress.';
-          appUpdateStatus.classList.remove('hidden');
+          return;
         }
+
+        const verified = Number(pct) === 100 && verifiedCompletion === true;
+        const safePct = verified ? 100 : Math.max(0, Math.min(99, Number(pct) || 0));
+        if (progress) progress.classList.remove('hidden');
+        if (progressLabel) progressLabel.textContent = label || (verified ? 'APK verified' : 'Downloading APK…');
+        if (progressPercent) progressPercent.textContent = safePct + '%';
+        if (progressBar) progressBar.style.width = safePct + '%';
+        appUpdateInstall.disabled = true;
+        appUpdateInstall.textContent = verified ? 'Verified · Opening installer…' : 'Downloading ' + safePct + '%';
+        appUpdateStatus.textContent = verified
+          ? 'APK byte count and archive verified. Opening Android installer…'
+          : 'Downloading update…';
+        appUpdateStatus.classList.remove('hidden');
       };
 
       $('check-app-update-btn').addEventListener('click', () => {
@@ -1472,13 +2530,80 @@
 
       $('update-engine-btn').addEventListener('click', () => {
         if (hasAndroid() && window.JetAndroid.updateYtDlpEngine) {
+          window.__jetEngineUpdateSource = 'settings';
           showToast('Updating fallback engine...');
           window.JetAndroid.updateYtDlpEngine();
         }
       });
 
+
+      let musicQueue=[],musicState={isPlaying:false,currentIndex:0,volume:1,repeatMode:'off',shuffleEnabled:false};
+      let musicDurationMs=0,musicPositionMs=0,musicScrubPositionMs=0,musicMuted=false,musicVolumePercent=50,musicLastVolumePercent=50,musicSleepEnabled=false,musicScrubbing=false;
+      const musicOverlay=$('music-player-overlay'),musicMiniBar=$('music-mini-bar'),musicQueueDrawer=$('music-queue-drawer'),musicSeekbar=$('music-seekbar'),musicSeekFill=$('music-seek-fill'),musicSeekThumb=$('music-seek-thumb');
+      const musicEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      function updateMusicMarquee(){
+        const viewport=$('music-title-viewport'),track=$('music-title-track'),title=$('music-title'),copy=$('music-title-copy');
+        if(!viewport||!track||!title||!copy)return;
+        copy.textContent=title.textContent||'';
+        track.classList.remove('is-overflowing');copy.hidden=true;track.style.removeProperty('--marquee-distance');
+        requestAnimationFrame(()=>{
+          if(title.scrollWidth>viewport.clientWidth+1){
+            copy.hidden=false;track.classList.add('is-overflowing');
+            track.style.setProperty('--marquee-distance',(title.scrollWidth+48)+'px');
+          }
+        });
+      }
+      const musicTime=ms=>{const s=Math.max(0,Math.floor((Number(ms)||0)/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');};
+      const musicVolumeIcon=percent=>{const p=Math.max(0,Math.min(100,Math.floor(Number(percent)||0)));const arcs=p===0?'':p<35?'<path d="M15 9a5 5 0 0 1 0 6"/>':p<70?'<path d="M15 9a5 5 0 0 1 0 6M18 5.5a9 9 0 0 1 0 13"/>':'<path d="M15 9a5 5 0 0 1 0 6M18 5.5a9 9 0 0 1 0 13M21 3a13 13 0 0 1 0 18"/>';const mute=p===0?'<path d="m16 9 5 6m0-6-5 6"/>':arcs;return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>'+mute+'</svg>';};
+      function syncMusicVolumeUi(value,lastValue){musicVolumePercent=Math.max(0,Math.min(100,Math.floor(Number(value)||0)));musicMuted=musicVolumePercent===0;const last=Math.max(0,Math.min(100,Math.floor(Number(lastValue)||0)));if(last>0)musicLastVolumePercent=last;if(musicVolumePercent>0)musicLastVolumePercent=musicVolumePercent;$('music-volume-slider').value=String(musicVolumePercent);$('music-volume-value').textContent=musicVolumePercent+'%';$('music-mute-btn').innerHTML=musicVolumeIcon(musicVolumePercent);$('music-mute-btn').classList.toggle('active',musicMuted);$('music-mute-btn').setAttribute('aria-label',musicMuted?'Unmute':'Mute');}
+
+      function openMusicPlayer(title,source){musicOverlay.classList.remove('hidden');musicMiniBar.classList.add('hidden');if(title)$('music-title').textContent=title;updateMusicMarquee();$('music-source-label').textContent=String(source||'Library').toUpperCase();}
+      function updateMusicSeekbar(p,d){const ratio=d>0?Math.max(0,Math.min(1,p/d)):0;const pct=(ratio*100)+'%';musicSeekFill.style.width=pct;musicSeekThumb.style.left=pct;musicSeekbar.setAttribute('aria-valuenow',String(Math.round(ratio*100)));}
+      function renderMusicQueue(){const list=$('music-queue-list');if(!musicQueue.length){list.innerHTML='<p class="text-xs text-slate-400 text-center py-8">No tracks in queue</p>';return;}const fallback='file:///android_asset/images/music-placeholder.svg';list.innerHTML=musicQueue.map((item,i)=>'<button type="button" class="music-queue-item '+(i===Number(musicState.currentIndex||0)?'current':'')+'" data-music-index="'+i+'"><img src="'+musicEsc(item.artworkUri||fallback)+'" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=\''+fallback+'\'" class="w-8 h-8 rounded-lg object-cover bg-slate-800 shrink-0"><span class="music-queue-index">'+(i+1)+'</span><span class="min-w-0 flex-1 truncate text-xs font-semibold">'+musicEsc(item.title||'Unknown track')+'</span></button>').join('');}
+      const musicIcons={"down":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg>","more":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"5\" r=\"1\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"19\" r=\"1\"/></svg>","clock":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>","prev":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M6 5h2v14H6z\"/><path d=\"M19 6v12L9 12z\"/></svg>","play":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7 4.8a1 1 0 0 1 1.52-.85l10.2 6.35a2 2 0 0 1 0 3.4l-10.2 6.35A1 1 0 0 1 7 19.2z\"/></svg>","pause":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"currentColor\" aria-hidden=\"true\"><rect x=\"6\" y=\"4\" width=\"4.5\" height=\"16\" rx=\"1\"/><rect x=\"13.5\" y=\"4\" width=\"4.5\" height=\"16\" rx=\"1\"/></svg>","next":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M16 5h2v14h-2z\"/><path d=\"M5 6v12l10-6z\"/></svg>","heart":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20.8 8.8c0 5.2-8.8 10.2-8.8 10.2S3.2 14 3.2 8.8A4.8 4.8 0 0 1 12 6.1a4.8 4.8 0 0 1 8.8 2.7Z\"/></svg>","heartFilled":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M20.8 8.8c0 5.2-8.8 10.2-8.8 10.2S3.2 14 3.2 8.8A4.8 4.8 0 0 1 12 6.1a4.8 4.8 0 0 1 8.8 2.7Z\"/></svg>","shuffle":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m16 3 4 4-4 4\"/><path d=\"M4 17h2.5a5 5 0 0 0 4-2l3-4a5 5 0 0 1 4-2H20\"/><path d=\"m16 17 4 4-4 0\"/><path d=\"M4 7h2.5a5 5 0 0 1 3.4 1.3\"/><path d=\"m13 15 1 1a5 5 0 0 0 3.5 1H20\"/></svg>","queue":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 6h16M4 11h16M4 16h10\"/><path d=\"M17 16v5m-2.5-2.5h5\"/></svg>","volumeOn":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 5 6 9H3v6h3l5 4z\"/><path d=\"M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13\"/></svg>","volumeOff":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 5 6 9H3v6h3l5 4z\"/><path d=\"m16 9 5 6m0-6-5 6\"/></svg>","repeat":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"21\" height=\"21\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m17 2 4 4-4 4\"/><path d=\"M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4\"/><path d=\"M21 13v2a3 3 0 0 1-3 3H3\"/></svg>","close":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m18 6-12 12M6 6l12 12\"/></svg>"};
+      function applyMusicState(s){if(!s||typeof s!=='object')return;const previousPath=musicState.filePath||'';musicState={...musicState,...s};if(s.title){$('music-title').textContent=s.title;updateMusicMarquee();}if(s.subtitle!==undefined)$('music-subtitle').textContent=s.subtitle||'JET Music Player';if(s.source)$('music-source-label').textContent=String(s.source).toUpperCase();if(s.artworkUri){setMusicArtwork(s.artworkUri);}else if(s.filePath&&s.filePath!==previousPath){setMusicArtwork('');}const playing=!!s.isPlaying;$('music-disc-spin').classList.toggle('is-playing',playing);$('music-play-pause-btn').innerHTML=playing?musicIcons.pause:musicIcons.play;$('music-mini-play').innerHTML=playing?musicIcons.pause:musicIcons.play;$('music-mini-title').textContent=s.title||$('music-title').textContent;$('music-shuffle-btn').classList.toggle('active',!!s.shuffleEnabled);$('music-repeat-btn').classList.toggle('active',!!s.repeatMode&&s.repeatMode!=='off');if(s.systemVolumePercent!==undefined)syncMusicVolumeUi(s.systemVolumePercent,s.lastSystemVolumePercent);renderMusicQueue();}
+      function setMusicArtwork(uri){const fallback='file:///android_asset/images/music-placeholder.svg',src=String(uri||'').trim(),art=$('music-artwork'),mini=$('music-mini-art');art.onerror=function(){this.onerror=null;this.dataset.hasTrackArtwork='';this.src=fallback;};mini.onerror=function(){this.onerror=null;this.src=fallback;};if(src){art.dataset.hasTrackArtwork='1';art.src=src;mini.src=src;}else{art.dataset.hasTrackArtwork='';art.src=fallback;mini.src=fallback;}}
+      window.addEventListener('resize',updateMusicMarquee,{passive:true});
+      $('music-artwork').onerror=function(){this.onerror=null;this.dataset.hasTrackArtwork='';this.src='file:///android_asset/images/music-placeholder.svg';};
+      $('music-mini-art').onerror=function(){this.onerror=null;this.src='file:///android_asset/images/music-placeholder.svg';};
+      window.onNativeVideoPlaybackStarted=function(){applyMusicState({isPlaying:false});};
+      window.onNativeMusicStateChanged=applyMusicState;
+      window.onNativeMusicVolumeChanged=syncMusicVolumeUi;
+      syncMusicVolumeUi(musicVolumePercent);
+      window.onNativeMusicArtwork=uri=>setMusicArtwork(uri);
+      window.onNativeMusicProgress=(p,d)=>{musicDurationMs=Math.max(0,Number(d)||0);musicPositionMs=Math.max(0,Number(p)||0);const shown=musicScrubbing?musicScrubPositionMs:musicPositionMs;$('music-current-time').textContent=musicTime(shown);$('music-duration-time').textContent=musicTime(musicDurationMs);if(!musicScrubbing)updateMusicSeekbar(musicPositionMs,musicDurationMs);};
+      window.onNativeMusicQueueChanged=q=>{musicQueue=Array.isArray(q)?q:[];renderMusicQueue();};
+      window.onNativeMusicError=m=>showToast(String(m||'Music playback error'));
+      window.onNativeSystemThemeChanged=dark=>document.documentElement.classList.toggle('dark',!!dark);
+      $('music-minimize-btn').addEventListener('click',()=>{musicOverlay.classList.add('hidden');musicMiniBar.classList.remove('hidden');window.JetAndroid?.musicMinimize?.();});
+      musicMiniBar.addEventListener('click',()=>{musicMiniBar.classList.add('hidden');musicOverlay.classList.remove('hidden');});
+      $('music-play-pause-btn').addEventListener('click',()=>window.JetAndroid?.musicPlayPause?.());
+      $('music-next-btn').addEventListener('click',()=>window.JetAndroid?.musicNext?.());
+      $('music-prev-btn').addEventListener('click',()=>window.JetAndroid?.musicPrevious?.());
+      $('music-shuffle-btn').addEventListener('click',()=>{musicState.shuffleEnabled=!musicState.shuffleEnabled;window.JetAndroid?.musicSetShuffle?.(musicState.shuffleEnabled);$('music-shuffle-btn').classList.toggle('active',musicState.shuffleEnabled);});
+      $('music-repeat-btn').addEventListener('click',()=>{const modes=['off','all','one'],next=modes[(modes.indexOf(musicState.repeatMode||'off')+1)%modes.length];musicState.repeatMode=next;window.JetAndroid?.musicSetRepeat?.(next);$('music-repeat-btn').classList.toggle('active',next!=='off');});
+      $('music-volume-slider').addEventListener('input',e=>{const value=Math.max(0,Math.min(100,Math.floor(Number(e.target.value)||0)));syncMusicVolumeUi(value);window.JetAndroid?.musicSetVolume?.(value/100);});
+      $('music-mute-btn').addEventListener('click',()=>{const target=musicVolumePercent>0?0:(musicLastVolumePercent||50);syncMusicVolumeUi(target);window.JetAndroid?.musicSetVolume?.(target/100);});
+      $('music-fav-btn').addEventListener('click',()=>{const on=$('music-fav-btn').classList.toggle('active');$('music-fav-btn').innerHTML=on?musicIcons.heartFilled:musicIcons.heart;try{localStorage.setItem('jet-favorite:'+(musicState.filePath||musicState.title||''),on?'1':'0');}catch(_){}});
+      $('music-queue-btn').addEventListener('click',()=>musicQueueDrawer.classList.toggle('open'));
+      $('music-menu-btn').addEventListener('click',()=>musicQueueDrawer.classList.toggle('open'));
+      $('music-queue-close').addEventListener('click',()=>musicQueueDrawer.classList.remove('open'));
+      $('music-queue-list').addEventListener('click',e=>{const item=e.target.closest('[data-music-index]');if(item)window.JetAndroid?.musicPlayIndex?.(Number(item.dataset.musicIndex));});
+      $('music-sleep-btn').addEventListener('click',()=>{musicSleepEnabled=!musicSleepEnabled;window.JetAndroid?.musicSleepTimer?.(musicSleepEnabled?30:0);$('music-sleep-btn').classList.toggle('active',musicSleepEnabled);showToast(musicSleepEnabled?'Sleep timer set for 30 minutes':'Sleep timer cancelled');});
+      function seekMusic(e){if(!musicDurationMs)return;const r=musicSeekbar.getBoundingClientRect();const ratio=Math.max(0,Math.min(1,(e.clientX-r.left)/Math.max(1,r.width)));musicScrubPositionMs=Math.round(ratio*musicDurationMs);updateMusicSeekbar(musicScrubPositionMs,musicDurationMs);$('music-current-time').textContent=musicTime(musicScrubPositionMs);}
+      musicSeekbar.addEventListener('pointerdown',e=>{if(!musicDurationMs)return;musicScrubbing=true;musicScrubPositionMs=musicPositionMs;musicSeekbar.setPointerCapture?.(e.pointerId);seekMusic(e);e.preventDefault();});
+      musicSeekbar.addEventListener('pointermove',e=>{if(musicScrubbing)seekMusic(e);});
+      musicSeekbar.addEventListener('pointerup',e=>{if(!musicScrubbing)return;seekMusic(e);musicScrubbing=false;musicPositionMs=musicScrubPositionMs;window.JetAndroid?.musicSeekTo?.(musicScrubPositionMs);});
+      musicSeekbar.addEventListener('pointercancel',()=>{if(!musicScrubbing)return;musicScrubbing=false;updateMusicSeekbar(musicPositionMs,musicDurationMs);$('music-current-time').textContent=musicTime(musicPositionMs);});
+      musicSeekbar.addEventListener('lostpointercapture',()=>{if(musicScrubbing){musicScrubbing=false;updateMusicSeekbar(musicPositionMs,musicDurationMs);}});
+      musicSeekbar.addEventListener('keydown',e=>{if(!musicDurationMs||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?musicDurationMs:Math.max(0,Math.min(musicDurationMs,musicPositionMs+(e.key==='ArrowRight'?5000:-5000)));musicPositionMs=next;musicScrubPositionMs=next;updateMusicSeekbar(next,musicDurationMs);$('music-current-time').textContent=musicTime(next);window.JetAndroid?.musicSeekTo?.(next);});
+      musicQueueDrawer.addEventListener('click',e=>{if(e.target===musicQueueDrawer)musicQueueDrawer.classList.remove('open');});
+
       // Android Hardware Back Handler
       window.handleAndroidBack = function () {
+        if (musicQueueDrawer && musicQueueDrawer.classList.contains('open')) { musicQueueDrawer.classList.remove('open'); return true; }
+        if (musicOverlay && !musicOverlay.classList.contains('hidden')) { musicOverlay.classList.add('hidden'); return true; }
+        if (musicMiniBar && !musicMiniBar.classList.contains('hidden')) { musicMiniBar.classList.add('hidden'); return true; }
         if (!$('oss-modal').classList.contains('hidden')) {
           $('oss-modal').classList.add('hidden');
           return true;
@@ -1494,8 +2619,47 @@
         return false;
       };
 
+      window.onNativeCompletedDownloads = function (items) {
+        if (!Array.isArray(items)) return;
+        const restored = new Map();
+        items.forEach((item) => {
+          if (!item || !item.filePath) return;
+          restored.set(item.filePath, {
+            id: String(item.id || item.filePath),
+            title: item.title || 'Saved file',
+            format: item.format || item.formatLabel || 'MEDIA',
+            size: item.size || item.fileSize || 'Saved',
+            filePath: item.filePath,
+            fileUri: item.fileUri || '',
+            thumbnailUrl: item.thumbnailUrl || '',
+            date: item.date || 'Saved',
+            resolution: item.resolution || '',
+          });
+        });
+        state.doneDownloads = Array.from(restored.values());
+        try { localStorage.setItem('jet-done-downloads-v1', JSON.stringify(state.doneDownloads)); } catch (_) {}
+        renderDownloads();
+        const latest = state.doneDownloads[0];
+        if (latest) {
+          $('latest-title').textContent = latest.title;
+          $('latest-meta').textContent = formatVideoMetadata(latest.size, latest.resolution, latest.format);
+          $('latest-download-card').dataset.filePath = latest.filePath;
+          $('latest-download-card').dataset.fileUri = latest.fileUri;
+        }
+      };
+      window.onNativeNotificationOpen = function (tab) {
+        switchScreen(tab === "library" ? "library" : "downloads");
+      };
+      if (hasAndroid() && window.JetAndroid.getNotificationOpenTab) {
+        const launchTab = window.JetAndroid.getNotificationOpenTab();
+        if (launchTab) switchScreen(launchTab === "library" ? "library" : "downloads");
+      }
       renderDownloads();
       renderLibrary();
+      hydrateLatestSavedFromCache();
+      if (hasAndroid() && window.JetAndroid.getDownloadSettingsJson) {
+        try { window.onNativeDownloadSettings(JSON.parse(window.JetAndroid.getDownloadSettingsJson())); } catch (_) {}
+      }
       refreshIcons();
     })();
   </script>
@@ -1654,6 +2818,7 @@
       const update = document.getElementById('engine-update-now');
       const status = document.getElementById('engine-update-status');
       const message = document.getElementById('engine-update-message');
+      const notifySettingsEngineUpdate = window.onNativeEngineUpdated;
 
       function closeModal() { modal.classList.add('hidden'); }
 
@@ -1674,6 +2839,7 @@
           status.classList.remove('hidden');
           return;
         }
+        window.__jetEngineUpdateSource = 'modal';
         update.disabled = true;
         update.textContent = 'Updating...';
         status.textContent = 'Downloading and installing the latest engine...';
@@ -1685,11 +2851,19 @@
         if (typeof result === 'string') {
           try { result = JSON.parse(result); } catch (_) { result = { ok: false, error: result }; }
         }
+        const updateSource = window.__jetEngineUpdateSource || 'settings';
+        window.__jetEngineUpdateSource = '';
+        if (updateSource === 'settings' && typeof notifySettingsEngineUpdate === 'function') {
+          notifySettingsEngineUpdate(result);
+        }
         if (result && result.ok) {
           status.textContent = 'Engine updated successfully (' + (result.version || 'latest') + ').';
           status.classList.remove('hidden');
           update.textContent = 'Updated';
           window.setTimeout(closeModal, 900);
+        } else if (result && result.recoverable) {
+          closeModal();
+          showToast('Engine update failed; keeping the installed engine. You can continue trying the download.');
         } else {
           update.disabled = false;
           update.textContent = 'Update Now';
@@ -1698,7 +2872,43 @@
         }
       };
     })();
-  </script>
+        const $ = window.$ || ((id) => document.getElementById(id));
+        const hasAndroid = window.hasAndroid || (() => typeof window.JetAndroid === 'object' && window.JetAndroid !== null);
+        const showToast = window.showToast || (() => {});
+        const refreshIcons = window.refreshIcons || (() => {});
+        let feedbackMedia = [];
+      function openFeedbackScreen(){feedbackMedia=[];$('feedback-details').value='';$('feedback-contact').value='';$('feedback-count').textContent='0';$('feedback-send').disabled=true;renderFeedbackMedia();$('feedback-screen').classList.remove('hidden');refreshIcons()}
+      window.openFeedbackScreen = openFeedbackScreen;
+      function closeFeedbackScreen(){$('feedback-screen').classList.add('hidden')}
+      function renderFeedbackMedia(){const grid=$('feedback-media-grid');$('feedback-media-count').textContent=feedbackMedia.length+'/9';grid.innerHTML='';feedbackMedia.forEach((item,i)=>{const tile=document.createElement('div');tile.className='relative rounded-xl overflow-hidden bg-app-elevated aspect-square flex flex-col items-center justify-center text-app-secondary';const label=document.createElement('span');label.className='px-1 text-[9px] truncate max-w-full';label.textContent=item.name||'Attachment';const glyph=document.createElement('span');glyph.textContent=(item.mime||'').startsWith('video/')?'Video':'Image';glyph.className='text-xs';tile.append(glyph,label);const remove=document.createElement('button');remove.textContent='×';remove.className='absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white';remove.onclick=()=>{feedbackMedia.splice(i,1);renderFeedbackMedia()};tile.append(remove);grid.append(tile)});if(feedbackMedia.length<9){const add=document.createElement('button');add.id='feedback-add-media';add.className='feedback-media-tile flex flex-col items-center justify-center gap-1 text-app-secondary';add.innerHTML='<span class="text-2xl">+</span><span class="text-[10px]">Add media</span>';grid.append(add)}}
+      function pickFeedbackMedia(){if(hasAndroid()&&window.JetAndroid.pickFeedbackMedia)window.JetAndroid.pickFeedbackMedia(9-feedbackMedia.length);else showToast('Media picker is available in the Android app.')}
+      $('feedback-back').addEventListener('click',closeFeedbackScreen);$('about-close').addEventListener('click',()=>$('about-modal').classList.add('hidden'));$('about-modal').addEventListener('click',e=>{if(e.target===$('about-modal'))$('about-modal').classList.add('hidden')});
+      $('feedback-details').addEventListener('input',e=>{$('feedback-count').textContent=String(e.target.value.length);$('feedback-send').disabled=!e.target.value.trim()});document.addEventListener('click',e=>{const addMedia=e.target.closest('#feedback-add-media');if(addMedia){e.preventDefault();pickFeedbackMedia()}});
+      window.onNativeFeedbackMediaPicked=function(items){try{feedbackMedia=feedbackMedia.concat(typeof items==='string'?JSON.parse(items):items||[]).slice(0,9);renderFeedbackMedia()}catch(e){showToast('Could not load selected media.')}};
+      window.onNativeFeedbackResult=function(ok,message){$('feedback-send').disabled=!$('feedback-details').value.trim();$('feedback-send').textContent='Send';if(ok){closeFeedbackScreen();showToast('Feedback sent! Thank you.')}else showToast(message||'Could not send feedback.')};
+      $('feedback-send').addEventListener('click',()=>{const details=$('feedback-details').value.trim();if(!details)return;if(!hasAndroid()||!window.JetAndroid.submitFeedback){showToast('Feedback service is unavailable.');return}$('feedback-send').disabled=true;$('feedback-send').textContent='Sending…';window.JetAndroid.submitFeedback(JSON.stringify({details:details,contact:$('feedback-contact').value.trim(),attachments:feedbackMedia.map(x=>x.uri)}))});
+</script>
+
+
+<script>
+(function(){
+ var overlay=document.getElementById('jet-intro-overlay'),stage=document.getElementById('jet-intro-stage');
+ if(!overlay||!stage)return;
+ var played=false;try{played=sessionStorage.getItem('jet-intro-played')==='1';if(!played)sessionStorage.setItem('jet-intro-played','1');}catch(_){}
+ if(played){overlay.remove();if(typeof window.onJetIntroComplete==='function')window.onJetIntroComplete();return;}
+ var mark=document.getElementById('jet-intro-mark'),particles='';
+ for(var i=0;i<22;i++){var f=.1+i*.04,d=(i%2?1:-1)*(6+i%5*5);particles+='<b class="jet-intro-particle" style="top:'+Math.round(950*(1-f)+31)+'px;margin-left:'+(d/2|0)+'px;--d:'+(d*2)+'px;--t:'+(1.2*(1-Math.sqrt(1-f))).toFixed(2)+'s"></b>';}
+ mark.insertAdjacentHTML('afterbegin',particles);
+ function fit(){stage.style.transform='scale('+Math.min(window.innerWidth*.96/580,window.innerHeight*.92/800,1.6)+')';}
+ window.addEventListener('resize',fit,{passive:true});fit();stage.classList.add('jet-intro-go');
+ window.setTimeout(function(){overlay.classList.add('jet-intro-fading');},2250);
+ window.setTimeout(function(){window.removeEventListener('resize',fit);overlay.remove();if(typeof window.onJetIntroComplete==='function')window.onJetIntroComplete();},2620);
+})();
+</script>
+
+<script>
+(function(){const v=document.getElementById('scroll-container');if(!v)return;const screens=[document.getElementById('screen-library'),document.getElementById('screen-downloads'),document.getElementById('screen-settings')];const t=document.createElement('div');t.id='jet-fast-scroll-track';t.setAttribute('aria-hidden','true');const h=document.createElement('div');h.id='jet-fast-scroll-thumb';t.appendChild(h);document.body.appendChild(t);let timer=0,drag=false,offset=0;function videoScreenActive(){return screens.some(el=>el&&!el.classList.contains('hidden'));}function geo(){const ch=v.clientHeight,sh=v.scrollHeight,th=t.clientHeight,max=Math.max(0,sh-ch),height=Math.max(28,Math.min(th,th*ch/Math.max(ch,sh))),travel=Math.max(0,th-height),y=max?v.scrollTop/max*travel:0;return{ch,sh,th,max,height,travel,y};}function update(show){const g=geo();if(!videoScreenActive()||g.sh<=g.ch+1){t.classList.remove('visible');return;}h.style.height=g.height+'px';h.style.transform='translateY('+g.y+'px)';if(show){t.classList.add('visible');clearTimeout(timer);timer=setTimeout(()=>{if(!drag)t.classList.remove('visible');},1200);}}function move(y){const g=geo();if(!g.max)return;const r=t.getBoundingClientRect(),pos=Math.max(0,Math.min(g.travel,y-r.top-offset));v.scrollTop=g.travel?pos/g.travel*g.max:0;update(true);}v.addEventListener('scroll',()=>update(true),{passive:true});window.addEventListener('resize',()=>update(false),{passive:true});const screenObserver=new MutationObserver(()=>update(false));screens.forEach(el=>{if(el)screenObserver.observe(el,{attributes:true,attributeFilter:['class']});});h.addEventListener('pointerdown',e=>{const g=geo();if(!videoScreenActive()||g.sh<=g.ch+1)return;drag=true;offset=e.clientY-t.getBoundingClientRect().top-g.y;h.setPointerCapture(e.pointerId);t.classList.add('visible');clearTimeout(timer);e.preventDefault();});h.addEventListener('pointermove',e=>{if(drag)move(e.clientY);});function end(){drag=false;update(true);}h.addEventListener('pointerup',end);h.addEventListener('pointercancel',end);t.addEventListener('pointerdown',e=>{if(e.target===h||!videoScreenActive())return;const g=geo();offset=g.height/2;drag=true;move(e.clientY);t.setPointerCapture(e.pointerId);});t.addEventListener('pointermove',e=>{if(drag&&e.target===t)move(e.clientY);});t.addEventListener('pointerup',end);t.addEventListener('pointercancel',end);update(false);})();
+</script>
 
 </body>
 </html>

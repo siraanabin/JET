@@ -7,14 +7,94 @@ import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
 import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+const val DEFAULT_MAX_CONNECTIONS = 8
+const val CHUNK_SIZE_BYTES = 5L * 1024L * 1024L
+const val DISK_BUFFER_BYTES = 256 * 1024
+const val MAX_RETRIES = 4
 
 class JetOkHttpDownloader(
     private val client: OkHttpClient
 ) : Downloader() {
 
     companion object {
+        private val RANGE_REQUEST_SEMAPHORE = java.util.concurrent.Semaphore(DEFAULT_MAX_CONNECTIONS, true)
+
+        /**
+         * Synchronous OkHttp execute() calls bypass Dispatcher.maxRequests.
+         * Bound all parallel media range workers process-wide to eight.
+         */
+        fun <T> withRangeRequestPermit(block: () -> T): T {
+            RANGE_REQUEST_SEMAPHORE.acquire()
+            try {
+                return block()
+            } finally {
+                RANGE_REQUEST_SEMAPHORE.release()
+            }
+        }
+
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
+    }
+
+    /**
+     * Resolve the full stream size with the shared IPv4-preferred OkHttp client.
+     * HEAD is preferred; a one-byte Range request exposes the total via Content-Range.
+     */
+    fun contentLength(url: String): Long = contentLengthWithSource(url).first
+
+    /**
+     * Resolve metadata size using the app's injected shared OkHttp client.
+     * Each lookup has a strict three-second total call timeout.
+     */
+    fun contentLengthWithSource(url: String): Pair<Long, String> {
+        fun requestBuilder(): okhttp3.Request.Builder {
+            val builder = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept-Encoding", "identity")
+            val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull().orEmpty()
+            if (host == "googlevideo.com" || host.endsWith(".googlevideo.com")) {
+                builder.header("Origin", "https://www.youtube.com")
+                    .header("Referer", "https://www.youtube.com/")
+            }
+            return builder
+        }
+
+        var headCode = 0
+        val headLength = runCatching {
+            val call = client.newCall(requestBuilder().head().build())
+            call.timeout().timeout(3, TimeUnit.SECONDS)
+            call.execute().use { response ->
+                headCode = response.code
+                if (!response.isSuccessful) 0L
+                else (response.header("Content-Length")?.toLongOrNull()
+                    ?: response.body?.contentLength() ?: 0L).takeIf { it > 0L } ?: 0L
+            }
+        }.getOrDefault(0L)
+        if (headLength > 0L) return headLength to "HEAD"
+
+        // Range is deliberately limited to the explicit HEAD rejection cases.
+        if (headCode != 403 && headCode != 405) return 0L to "estimate"
+
+        val rangeLength = runCatching {
+            // Clone the injected shared client so only this metadata probe gets a 3s total timeout.
+            // The shared client's normal timeout policy remains unchanged for chunk downloads.
+            val rangeClient = client.newBuilder()
+                .callTimeout(3, TimeUnit.SECONDS)
+                .build()
+            val call = rangeClient.newCall(
+                requestBuilder().get().header("Range", "bytes=0-0").build()
+            )
+            call.execute().use { response ->
+                response.header("Content-Range")
+                    ?.substringAfterLast("/")
+                    ?.toLongOrNull()
+                    ?.takeIf { it > 0L } ?: 0L
+            }
+        }.getOrDefault(0L)
+        return if (rangeLength > 0L) rangeLength to "Range" else 0L to "estimate"
     }
 
     @Throws(IOException::class, ReCaptchaException::class)
@@ -39,6 +119,14 @@ class JetOkHttpDownloader(
             } else if (headerValueList.size == 1) {
                 okRequestBuilder.header(headerName, headerValueList[0])
             }
+        }
+
+        val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull().orEmpty()
+        if (host == "googlevideo.com" || host.endsWith(".googlevideo.com")) {
+            okRequestBuilder
+                .header("Accept-Encoding", "identity")
+                .header("Origin", "https://www.youtube.com")
+                .header("Referer", "https://www.youtube.com/")
         }
 
         client.newCall(okRequestBuilder.build()).execute().use { response ->
