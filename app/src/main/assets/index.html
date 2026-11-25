@@ -439,11 +439,10 @@
           <select id="library-grid-columns-setting" class="rounded-xl bg-app-elevated border border-app-border px-3 py-2 text-xs font-bold text-app-text"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
         </div>
         <div class="surface-card rounded-3xl p-4 space-y-4">
-          <div><p class="text-sm font-extrabold text-app-text">Privacy &amp; Diagnostics</p><p class="text-[11px] text-app-secondary mt-1">ঐচ্ছিক; দুটি সুইচই ডিফল্ট বন্ধ।</p></div>
-          <label class="flex items-start justify-between gap-3"><span class="min-w-0"><span class="block text-xs font-bold text-app-text">অজ্ঞাতনামা ডায়াগনস্টিক পাঠান</span><span class="block text-[11px] text-app-secondary mt-1">অ্যাপ/Android ভার্সন, ফোন মডেল, ABI, নেটওয়ার্কের ধরন এবং অনুমোদিত success/failure/fallback তথ্য পাঠানো হবে।</span><span id="diagnostics-key-note" class="block text-[10px] text-app-muted mt-1 hidden">INGEST key খালি; আপলোড বন্ধ।</span></span><input id="diagnostics-toggle" type="checkbox" class="mt-1 h-5 w-5 accent-blue-600"></label>
-          <label class="flex items-start justify-between gap-3"><span class="min-w-0"><span class="block text-xs font-bold text-app-text">জনপ্রিয় লিংক গণনায় সাহায্য করুন</span><span class="block text-[11px] text-app-secondary mt-1">শুধু বৈধ YouTube video_id পাঠানো হবে; title, URL বা path নয়।</span><span id="top-link-key-note" class="block text-[10px] text-app-muted mt-1 hidden">INGEST key খালি; আপলোড বন্ধ।</span></span><input id="top-link-toggle" type="checkbox" class="mt-1 h-5 w-5 accent-blue-600"></label>
+          <div><p class="text-sm font-extrabold text-app-text">Bug reports</p><p class="text-[11px] text-app-secondary mt-1">সমস্যা শনাক্ত করতে সীমিত, অজ্ঞাতনামা ডায়াগনস্টিক তথ্য স্বয়ংক্রিয়ভাবে পাঠানো হবে। ডিফল্ট ON; যেকোনো সময় বন্ধ করতে পারবেন।</p></div>
+          <label class="flex items-start justify-between gap-3"><span class="min-w-0"><span class="block text-xs font-bold text-app-text">Send bug reports anonymously</span><span class="block text-[11px] text-app-secondary mt-1">শুধু status, initStep/initError, engine/fallbackReason, app ও Android version, ফোন মডেল, network type, speed/time এবং format/resolution পাঠানো হবে। নাম, ইমেইল, URL, title, path বা raw logs পাঠানো হবে না।</span><span id="diagnostics-key-note" class="block text-[10px] text-app-muted mt-1 hidden">INGEST key খালি; আপলোড বন্ধ।</span></span><input id="diagnostics-toggle" type="checkbox" class="mt-1 h-5 w-5 accent-blue-600"></label>
           <button id="diagnostics-what-sent" type="button" class="text-xs font-bold text-app-primary">কী পাঠানো হয় দেখুন</button>
-          <div class="border-t border-app-border pt-3 space-y-2"><p class="text-xs font-bold text-app-text">Bug report</p><p class="text-[11px] text-app-secondary">ব্যক্তিগত তথ্য, ফোন নম্বর, ইমেইল, URL বা গোপন তথ্য লিখবেন না। Diagnostics বন্ধ থাকলে লগ ছাড়া শুধু category ও description যাবে। পাঠানোর আগে preview দেখানো হবে।</p><button id="diagnostics-report" type="button" class="w-full rounded-xl bg-app-primaryTint text-app-primary px-3 py-3 text-xs font-bold">রিপোর্ট পাঠান</button></div>
+          <div class="border-t border-app-border pt-3 space-y-2"><p class="text-xs font-bold text-app-text">Bug report</p><p class="text-[11px] text-app-secondary">ব্যক্তিগত তথ্য, ফোন নম্বর, ইমেইল, URL বা গোপন তথ্য লিখবেন না। পাঠানোর আগে category, description ও সংযুক্ত অনুমোদিত ডায়াগনস্টিক তথ্য preview দেখানো হবে।</p><button id="diagnostics-report" type="button" class="w-full rounded-xl bg-app-primaryTint text-app-primary px-3 py-3 text-xs font-bold">রিপোর্ট পাঠান</button></div>
           <div class="border-t border-app-border pt-3 space-y-2"><p class="text-[11px] text-app-secondary">আপনার পাঠানো কাঁচা ডেটা মুছবে; অজ্ঞাত সারাংশ গণনা থাকে।</p><button id="diagnostics-delete" type="button" class="w-full rounded-xl bg-app-elevated text-app-danger px-3 py-3 text-xs font-bold">আমার ডেটা মুছুন</button></div>
         </div>
         <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
@@ -2975,16 +2974,15 @@
 (function(){
  const $=id=>document.getElementById(id);
  const bridge=()=>window.JetAndroid&&typeof window.JetAndroid.getDiagnosticSettingsJson==="function";
- let cfg={diagnosticsEnabled:false,topLinkCountingEnabled:false,apiKeyConfigured:false};
+ let cfg={diagnosticsEnabled:true,apiKeyConfigured:false};
  function sync(){if(!bridge())return;try{
   cfg=JSON.parse(window.JetAndroid.getDiagnosticSettingsJson()||"{}");
-  $("diagnostics-toggle").disabled=!cfg.apiKeyConfigured;$("top-link-toggle").disabled=!cfg.apiKeyConfigured;
-  $("diagnostics-toggle").checked=!!cfg.diagnosticsEnabled;$("top-link-toggle").checked=!!cfg.topLinkCountingEnabled;
-  $("diagnostics-key-note").classList.toggle("hidden",!!cfg.apiKeyConfigured);$("top-link-key-note").classList.toggle("hidden",!!cfg.apiKeyConfigured);
+  $("diagnostics-toggle").disabled=!cfg.apiKeyConfigured;
+  $("diagnostics-toggle").checked=!!cfg.diagnosticsEnabled;
+  $("diagnostics-key-note").classList.toggle("hidden",!!cfg.apiKeyConfigured);
  }catch(_){}}
  $("diagnostics-toggle").addEventListener("change",e=>{if(bridge())window.JetAndroid.setDiagnosticPreference("diagnostics",e.target.checked);sync();});
- $("top-link-toggle").addEventListener("change",e=>{if(bridge())window.JetAndroid.setDiagnosticPreference("topLink",e.target.checked);sync();});
- $("diagnostics-what-sent").addEventListener("click",()=>alert("ডায়াগনস্টিক: event type, engine, fallback reason, app/Android version, ফোন মডেল, ABI এবং অনুমোদিত download metrics।\nTop-link: আলাদা endpoint-এ শুধু বৈধ video_id।\nBug report: category, description এবং Diagnostics চালু থাকলে সর্বশেষ ২০টি অনুমোদিত log।\n\nপাঠানো হবে না: rawLog, title, URL, path, contact details বা timestamp."));
+ $("diagnostics-what-sent").addEventListener("click",()=>alert("স্বয়ংক্রিয়ভাবে পাঠানো হতে পারে: status, initStep, initError, engine, fallbackReason, app version, Android version, ফোন মডেল, network type, speed, duration, format ও resolution।\n\nপাঠানো হবে না: নাম, ইমেইল, IP, GPS, URL, video title, file path, raw logs বা timestamp। Install ID শুধু request header-এ থাকবে।"));
  $("diagnostics-report").addEventListener("click",()=>{
   if(!bridge())return;
   const category=(prompt("Category: bug, crash, performance, other")||"").trim().toLowerCase();
