@@ -125,6 +125,7 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.util.Locale
+import java.util.zip.ZipFile
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
@@ -4312,6 +4313,51 @@ class MainActivity : AppCompatActivity() {
             return 0
         }
 
+        /**
+         * Reject truncated or malformed APKs before allowing Android's installer to open.
+         * Reading every ZIP entry forces CRC/size checks instead of trusting the APK manifest
+         * parser, which can sometimes read package metadata from an incomplete archive.
+         */
+        private fun verifyDownloadedApk(apkFile: File): Long {
+            if (!apkFile.isFile || apkFile.length() <= 0L) {
+                throw IllegalStateException("Downloaded APK is missing or empty.")
+            }
+
+            ZipFile(apkFile).use { zip ->
+                val entries = zip.entries()
+                val buffer = ByteArray(64 * 1024)
+                var verifiedEntries = 0
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    verifiedEntries++
+                    if (!entry.isDirectory) {
+                        zip.getInputStream(entry).use { input ->
+                            while (input.read(buffer) != -1) {
+                                // Consume every entry so ZIP integrity checks are performed.
+                            }
+                        }
+                    }
+                }
+                if (verifiedEntries == 0) {
+                    throw IllegalStateException("Downloaded file contains no APK archive entries.")
+                }
+            }
+
+            val archiveInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                ?: throw IllegalStateException("Downloaded file is not a valid, complete APK archive.")
+            if (archiveInfo.packageName != packageName) {
+                throw IllegalStateException("Downloaded APK does not match this JET app variant.")
+            }
+
+            val installedInfo = packageManager.getPackageInfo(packageName, 0)
+            if (PackageInfoCompat.getLongVersionCode(archiveInfo) <=
+                PackageInfoCompat.getLongVersionCode(installedInfo)
+            ) {
+                throw IllegalStateException("Downloaded APK is not newer than the installed app.")
+            }
+            return apkFile.length()
+        }
+
         @JavascriptInterface
         fun checkForAppUpdate(isManual: Boolean) {
             if (BuildConfig.DEBUG) {
@@ -4612,11 +4658,7 @@ class MainActivity : AppCompatActivity() {
                         if (!apkFile.isFile || apkFile.length() != totalBytes) {
                             throw IllegalStateException("Downloaded APK size verification failed")
                         }
-                        val archiveInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
-                            ?: throw IllegalStateException("Downloaded file is not a valid, complete APK archive")
-                        if (archiveInfo.packageName != packageName) {
-                            throw IllegalStateException("Downloaded APK does not match this JET app variant")
-                        }
+                        verifyDownloadedApk(apkFile)
                     }
 
                     pendingVerifiedAppUpdateFile = apkFile
@@ -4673,14 +4715,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
-                        val archiveInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
-                            ?: throw IllegalStateException("Verified APK is no longer valid. Download it again.")
-                        if (archiveInfo.packageName != packageName) {
-                            throw IllegalStateException("Downloaded APK does not match this JET app variant.")
-                        }
-                        if (apkFile.length() <= 0L) {
-                            throw IllegalStateException("Downloaded APK is empty.")
-                        }
+                        verifyDownloadedApk(apkFile)
                     }
                     val apkUri = FileProvider.getUriForFile(
                         this@MainActivity,
