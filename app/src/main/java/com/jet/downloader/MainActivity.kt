@@ -154,6 +154,7 @@ class MainActivity : AppCompatActivity() {
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
     @Volatile private var pendingVerifiedAppUpdateFile: File? = null
+    @Volatile private var pendingVerifiedAppUpdateSha256: String? = null
     private data class PrefetchedStreamChunk(val bytes: ByteArray, val totalBytes: Long, val cachedAtMs: Long)
     private val prefetchedStreamChunks = object : LruCache<String, PrefetchedStreamChunk>(1024) {
         override fun sizeOf(key: String, value: PrefetchedStreamChunk): Int = ((value.bytes.size + 1023) / 1024).coerceAtLeast(1)
@@ -4515,6 +4516,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun downloadAndInstallAppUpdate(apkUrl: String, expectedSha256: String) {
             pendingVerifiedAppUpdateFile = null
+            pendingVerifiedAppUpdateSha256 = null
             val parsedUrl = Uri.parse(apkUrl)
             if (parsedUrl.scheme != "https" || parsedUrl.host != "github.com") {
                 callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Invalid JET update package URL")}")
@@ -4686,12 +4688,14 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     pendingVerifiedAppUpdateFile = apkFile
+                    pendingVerifiedAppUpdateSha256 = expectedSha256
                     callJs(
                         "onNativeAppUpdateProgress",
                         "100, ${JSONObject.quote("APK verified · 100% · Ready to update")}, true"
                     )
                 } catch (error: Exception) {
                     pendingVerifiedAppUpdateFile = null
+                    pendingVerifiedAppUpdateSha256 = null
                     withContext(Dispatchers.IO) {
                         if (apkFile.exists()) apkFile.delete()
                     }
@@ -4706,8 +4710,10 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun installDownloadedAppUpdate() {
             val apkFile = pendingVerifiedAppUpdateFile
-            if (apkFile == null || !apkFile.isFile || apkFile.length() <= 0L) {
+            val expectedSha256 = pendingVerifiedAppUpdateSha256
+            if (apkFile == null || expectedSha256.isNullOrBlank() || !apkFile.isFile || apkFile.length() <= 0L) {
                 pendingVerifiedAppUpdateFile = null
+                pendingVerifiedAppUpdateSha256 = null
                 callJs(
                     "onNativeAppUpdateProgress",
                     "-1, ${JSONObject.quote("Verified APK is no longer available. Download it again.")}"
@@ -4739,7 +4745,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
-                        verifyDownloadedApk(apkFile)
+                        verifyDownloadedApk(apkFile, expectedSha256)
                     }
                     val apkUri = FileProvider.getUriForFile(
                         this@MainActivity,
