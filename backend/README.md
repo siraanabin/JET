@@ -10,7 +10,7 @@ Cloudflare Worker + D1 backend for **opt-in** diagnostic telemetry. This directo
 - `ADMIN_API_KEY` is a separate Cloudflare secret and is used only for the dashboard summary endpoint. Never put it in the APK.
 - Neither key is committed to this repository. Do not add `.dev.vars`, `.env`, or secret values to Git.
 - The Worker does not store request IP addresses, email, phone, location, IMEI, Android ID, file names/paths, video titles, or full URLs.
-- `video_id` is accepted only by `/v1/top-link`, and only when the client has a separate video-ID opt-in. It is never stored in `events` or `daily_summary`.
+- `video_id` is accepted only by `/v1/top-link`, must be 1–64 ASCII characters matching `[A-Za-z0-9_-]`, and is accepted only when the client has a separate video-ID opt-in. The endpoint uses the same combined 10-per-install-per-UTC-day submission counter as bug reports. It is never stored in `events` or `daily_summary`.
 - `init_error` and bug-report descriptions are stripped of URL/path-like fragments, email addresses, phone-like numbers, and IPv4/IPv6 addresses, then truncated. Bug-report descriptions are limited to 500 characters. Logs are stored as JSON text in the same bug-report row, with at most 20 entries and 6,000 serialized characters. This is best-effort text sanitization, not a guarantee that arbitrary text cannot contain personal information; clients should avoid sending sensitive content.
 - `/v1/me/data` deletes that install's `events`, `bug_reports`, `top_links`, and `daily_counters`. It deletes raw records but intentionally does **not** modify `daily_summary`; anonymous aggregates remain and may therefore continue to include deleted events.
 
@@ -80,7 +80,7 @@ All client endpoints require:
 |---|---|---|
 | POST | `/v1/ingest` | Batch events; max 15 |
 | POST | `/v1/bug-report` | One sanitized bug report with optional allowlisted logs (max 20 / 6,000 chars) |
-| POST | `/v1/top-link` | One video ID; separate opt-in required |
+| POST | `/v1/top-link` | `{"video_id":"..."}`; 1–64 `[A-Za-z0-9_-]`; shares the 10/day bug-report quota |
 | GET | `/v1/admin/daily-summary?day=YYYY-MM-DD` | Aggregate dashboard; requires `ADMIN_API_KEY` |
 | DELETE | `/v1/me/data` | Delete the current install's records, except daily aggregates |
 
