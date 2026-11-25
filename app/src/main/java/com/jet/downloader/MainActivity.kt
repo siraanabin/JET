@@ -1491,29 +1491,37 @@ class MainActivity : AppCompatActivity() {
                         val durationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DURATION)
                         val mimeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
                         while (cursor.moveToNext()) {
+                            val mediaId = if (idIndex >= 0) cursor.getLong(idIndex) else -1L
+                            val mediaUri = if (mediaId >= 0L) ContentUris.withAppendedId(collection, mediaId) else null
                             val path = if (dataIndex >= 0) cursor.getString(dataIndex).orEmpty() else ""
-                            if (path.isBlank()) continue
-                            val file = File(path)
-                            if (!file.isFile || file.name.startsWith(".")) continue
-                            val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else 0L
+                            // MediaStore is authoritative. On scoped-storage devices DATA may be
+                            // unavailable or File.isFile may be false even for readable media.
+                            // Keep the content:// URI instead of silently dropping that row.
+                            val file = path.takeIf { it.isNotBlank() }?.let(::File)
                             val displayName = if (nameIndex >= 0) cursor.getString(nameIndex).orEmpty() else ""
+                            val fileName = file?.name?.takeIf { it.isNotBlank() } ?: displayName
+                            if (fileName.isBlank() || fileName.startsWith(".")) continue
                             val title = if (titleIndex >= 0) cursor.getString(titleIndex).orEmpty() else ""
                             val mime = if (mimeIndex >= 0) cursor.getString(mimeIndex).orEmpty() else ""
+                            val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else 0L
                             val durationMs = if (durationIndex >= 0) cursor.getLong(durationIndex).coerceAtLeast(0L) else 0L
-                            val ext = file.extension.uppercase(Locale.US)
+                            val ext = fileName.substringAfterLast('.', "").uppercase(Locale.US)
                                 .ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
-                            val resolution = if (type == "video") extractVideoResolution(file) else ""
+                            val canReadPath = file?.isFile == true
+                            val resolution = if (type == "video" && canReadPath) extractVideoResolution(file!!) else ""
+                            val itemUri = mediaUri?.toString() ?: file?.let { Uri.fromFile(it).toString() }.orEmpty()
                             addItem(
                                 LibraryItemPayload(
-                                    id = if (idIndex >= 0) cursor.getLong(idIndex).toInt() else file.absolutePath.hashCode(),
-                                    title = title.ifBlank { file.nameWithoutExtension.ifBlank { displayName } },
+                                    id = if (mediaId >= 0L) mediaId.toInt() else fileName.hashCode(),
+                                    title = title.ifBlank { fileName.substringBeforeLast('.', fileName) },
                                     type = type,
                                     meta = formatBytes(size) + (resolution.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") + " · " + ext,
                                     duration = formatDuration((durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
-                                    filePath = file.absolutePath,
-                                    fileUri = Uri.fromFile(file).toString(),
-                                    // Create compact thumbnails on the background MediaStore scan dispatcher.
-                                    thumbnailUrl = if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") audioThumbnailFromDiskCache(file) else "",
+                                    filePath = file?.absolutePath ?: itemUri,
+                                    fileUri = itemUri,
+                                    // Path-based thumbnail extraction is optional; the MediaStore row
+                                    // remains visible when direct filesystem access is unavailable.
+                                    thumbnailUrl = if (!canReadPath) "" else if (type == "video") thumbnailFromDiskCache(file!!) else if (type == "audio") audioThumbnailFromDiskCache(file!!) else "",
                                     size = formatBytes(size),
                                     format = ext,
                                     dominantColor = "#20242E",
