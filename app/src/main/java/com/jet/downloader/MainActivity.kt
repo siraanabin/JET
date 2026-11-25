@@ -590,10 +590,9 @@ class MainActivity : AppCompatActivity() {
             else -> "denied"
         }
         callJs("onNativeLibraryPermissionState", JSONObject.quote(state))
-        if (state == "denied") {
-            return@registerForActivityResult
-        }
-        // Permission was granted (or partially granted on Android 14+): discard stale cache and scan now.
+        // Always scan after the permission result. With denied access, MediaStore queries are
+        // skipped automatically while app-owned Downloads/JET files are still delivered.
+        // Granted or partial access also refreshes MediaStore and replaces the stale cache.
         pushScannedLibraryToWeb(force = true)
     }
 
