@@ -1094,6 +1094,7 @@
       let libraryFilteredCache = [];
       let libraryScanTimeout = null;
       let libraryPermissionState = 'unknown';
+      let libraryScanStartedEmpty = false;
       function clearLibraryScanTimeout() { if (libraryScanTimeout) { clearTimeout(libraryScanTimeout); libraryScanTimeout = null; } }
       function startLibraryScanTimeout() {
         clearLibraryScanTimeout();
@@ -1959,6 +1960,7 @@
 
       window.onNativeLibraryScanStarted = function () {
         startLibraryScanTimeout();
+        libraryScanStartedEmpty = state.library.length === 0;
         state.libraryScanBuffer = [];
         $('library-location-label').textContent = state.library.length ? 'Updating device media…' : 'Scanning device media…';
         if (!state.library.length) $('library-items-container').innerHTML = '<div class="surface-card rounded-3xl p-8 text-center text-xs text-app-secondary col-span-full">Scanning device media…</div>';
@@ -1979,7 +1981,6 @@
             : item.type === 'document' ? 'from-amber-500 to-orange-700'
             : 'from-blue-500 to-indigo-700'
         }));
-        const wasEmpty = state.library.length === 0;
         if (!Array.isArray(state.libraryScanBuffer)) state.libraryScanBuffer = [];
         state.libraryScanBuffer.push(...mapped);
         const scanCount = state.libraryScanBuffer.length;
@@ -2004,7 +2005,7 @@
         state.libraryHasLoaded = true;
         delete state.libraryScanBuffer;
         try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
-        if (wasEmpty && state.library.length > 0) {
+        if (libraryScanStartedEmpty && state.library.length > 0) {
           const first = state.library[0];
           $('latest-title').textContent = first.title;
           $('latest-meta').textContent = first.meta || formatVideoMetadata(first.size, first.resolution, first.format);
