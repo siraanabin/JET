@@ -7,7 +7,6 @@
     "Refresh Library media scan after permission result",
     "Added a safety timeout for stalled Library scanning",
     "Hardened Library native-to-WebView scan chunk delivery and final-chunk handling",
-    "Hardened Library native-to-WebView scan chunk delivery and final-chunk handling",
     "Improved MediaStore scanning on scoped-storage devices",
     "Fixed Library MediaStore scanning on scoped-storage devices",
     "Keep media items visible when filesystem DATA paths are unavailable",
