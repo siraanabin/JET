@@ -1325,7 +1325,10 @@
 
       function persistNavigationTelemetry(record) {
         if (!record) return;
-        state.navigationTelemetryLast10 = [record, ...(state.navigationTelemetryLast10 || [])].slice(0, 10);
+        const current = state.navigationTelemetryLast10 || [];
+        state.navigationTelemetryLast10 = current.includes(record)
+          ? current.slice(0, 10)
+          : [record, ...current].slice(0, 10);
         try { localStorage.setItem('jet-navigation-telemetry-v1', JSON.stringify(state.navigationTelemetryLast10)); } catch (_) {}
         renderTelemetryTable();
       }
