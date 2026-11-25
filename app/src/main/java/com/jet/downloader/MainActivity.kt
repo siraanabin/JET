@@ -4429,6 +4429,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun downloadAndInstallAppUpdate(apkUrl: String) {
+            pendingVerifiedAppUpdateFile = null
             val parsedUrl = Uri.parse(apkUrl)
             if (parsedUrl.scheme != "https" || parsedUrl.host != "github.com") {
                 callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Invalid JET update package URL")}")
@@ -4609,6 +4610,7 @@ class MainActivity : AppCompatActivity() {
                         "100, ${JSONObject.quote("APK verified · 100% · Ready to update")}, true"
                     )
                 } catch (error: Exception) {
+                    pendingVerifiedAppUpdateFile = null
                     withContext(Dispatchers.IO) {
                         if (apkFile.exists()) apkFile.delete()
                     }
