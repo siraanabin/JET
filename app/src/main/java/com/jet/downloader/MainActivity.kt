@@ -3955,7 +3955,7 @@ class MainActivity : AppCompatActivity() {
             completedPayloadJson.put("telemetrySummary", rawLog)
             completedPayloadJson.put("telemetryDisplay", "${connections} conn • ${seconds(downloadSec)} • ${avgSpeedText}")
             val elapsedDiagnosticMs = (System.currentTimeMillis() - (downloadStartedAtMs[downloadId] ?: System.currentTimeMillis())).coerceAtLeast(0L)
-            runCatching { diagnosticRecorder.recordSuccess(engine, file.extension, resolution, netSpeed * 8.0, elapsedDiagnosticMs, initStep, if (ytDlpInitError.isBlank()) "none" else "initialization_failed", fallbackReason) }
+            runCatching { diagnosticRecorder.recordSuccess(engine, file.extension, resolution, netSpeed, elapsedDiagnosticMs, initStep, if (ytDlpInitError.isBlank()) "none" else "initialization_failed", fallbackReason) }
             lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.flushPending() } }
             downloadStartedAtMs.remove(downloadId)
             callJs("onNativeDownloadComplete", completedPayloadJson.toString())
