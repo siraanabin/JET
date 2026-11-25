@@ -627,7 +627,25 @@
     <section id="about-modal" class="hidden fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5"><div class="surface-card w-full max-w-sm rounded-3xl p-5 space-y-4">
       <div class="flex items-center justify-between"><h3 class="text-base font-extrabold text-app-text">About JET</h3><button id="about-close" class="w-9 h-9 rounded-full flex items-center justify-center text-app-secondary"><i data-lucide="x" class="w-5 h-5"></i></button></div>
       <div class="flex items-center gap-3"><img src="./images/jet-logo.svg" class="w-12 h-12 rounded-xl" alt="JET"><div><p class="font-extrabold text-app-text">JET</p><p class="text-xs text-app-secondary">Version v3.7.3</p></div></div>
-      <p class="text-sm leading-6 text-app-secondary">A lightweight, ad-free, stroke-minimalist media player engineered for ultra-fluid playback, precise gestures, and effortless local and offline media management.</p>
+      <div class="max-h-[55vh] overflow-y-auto space-y-4 pr-1">
+        <p class="text-sm leading-6 text-app-secondary">Search, watch and download videos and music from YouTube and the web. Share any link to JET to download without leaving the app you're in.</p>
+        <div class="pt-3 border-t border-app-border space-y-2">
+          <h4 class="text-xs font-extrabold uppercase tracking-wider text-app-text">Open-source software</h4>
+          <ul class="space-y-1.5 text-xs leading-5 text-app-secondary">
+            <li>NewPipe Extractor (GPLv3)</li>
+            <li>AndroidX Media3, Room, Navigation, DataStore (Apache 2.0)</li>
+            <li>Koin (Apache 2.0)</li>
+            <li>Coil (Apache 2.0)</li>
+            <li>OkHttp (Apache 2.0)</li>
+            <li>Kotlin Coroutines &amp; Serialization (Apache 2.0)</li>
+          </ul>
+          <p class="text-[11px] text-app-secondary">See Open-source software in Settings for library details and license information.</p>
+        </div>
+        <div class="pt-3 border-t border-app-border space-y-1.5">
+          <h4 class="text-xs font-extrabold uppercase tracking-wider text-app-text">Disclaimer</h4>
+          <p class="text-xs leading-5 text-app-secondary">Only download content you have the right to save. Respect the terms of the sites you use.</p>
+        </div>
+      </div>
       <div class="pt-3 border-t border-app-border flex items-center justify-between text-xs"><span class="text-app-muted">Developed by</span><span class="font-bold text-app-text">JET Developer</span></div>
     </div></section>
     <!-- Theme Selection Sheet -->
