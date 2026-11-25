@@ -1154,10 +1154,8 @@
           const scrollContainer = document.getElementById('scroll-container');
           if (scrollContainer) scrollContainer.scrollTop = 0;
 
-          // Keep icon refresh failures isolated from navigation and download controls.
-          if (typeof refreshIcons === 'function') {
-            try { refreshIcons(); } catch (e) { console.warn("refreshIcons bypassed for dual-svg nav:", e); }
-          }
+          // Navigation icons are static inline SVGs. Rebuilding every Lucide icon in
+          // the whole document here caused avoidable work on each tab tap.
           if (target === 'library') {
             console.info('[JET-Library-Perf] screen_switch_total_ms=' + (performance.now() - libraryNavStartedAt).toFixed(1));
           }
