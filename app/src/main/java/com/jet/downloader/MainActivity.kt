@@ -151,6 +151,7 @@ class MainActivity : AppCompatActivity() {
     private val diagnosticRecorder by lazy { DiagnosticRecorder(applicationContext, preferencesManager, okHttpClient) }
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
+    @Volatile private var pendingVerifiedAppUpdateFile: File? = null
     private data class PrefetchedStreamChunk(val bytes: ByteArray, val totalBytes: Long, val cachedAtMs: Long)
     private val prefetchedStreamChunks = object : LruCache<String, PrefetchedStreamChunk>(1024) {
         override fun sizeOf(key: String, value: PrefetchedStreamChunk): Int = ((value.bytes.size + 1023) / 1024).coerceAtLeast(1)
@@ -4434,24 +4435,6 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
-                runOnUiThread {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Allow 'Install unknown apps' for JET, then tap Update again",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    startActivity(
-                        Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            Uri.parse("package:$packageName")
-                        )
-                    )
-                }
-                callJs("onNativeAppUpdateProgress", "-1, ${JSONObject.quote("Install permission required")}")
-                return
-            }
-
             lifecycleScope.launch {
                 val apkFile = File(cacheDir, "updates/JET-update.apk")
                 try {
@@ -4468,6 +4451,8 @@ class MainActivity : AppCompatActivity() {
                         var downloadedBytes = 0L
                         var totalBytes = 0L
                         var retryCount = 0
+                        var lastProgressPercent = -1
+                        var lastProgressAtMs = 0L
                         val buffer = ByteArray(64 * 1024)
 
                         while (totalBytes == 0L || downloadedBytes < totalBytes) {
@@ -4568,12 +4553,17 @@ class MainActivity : AppCompatActivity() {
 
                                             val percent = ((downloadedBytes * 100L) / totalBytes)
                                                 .toInt().coerceIn(0, 99)
-                                            val progressText =
-                                                "Downloading APK · $percent% · ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}"
-                                            callJs(
-                                                "onNativeAppUpdateProgress",
-                                                "$percent, ${JSONObject.quote(progressText)}"
-                                            )
+                                            val now = SystemClock.elapsedRealtime()
+                                            if (percent != lastProgressPercent || now - lastProgressAtMs >= 200L) {
+                                                lastProgressPercent = percent
+                                                lastProgressAtMs = now
+                                                val progressText =
+                                                    "Downloading APK · $percent% · ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}"
+                                                callJs(
+                                                    "onNativeAppUpdateProgress",
+                                                    "$percent, ${JSONObject.quote(progressText)}"
+                                                )
+                                            }
                                         }
                                         output.flush()
                                     }
@@ -4613,10 +4603,64 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
+                    pendingVerifiedAppUpdateFile = apkFile
                     callJs(
                         "onNativeAppUpdateProgress",
-                        "100, ${JSONObject.quote("APK verified · 100% · Opening installer…")}, true"
+                        "100, ${JSONObject.quote("APK verified · 100% · Ready to update")}, true"
                     )
+                } catch (error: Exception) {
+                    withContext(Dispatchers.IO) {
+                        if (apkFile.exists()) apkFile.delete()
+                    }
+                    callJs(
+                        "onNativeAppUpdateProgress",
+                        "-1, ${JSONObject.quote(error.message ?: "Unable to download APK update")}"
+                    )
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun installDownloadedAppUpdate() {
+            val apkFile = pendingVerifiedAppUpdateFile
+            if (apkFile == null || !apkFile.isFile || apkFile.length() <= 0L) {
+                pendingVerifiedAppUpdateFile = null
+                callJs(
+                    "onNativeAppUpdateProgress",
+                    "-1, ${JSONObject.quote("Verified APK is no longer available. Download it again.")}"
+                )
+                return
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                runOnUiThread {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Allow JET to install unknown apps, then tap Update Now again.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:$packageName")
+                        )
+                    )
+                }
+                return
+            }
+
+            lifecycleScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val archiveInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                            ?: throw IllegalStateException("Verified APK is no longer valid. Download it again.")
+                        if (archiveInfo.packageName != packageName) {
+                            throw IllegalStateException("Downloaded APK does not match this JET app variant.")
+                        }
+                        if (apkFile.length() <= 0L) {
+                            throw IllegalStateException("Downloaded APK is empty.")
+                        }
+                    }
                     val apkUri = FileProvider.getUriForFile(
                         this@MainActivity,
                         "${applicationContext.packageName}.fileprovider",
@@ -4629,12 +4673,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     startActivity(installIntent)
                 } catch (error: Exception) {
-                    withContext(Dispatchers.IO) {
-                        if (apkFile.exists()) apkFile.delete()
-                    }
                     callJs(
-                        "onNativeAppUpdateProgress",
-                        "-1, ${JSONObject.quote(error.message ?: "Unable to download APK update")}"
+                        "onNativeAppUpdateInstallError",
+                        JSONObject.quote(error.message ?: "Unable to open Android installer")
                     )
                 }
             }
