@@ -39,12 +39,7 @@
     <circle cx="50" cy="50" r="40" fill="url(#label)"/>
     <circle cx="50" cy="50" r="38" fill="#10151C"/>
     <circle cx="50" cy="50" r="38" fill="none" stroke="#FFB020" stroke-width="0.6" opacity="0.8"/>
-    <g transform="translate(50 50) scale(0.9) translate(-50 -54)">
-      <path d="M50 66 L74 90 L50 82 L26 90 Z" fill="#FF5A1F"/>
-      <path d="M50 70 L64 84 L50 79 L36 84 Z" fill="#FFB020"/>
-      <path d="M50 18 L90 62 L78 66 L68 60 L58 68 L50 62 L42 68 L32 60 L22 66 L10 62 Z" fill="#F4F4F2"/>
-      <path d="M46 34 L54 34 L52 42 L48 42 Z" fill="#10151C"/>
-    </g>
+
   </g>
   <g clip-path="url(#discClip)">
     <path d="M50 50 L20 -10 L55 -10 Z" fill="url(#sheen)"/>
