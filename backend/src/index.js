@@ -143,7 +143,7 @@ async function adminSummary(request, env) {
   const [users, active, downloads, engines, logs, links, reports] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS count FROM users").first(),
     env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE last_seen >= ?").bind(todayStart).first(),
-    env.DB.prepare("SELECT COUNT(*) AS count FROM top_links").first().then(async () => env.DB.prepare("SELECT COALESCE(SUM(download_count), 0) AS count FROM top_links").first()),
+    env.DB.prepare("SELECT COALESCE(SUM(download_count), 0) AS count FROM top_links").first(),
     env.DB.prepare(`
       SELECT
         COALESCE(SUM(CASE WHEN engine IS NOT NULL AND engine NOT IN ('yt-dlp-managed', 'unknown', '') THEN 1 ELSE 0 END), 0) AS custom,
