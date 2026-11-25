@@ -1606,7 +1606,7 @@ class MainActivity : AppCompatActivity() {
                             val ext = fileName.substringAfterLast('.', "").uppercase(Locale.US)
                                 .ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
                             val canReadPath = file?.isFile == true
-                            val resolution = if (type == "video" && canReadPath) extractVideoResolution(file!!) else ""
+                            val resolution = ""
                             val itemUri = mediaUri?.toString() ?: file?.let { Uri.fromFile(it).toString() }.orEmpty()
                             addItem(
                                 LibraryItemPayload(
@@ -1666,7 +1666,7 @@ class MainActivity : AppCompatActivity() {
                     addItem(
                         LibraryItemPayload(
                             id = file.name.hashCode(), title = file.nameWithoutExtension, type = type,
-                            meta = formatBytes(size) + (if (type == "video") (savedByPath[file.absolutePath]?.resolution?.ifBlank { null } ?: extractVideoResolution(file)).takeIf { it.isNotBlank() }?.let { " · $it" } ?: "" else "") + " · " + ext, duration = "",
+                            meta = formatBytes(size) + (if (type == "video") savedByPath[file.absolutePath]?.resolution?.ifBlank { null }?.let { " · $it" } ?: "" else "") + " · " + ext, duration = "",
                             filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
                             thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl
                                 ?.takeIf { it.isNotBlank() }
