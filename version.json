@@ -1,8 +1,9 @@
 {
-  "versionCode": 349,
-  "versionName": "0.9.6",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.6/app-universal-release.apk",
+  "versionCode": 350,
+  "versionName": "0.9.7",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.7/app-universal-release.apk",
   "changelog": [
+    "Hardened Library native-to-WebView scan chunk delivery and final-chunk handling",
     "Fixed Library media permission request and scan refresh flow",
     "Added a clear permission retry action and scan timeout fallback",
     "Improved MediaStore scanning on scoped-storage devices",
