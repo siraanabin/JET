@@ -1567,7 +1567,7 @@ class MainActivity : AppCompatActivity() {
                 fun addItem(item: LibraryItemPayload) {
                     allItems.add(item)
                     chunk.add(item)
-                    if (chunk.size >= 50) flushChunk()
+                    if (chunk.size >= 20) flushChunk()
                 }
 
                 fun queryCollection(collection: Uri, type: String) {
@@ -1682,7 +1682,7 @@ class MainActivity : AppCompatActivity() {
                 cachedLibraryItems = allItems.toList()
                 runCatching { libraryCacheFile.writeText(json.encodeToString(allItems)) }
                     .onFailure { Log.w("JET-Library", "Could not persist Library cache", it) }
-                Log.i("JET-Library", "Media scan delivered $sentCount items in 50-item chunks; final chunk dispatched")
+                Log.i("JET-Library", "Media scan delivered $sentCount items in 20-item chunks; final chunk dispatched")
                 Log.i("JET-Library-Perf", "full_scan_total_ms=${SystemClock.elapsedRealtime() - scanStartedAt}; delivered_items=$sentCount")
                 lifecycleScope.launch(Dispatchers.IO) {
                     val statsStartedAt = SystemClock.elapsedRealtime()
