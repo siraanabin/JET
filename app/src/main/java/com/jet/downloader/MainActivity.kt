@@ -2765,27 +2765,6 @@ class MainActivity : AppCompatActivity() {
                         File(packagesDir, "aria2c/usr/lib")
                     )
                     val ldLibraryPath = libraryDirs.joinToString(File.pathSeparator) { it.absolutePath }
-                    libraryDirs.forEach { directory ->
-                        Log.d(
-                            "ENGINE_DEBUG",
-                            "downloadId=" + downloadId + " ffmpeg_library_directory path=" +
-                                directory.absolutePath + " exists=" + directory.isDirectory
-                        )
-                    }
-                    val bundledSoFiles = libraryDirs
-                        .filter { it.isDirectory }
-                        .flatMap { directory ->
-                            directory.walkTopDown()
-                                .filter { it.isFile && it.name.endsWith(".so", ignoreCase = true) }
-                                .map { it.absolutePath }
-                                .toList()
-                        }
-                        .distinct()
-                        .sorted()
-                    logAudioDebug(
-                        "downloadId=" + downloadId + " ffmpeg_bundled_so_files count=" + bundledSoFiles.size,
-                        bundledSoFiles.joinToString("\n")
-                    )
                     val bitrateKbps = Regex("[0-9]+").find(audioBitrate)?.value?.toIntOrNull()
                         ?.coerceIn(64, 320) ?: 192
                     val args = listOf(
@@ -2851,8 +2830,7 @@ class MainActivity : AppCompatActivity() {
                                     stderrOutput.append(line).append('\n')
                                     Regex("""time=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { lastProgressTime = it }
                                     Regex("""speed=([^\s]+)""").find(line)?.groupValues?.getOrNull(1)?.let { lastProgressSpeed = it }
-                                    logAudioDebug("downloadId=" + downloadId + " ffmpeg_stderr", line)
-                                }
+                                    }
                             }
                         } catch (error: Throwable) {
                             runningProcess.destroyForcibly()
@@ -2871,7 +2849,6 @@ class MainActivity : AppCompatActivity() {
                             throw (readerFailure as? Exception ?: RuntimeException(readerFailure))
                         }
                         ffSpeedLine = "time=" + lastProgressTime + "|speed=" + lastProgressSpeed
-                        Log.d("ENGINE_DEBUG", "downloadId=" + downloadId + " ffSpeedLine=" + ffSpeedLine)
                         code
                     } finally {
                         readers.shutdownNow()
@@ -3258,26 +3235,6 @@ class MainActivity : AppCompatActivity() {
                     File(packagesDir, "aria2c/usr/lib")
                 )
                 val ldLibraryPath = libraryDirs.joinToString(File.pathSeparator) { it.absolutePath }
-                libraryDirs.forEach { directory ->
-                    Log.d(
-                        "ENGINE_DEBUG",
-                        "downloadId=$downloadId ffmpeg_library_directory path=${directory.absolutePath} exists=${directory.isDirectory}"
-                    )
-                }
-                val bundledSoFiles = libraryDirs
-                    .filter { it.isDirectory }
-                    .flatMap { directory ->
-                        directory.walkTopDown()
-                            .filter { it.isFile && it.name.endsWith(".so", ignoreCase = true) }
-                            .map { it.absolutePath }
-                            .toList()
-                    }
-                    .distinct()
-                    .sorted()
-                logEngineDebugText(
-                    "downloadId=$downloadId ffmpeg_bundled_so_files count=${bundledSoFiles.size}",
-                    bundledSoFiles.joinToString("\n")
-                )
 
                 val runningProcess = ProcessBuilder(args)
                     .redirectErrorStream(false)
@@ -3339,7 +3296,6 @@ class MainActivity : AppCompatActivity() {
                         runningProcess.errorStream.bufferedReader().useLines { lines ->
                             lines.forEach { line ->
                                 stderrOutput.append(line).append('\n')
-                                logEngineDebugText("downloadId=$downloadId ffmpeg_stderr", line)
                             }
                         }
                     } catch (error: Throwable) {
