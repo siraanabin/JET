@@ -176,8 +176,9 @@ jobs:
 
       - name: Verify signed APK exists
         run: |
-          test -s app/build/outputs/apk/release/app-release.apk
-          ls -lh app/build/outputs/apk/release/app-release.apk
+          APK_PATH="app/build/outputs/apk/release/app-universal-release.apk"
+          test -s "$APK_PATH"
+          ls -lh "$APK_PATH"
 
       - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -185,7 +186,7 @@ jobs:
           tag_name: v${{ steps.version.outputs.version_name }}
           name: JET v${{ steps.version.outputs.version_name }}
           target_commitish: ${{ github.sha }}
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/release/app-universal-release.apk
           overwrite_files: true
           fail_on_unmatched_files: true
           make_latest: true
