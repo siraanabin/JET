@@ -967,18 +967,17 @@ class MainActivity : AppCompatActivity() {
         val window = window
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         val isDarkMode = isDarkTheme(themeMode)
+        // Match the Android status bar to the app's theme surface, not the page canvas.
         val statusColor = when (themeMode) {
-            PreferencesManager.THEME_WARM -> "#E3D7D1"
-            PreferencesManager.THEME_OCEAN -> "#071321"
-            else -> if (isDarkMode) "#080B12" else "#F4F6FB"
-        }
-        val navigationColor = when (themeMode) {
             PreferencesManager.THEME_WARM -> "#F4ECE4"
             PreferencesManager.THEME_OCEAN -> "#0D1D2B"
             else -> if (isDarkMode) "#121826" else "#FFFFFF"
         }
+        val navigationColor = statusColor
         window.statusBarColor = Color.parseColor(statusColor)
         window.navigationBarColor = Color.parseColor(navigationColor)
+        window.isStatusBarContrastEnforced = false
+        window.isNavigationBarContrastEnforced = false
         controller.isAppearanceLightStatusBars = !isDarkMode
         controller.isAppearanceLightNavigationBars = !isDarkMode
     }
@@ -1493,6 +1492,15 @@ class MainActivity : AppCompatActivity() {
         return data
     }
 
+    // Library scans must never decode media thumbnails on the critical path.
+    // A cache miss returns immediately; thumbnail generation can happen during later use.
+    private fun cachedLibraryThumbnail(file: File, type: String): String {
+        val key = (file.absolutePath + "|" + file.length() + "|" + file.lastModified()).hashCode().toUInt().toString(16)
+        val cacheName = if (type == "audio") "audio-$key.txt" else "$key.txt"
+        val cached = File(libraryThumbnailCacheDir, cacheName)
+        return if (cached.isFile) runCatching { cached.readText() }.getOrDefault("") else ""
+    }
+
     private fun deliverCachedLibrary(items: List<LibraryItemPayload>) {
         callJs("onNativeLibraryScanStarted", "")
         items.chunked(50).forEachIndexed { index, chunk ->
@@ -1509,40 +1517,47 @@ class MainActivity : AppCompatActivity() {
 
     private fun pushScannedLibraryToWeb(force: Boolean = false) {
         lifecycleScope.launch(Dispatchers.IO) {
+            val scanStartedAt = SystemClock.elapsedRealtime()
             var scanFinalized = false
             var scanFailureMessage: String? = null
             try {
                 if (!force) {
+                    val cacheReadStartedAt = SystemClock.elapsedRealtime()
                     val diskItems = cachedLibraryItems ?: runCatching {
                         if (libraryCacheFile.isFile) json.decodeFromString<List<LibraryItemPayload>>(libraryCacheFile.readText()) else null
                     }.getOrNull()
+                    Log.i("JET-Library-Perf", "cache_read_ms=${SystemClock.elapsedRealtime() - cacheReadStartedAt}; cache_items=${diskItems?.size ?: -1}")
                     if (diskItems != null) {
                         cachedLibraryItems = diskItems
+                        val deliverStartedAt = SystemClock.elapsedRealtime()
                         deliverCachedLibrary(diskItems)
-                        val audioBytes = if (hasAudioReadPermission()) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
-                        val videoBytes = if (hasVideoReadPermission()) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
-                        pushStorageStats(audioBytes, videoBytes)
+                        Log.i("JET-Library-Perf", "cache_deliver_ms=${SystemClock.elapsedRealtime() - deliverStartedAt}; total_ms=${SystemClock.elapsedRealtime() - scanStartedAt}")
+                        // Storage totals are secondary UI data. Never hold the Library's first paint
+                        // while the MediaStore aggregate queries complete.
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val statsStartedAt = SystemClock.elapsedRealtime()
+                            val audioBytes = if (hasAudioReadPermission()) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
+                            val videoBytes = if (hasVideoReadPermission()) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
+                            pushStorageStats(audioBytes, videoBytes)
+                            Log.i("JET-Library-Perf", "cached_storage_stats_ms=${SystemClock.elapsedRealtime() - statsStartedAt}")
+                        }
                         scanFinalized = true
                         return@launch
                     }
                 }
+                Log.i("JET-Library-Perf", "full_scan_start force=$force")
                 callJs("onNativeLibraryScanStarted", "")
                 val videoPermission = hasVideoReadPermission()
                 val audioPermission = hasAudioReadPermission()
 
-                // Storage capacity is obtained from filesystem metadata; media totals
-                // are calculated by the MediaStore provider, not by summing every row.
-                val audioBytes = if (audioPermission) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
-                val videoBytes = if (videoPermission) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
-                pushStorageStats(audioBytes, videoBytes)
-
+                // Defer aggregate totals until after media rows have been delivered.
                 val chunk = ArrayList<LibraryItemPayload>(50)
                 val allItems = ArrayList<LibraryItemPayload>()
                 var sentCount = 0
                 fun flushChunk(isFinal: Boolean = false) {
                     if (chunk.isNotEmpty() || isFinal) {
                         val chunkJson = org.json.JSONArray(json.encodeToString(chunk)).toString()
-                        Log.d("JET-Library", "Dispatch chunk size=${chunk.size}, final=$isFinal")
+                        Log.d("JET-Library", "Dispatch chunk size=${chunk.size}, final=$isFinal, elapsed_ms=${SystemClock.elapsedRealtime() - scanStartedAt}")
                         callJs("onNativeLibraryChunk", "$chunkJson, $isFinal")
                         sentCount += chunk.size
                         chunk.clear()
@@ -1552,7 +1567,7 @@ class MainActivity : AppCompatActivity() {
                 fun addItem(item: LibraryItemPayload) {
                     allItems.add(item)
                     chunk.add(item)
-                    if (chunk.size >= 50) flushChunk()
+                    if (chunk.size >= 20) flushChunk()
                 }
 
                 fun queryCollection(collection: Uri, type: String) {
@@ -1591,7 +1606,7 @@ class MainActivity : AppCompatActivity() {
                             val ext = fileName.substringAfterLast('.', "").uppercase(Locale.US)
                                 .ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
                             val canReadPath = file?.isFile == true
-                            val resolution = if (type == "video" && canReadPath) extractVideoResolution(file!!) else ""
+                            val resolution = ""
                             val itemUri = mediaUri?.toString() ?: file?.let { Uri.fromFile(it).toString() }.orEmpty()
                             addItem(
                                 LibraryItemPayload(
@@ -1604,7 +1619,7 @@ class MainActivity : AppCompatActivity() {
                                     fileUri = itemUri,
                                     // Path-based thumbnail extraction is optional; the MediaStore row
                                     // remains visible when direct filesystem access is unavailable.
-                                    thumbnailUrl = if (!canReadPath) "" else if (type == "video") thumbnailFromDiskCache(file!!) else if (type == "audio") audioThumbnailFromDiskCache(file!!) else "",
+                                    thumbnailUrl = if (!canReadPath) "" else cachedLibraryThumbnail(file!!, type),
                                     size = formatBytes(size),
                                     format = ext,
                                     dominantColor = "#20242E",
@@ -1617,12 +1632,18 @@ class MainActivity : AppCompatActivity() {
 
                 // A MediaStore provider/query failure must not prevent scanning the app-owned
                 // Downloads/JET folder below.
-                if (videoPermission) runCatching {
-                    queryCollection(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video")
-                }.onFailure { Log.w("JET-Library", "Video MediaStore scan failed; continuing with local downloads", it) }
-                if (audioPermission) runCatching {
-                    queryCollection(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, "audio")
-                }.onFailure { Log.w("JET-Library", "Audio MediaStore scan failed; continuing with local downloads", it) }
+                if (videoPermission) {
+                    val queryStartedAt = SystemClock.elapsedRealtime()
+                    runCatching { queryCollection(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video") }
+                        .onFailure { Log.w("JET-Library", "Video MediaStore scan failed; continuing with local downloads", it) }
+                    Log.i("JET-Library-Perf", "video_query_ms=${SystemClock.elapsedRealtime() - queryStartedAt}; items=${allItems.size}")
+                }
+                if (audioPermission) {
+                    val queryStartedAt = SystemClock.elapsedRealtime()
+                    runCatching { queryCollection(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, "audio") }
+                        .onFailure { Log.w("JET-Library", "Audio MediaStore scan failed; continuing with local downloads", it) }
+                    Log.i("JET-Library-Perf", "audio_query_ms=${SystemClock.elapsedRealtime() - queryStartedAt}; items=${allItems.size}")
+                }
 
                 val dir = getJetDownloadDir()
                 val files = dir.listFiles()
@@ -1645,14 +1666,14 @@ class MainActivity : AppCompatActivity() {
                     addItem(
                         LibraryItemPayload(
                             id = file.name.hashCode(), title = file.nameWithoutExtension, type = type,
-                            meta = formatBytes(size) + (if (type == "video") (savedByPath[file.absolutePath]?.resolution?.ifBlank { null } ?: extractVideoResolution(file)).takeIf { it.isNotBlank() }?.let { " · $it" } ?: "" else "") + " · " + ext, duration = "",
+                            meta = formatBytes(size) + (if (type == "video") savedByPath[file.absolutePath]?.resolution?.ifBlank { null }?.let { " · $it" } ?: "" else "") + " · " + ext, duration = "",
                             filePath = file.absolutePath, fileUri = Uri.fromFile(file).toString(),
                             thumbnailUrl = savedByPath[file.absolutePath]?.thumbnailUrl
                                 ?.takeIf { it.isNotBlank() }
-                                ?: if (type == "video") thumbnailFromDiskCache(file) else if (type == "audio") audioThumbnailFromDiskCache(file).ifBlank { "file:///android_asset/images/music-placeholder.svg" } else "",
+                                ?: if (type == "video" || type == "audio") cachedLibraryThumbnail(file, type).ifBlank { if (type == "audio") "file:///android_asset/images/music-placeholder.svg" else "" } else "",
                             size = formatBytes(size), format = ext, dominantColor = "#20242E",
                             resolution = savedByPath[file.absolutePath]?.resolution?.ifBlank { null }
-                                ?: if (type == "video") extractVideoResolution(file) else ""
+                                ?: ""
                         )
                     )
                 }
@@ -1661,7 +1682,15 @@ class MainActivity : AppCompatActivity() {
                 cachedLibraryItems = allItems.toList()
                 runCatching { libraryCacheFile.writeText(json.encodeToString(allItems)) }
                     .onFailure { Log.w("JET-Library", "Could not persist Library cache", it) }
-                Log.i("JET-Library", "Media scan delivered $sentCount items in 50-item chunks; final chunk dispatched")
+                Log.i("JET-Library", "Media scan delivered $sentCount items in 20-item chunks; final chunk dispatched")
+                Log.i("JET-Library-Perf", "full_scan_total_ms=${SystemClock.elapsedRealtime() - scanStartedAt}; delivered_items=$sentCount")
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val statsStartedAt = SystemClock.elapsedRealtime()
+                    val audioBytes = if (audioPermission) queryMediaAggregateSize(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) else 0L
+                    val videoBytes = if (videoPermission) queryMediaAggregateSize(MediaStore.Video.Media.EXTERNAL_CONTENT_URI) else 0L
+                    pushStorageStats(audioBytes, videoBytes)
+                    Log.i("JET-Library-Perf", "full_scan_storage_stats_ms=${SystemClock.elapsedRealtime() - statsStartedAt}")
+                }
             } catch (error: Throwable) {
                 scanFailureMessage = error.message ?: "Media scan failed"
                 Log.e("JET-Library", "Device media scan failed", error)

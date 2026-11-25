@@ -1,8 +1,11 @@
 {
-  "versionCode": 362,
-  "versionName": "0.9.19",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.19/app-universal-release.apk",
+  "versionCode": 363,
+  "versionName": "0.9.20",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.20/app-universal-release.apk",
   "changelog": [
+    "Removed the rectangular NewPipe + Media3 badge beside JET on the Home screen",
+    "Added a sliders icon beside Player Settings",
+    "Matched Android time, network, Wi-Fi and battery status bar background to the selected theme",
     "Prevented Android installer from opening before APK download and integrity verification complete",
     "Improved Library rendering performance for large media collections",
     "Added Warm Coral and Ocean Night themes",
