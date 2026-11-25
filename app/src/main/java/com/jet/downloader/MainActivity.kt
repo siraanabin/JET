@@ -316,7 +316,29 @@ class MainActivity : AppCompatActivity() {
                     depth++
                 }
             }
-            val stackTraceFirst10 = t.stackTrace.take(10).joinToString(" | ") { it.toString() }
+            val stackTraceFirst10 = t.stackTraceToString().lineSequence().take(10).joinToString("\n")
+            val failureTimestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ", Locale.US).format(java.util.Date())
+            val failureRawLog = buildString {
+                appendLine("status=FAILED")
+                appendLine("initStep=$ytDlpInitStep")
+                appendLine("initError=$errorClass:$errorMessage")
+                appendLine("causeChain=$causeChain")
+                appendLine("stackTraceFirst10:")
+                appendLine(stackTraceFirst10)
+                append("timestamp=$failureTimestamp")
+            }
+            val failureTelemetry = JSONObject().apply {
+                put("status", "FAILED")
+                put("engine", "yt-dlp")
+                put("title", "yt-dlp initialization failed")
+                put("initStep", ytDlpInitStep)
+                put("initError", "$errorClass:$errorMessage")
+                put("causeChain", causeChain)
+                put("stackTraceFirst10", stackTraceFirst10)
+                put("timestamp", failureTimestamp)
+                put("rawLog", failureRawLog)
+            }
+            callJs("onNativeYtDlpInitFailure", failureTelemetry.toString())
             Log.e(
                 "ENGINE_DEBUG",
                 "yt-dlp initialization failed exceptionClass=$errorClass message=$errorMessage initStep=$ytDlpInitStep causeChain=$causeChain stackTraceFirst10=$stackTraceFirst10",

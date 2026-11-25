@@ -476,7 +476,7 @@
               <div class="flex items-center justify-between gap-3"><span class="flex min-w-0 flex-1 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="gauge" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Show Download Speed Stats</span><span class="block text-[11px] text-app-secondary mt-0.5">Show detailed telemetry in Settings</span></span></span><button id="show-download-speed-stats-toggle" type="button" aria-checked="false" class="toggle-track w-12 h-7 rounded-full bg-app-elevated border border-app-border p-0.5 flex items-center"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow"></span></button></div>
               <div id="download-telemetry-table-wrap" class="hidden mt-3 rounded-2xl border border-app-border bg-app-elevated/30 overflow-hidden">
                 <div class="flex items-center justify-between gap-2 p-3">
-                  <div class="min-w-0"><p class="text-xs font-bold text-app-text">Recent Download Telemetry</p><p class="text-[10px] text-app-secondary mt-0.5">Latest 4 completed downloads · tap a row to copy its log</p></div>
+                  <div class="min-w-0"><p class="text-xs font-bold text-app-text">Recent Download Telemetry</p><p class="text-[10px] text-app-secondary mt-0.5">Latest 4 download attempts · tap a row to copy its log</p></div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     <button id="telemetry-copy-all" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-primaryTint text-app-primary text-[10px] font-bold">Copy All (0)</button>
                     <button id="telemetry-clear" type="button" class="px-2.5 py-1.5 rounded-lg bg-app-elevated text-app-secondary text-[10px] font-bold">Clear Logs</button>
@@ -1114,7 +1114,7 @@
             '<td class="px-3 py-3 align-top"><p class="truncate text-[11px] font-bold text-app-text" title="' + title + '">' + title + '</p><p class="mt-1 truncate text-[10px] text-app-secondary">' + fileMeta + '</p></td>' +
             '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>DL: ' + telemetryEscape(item.downloadSec || '—') + '</div><div>Convert: ' + telemetryEscape(item.convertSec || '—') + '</div><div>FF init: ' + telemetryEscape(item.ffInitSec || '—') + '</div><div>FF prep: ' + telemetryEscape(item.ffPrepSec || '—') + '</div><div>FF exec: ' + telemetryEscape(item.ffExecSec || '—') + '</div><div>FF move: ' + telemetryEscape(item.ffMoveSec || '—') + '</div><div class="whitespace-normal break-all">FF speed: ' + telemetryEscape(item.ffSpeedLine || '—') + '</div><div>Mux: ' + telemetryEscape(item.muxSec || '—') + '</div><div class="font-bold text-app-text">Total: ' + telemetryEscape(item.totalSec || '—') + '</div></td>' +
             '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Net: ' + telemetryEscape(item.netSpeedText || '—') + '</div><div>Avg: ' + telemetryEscape(item.avgSpeedText || '—') + '</div></td>' +
-            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Engine: ' + telemetryEscape(item.engine || 'n/a') + '</div><div>Conn: ' + telemetryEscape(item.connections || 'n/a') + ' (' + telemetryEscape(item.chunkSize || 'n/a') + ')</div><div>Retries: ' + telemetryEscape(item.retries == null ? '—' : item.retries) + '</div><div>Blocks: ' + telemetryEscape(item.blocks == null ? '—' : item.blocks) + '</div><div class="mt-1 whitespace-normal break-all">Fallback: ' + telemetryEscape(item.fallbackReason || 'none') + '</div><div class="whitespace-normal break-all">Init error: ' + telemetryEscape(item.initError || 'none') + '</div><div class="whitespace-normal break-all">Init step: ' + telemetryEscape(item.initStep || 'not_started') + '</div></td></tr>';
+            '<td class="px-3 py-3 align-top text-[10px] leading-5 text-app-secondary whitespace-nowrap"><div>Status: ' + telemetryEscape(item.status || 'COMPLETED') + '</div><div>Engine: ' + telemetryEscape(item.engine || 'n/a') + '</div><div>Conn: ' + telemetryEscape(item.connections || 'n/a') + ' (' + telemetryEscape(item.chunkSize || 'n/a') + ')</div><div>Retries: ' + telemetryEscape(item.retries == null ? '—' : item.retries) + '</div><div>Blocks: ' + telemetryEscape(item.blocks == null ? '—' : item.blocks) + '</div><div class="mt-1 whitespace-normal break-all">Fallback: ' + telemetryEscape(item.fallbackReason || 'none') + '</div><div class="whitespace-normal break-all">Init error: ' + telemetryEscape(item.initError || 'none') + '</div><div class="whitespace-normal break-all">Init step: ' + telemetryEscape(item.initStep || 'not_started') + '</div><div class="whitespace-normal break-all">Cause chain: ' + telemetryEscape(item.causeChain || '—') + '</div><div class="whitespace-normal break-all">Stack trace (first 10 lines): ' + telemetryEscape(item.stackTraceFirst10 || '—') + '</div></td></tr>';
         }).join('');
       }
 
@@ -1138,6 +1138,11 @@
         try { localStorage.setItem('jet-telemetry-last4-v1', JSON.stringify(state.telemetryLast4)); } catch (_) {}
         renderTelemetryTable();
       }
+
+      window.onNativeYtDlpInitFailure = function (record) {
+        if (!record || typeof record !== 'object') return;
+        persistTelemetryLast4(record);
+      };
 
       const telemetryWrap = $('download-telemetry-table-wrap');
       if (telemetryWrap && telemetryWrap.dataset.bound !== 'true') {
