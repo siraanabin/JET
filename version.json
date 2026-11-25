@@ -1,8 +1,12 @@
 {
-  "versionCode": 364,
-  "versionName": "0.9.21",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.21/app-universal-release.apk",
+  "versionCode": 365,
+  "versionName": "0.9.22",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.22/app-universal-release.apk",
   "changelog": [
+    "Improved Library opening and rendering performance",
+    "Added lazy loading for Library video thumbnails",
+    "Optimized icon rendering to reduce UI work during navigation",
+    "Preserved original media titles in downloaded filenames, including Bangla text",
     "Added a CC badge icon beside Save subtitles",
     "Added page navigation timing and bottleneck diagnostics to Show Download Speed Stats logs",
     "Matched Android status bar colors to the selected app theme",
@@ -12,7 +16,6 @@
     "Added a sliders icon beside Player Settings",
     "Matched Android time, network, Wi-Fi and battery status bar background to the selected theme",
     "Prevented Android installer from opening before APK download and integrity verification complete",
-    "Improved Library rendering performance for large media collections",
     "Added Warm Coral and Ocean Night themes",
     "Updated music placeholder artwork with colorful headphones",
     "Added subtle color accents to Settings icons",
