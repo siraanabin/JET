@@ -1107,6 +1107,7 @@
       }
       // Navigation
       function switchScreen(target) {
+        const libraryNavStartedAt = target === 'library' ? performance.now() : 0;
         try {
           state.screen = target;
 
@@ -1132,7 +1133,12 @@
 
           // Paint cached items in this frame; keep the native scan off the tap stack.
           if (target === 'library') {
-            if (Array.isArray(state.library)) renderLibrary();
+            if (Array.isArray(state.library)) {
+              const renderStartedAt = performance.now();
+              renderLibrary();
+              console.info('[JET-Library-Perf] nav_render_ms=' + (performance.now() - renderStartedAt).toFixed(1) +
+                '; items=' + state.library.length + '; loaded=' + Boolean(state.libraryHasLoaded));
+            }
             // Keep the current file count and list stable when returning to Library.
             // The explicit refresh button and native MediaStore observer handle updates.
             if (!state.libraryHasLoaded && hasAndroid() && window.JetAndroid && window.JetAndroid.refreshLibrary) {
@@ -1151,6 +1157,9 @@
           // Keep icon refresh failures isolated from navigation and download controls.
           if (typeof refreshIcons === 'function') {
             try { refreshIcons(); } catch (e) { console.warn("refreshIcons bypassed for dual-svg nav:", e); }
+          }
+          if (target === 'library') {
+            console.info('[JET-Library-Perf] screen_switch_total_ms=' + (performance.now() - libraryNavStartedAt).toFixed(1));
           }
         } catch (err) {
           console.error("UI Switch Error:", err);
