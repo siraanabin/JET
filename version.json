@@ -1,8 +1,12 @@
 {
-  "versionCode": 359,
-  "versionName": "0.9.16",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.16/app-universal-release.apk",
+  "versionCode": 361,
+  "versionName": "0.9.18",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.18/app-universal-release.apk",
   "changelog": [
+    "Improved Library rendering performance for large media collections",
+    "Added Warm Coral and Ocean Night themes",
+    "Updated music placeholder artwork with colorful headphones",
+    "Added subtle color accents to Settings icons",
     "Added Player Settings for accent color, default playback speed, autoplay next and keep-screen-on",
     "Removed manual bug-report, sent-data details and data-deletion controls; anonymous diagnostics toggle remains",
     "Updated About disclaimer and made the displayed app version read from the installed APK",
