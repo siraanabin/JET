@@ -1978,10 +1978,20 @@
       };
 
       window.onNativeFileThumbnail = function (filePath, thumbnailUrl) {
-        const card=$('latest-download-card'); if(!thumbnailUrl||(filePath&&card.dataset.filePath!==filePath))return;
-        let cached={}; try{cached=JSON.parse(localStorage.getItem('jet-latest-saved-file-v1')||'{}')||{};}catch(_){}
-        cached.thumbnailUrl=thumbnailUrl; try{localStorage.setItem('jet-latest-saved-file-v1',JSON.stringify(cached));}catch(_){}
-        renderLatestSavedPreview(cached);
+        if (!thumbnailUrl) return;
+        const safePath = String(filePath || '');
+        const container = $('library-items-container');
+        if (container && safePath) {
+          const card = Array.from(container.querySelectorAll('[data-file-path]')).find((node) => node.dataset.filePath === safePath);
+          const img = card && card.querySelector('[data-library-thumbnail]');
+          if (img) { img.src = thumbnailUrl; img.classList.remove('hidden'); }
+        }
+        const card = $('latest-download-card');
+        if (!safePath || card.dataset.filePath === safePath) {
+          let cached={}; try{cached=JSON.parse(localStorage.getItem('jet-latest-saved-file-v1')||'{}')||{};}catch(_){}
+          cached.thumbnailUrl=thumbnailUrl; try{localStorage.setItem('jet-latest-saved-file-v1',JSON.stringify(cached));}catch(_){}
+          renderLatestSavedPreview(cached);
+        }
       };
 
       window.onNativeLibraryPermissionState = function (permissionState) {
@@ -2520,6 +2530,36 @@
         </div>`;
       }
 
+      let libraryThumbnailObserver = null;
+      function observeLibraryThumbnails(root) {
+        if (!root || !window.JetAndroid || typeof window.JetAndroid.requestFileThumbnail !== 'function') return;
+        if (!libraryThumbnailObserver && 'IntersectionObserver' in window) {
+          libraryThumbnailObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              const card = entry.target;
+              libraryThumbnailObserver.unobserve(card);
+              if (card.dataset.thumbnailRequested === 'true') return;
+              card.dataset.thumbnailRequested = 'true';
+              const frame = card.querySelector('.relative.aspect-video, .w-12.h-12, .w-16.h-16');
+              if (frame && card.dataset.mediaType === 'video' && !frame.querySelector('[data-library-thumbnail]')) {
+                const img = document.createElement('img');
+                img.dataset.libraryThumbnail = 'true';
+                img.alt = '';
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                img.className = 'absolute inset-0 w-full h-full object-cover bg-[#141923]';
+                frame.appendChild(img);
+              }
+              window.JetAndroid.requestFileThumbnail(card.dataset.filePath || '', card.dataset.fileUri || '');
+            });
+          }, { root: document.getElementById('scroll-container'), rootMargin: '240px 0px', threshold: 0.01 });
+        }
+        if (libraryThumbnailObserver) {
+          root.querySelectorAll('[data-play-title][data-media-type="video"][data-file-uri]:not([data-thumbnail-requested="true"])').forEach((card) => libraryThumbnailObserver.observe(card));
+        }
+      }
+
       function renderLibrary() {
         const filterKey = state.libraryDataRevision + '|' + state.libFilter + '|' + state.libSearch;
         if (libraryFilteredCacheKey !== filterKey) {
@@ -2554,7 +2594,7 @@
           const audioBackground = 'background:linear-gradient(135deg,' + accent + ' 0%,#171A20 78%)';
           if (state.libView === 'grid') {
             return `
-              <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${item.type || 'video'}"
+              <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
                 class="surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
                 <div class="relative aspect-video w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                   ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
@@ -2590,20 +2630,24 @@
             </div>
           `;
         };
-        container.innerHTML = filtered.slice(0, 15).map(renderItem).join('');
-        let offset = 15;
+        // Render a small first batch so Library becomes interactive before long lists are built.
+        container.innerHTML = filtered.slice(0, 12).map(renderItem).join('');
+        observeLibraryThumbnails(container);
+        let offset = 12;
         const appendChunk = () => {
           if (generation !== libraryRenderGeneration || offset >= filtered.length) return;
-          const end = Math.min(offset + 20, filtered.length);
+          const end = Math.min(offset + 40, filtered.length);
           const template = document.createElement('template');
           template.innerHTML = filtered.slice(offset, end).map(renderItem).join('');
           container.appendChild(template.content);
           offset = end;
           refreshIcons(container);
+          observeLibraryThumbnails(container);
           bindLibraryMenuButtons();
           if (offset < filtered.length) requestAnimationFrame(appendChunk);
         };
-        refreshIcons();
+        // Only process icons inside Library; a document-wide icon scan made tab switches slower.
+        refreshIcons(container);
         bindLibraryMenuButtons();
         if (offset < filtered.length) requestAnimationFrame(appendChunk);
       }
