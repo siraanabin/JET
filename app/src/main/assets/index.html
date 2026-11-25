@@ -582,7 +582,7 @@
                 <div class="border-t border-app-border p-3">
                   <div class="flex items-center justify-between gap-2 mb-2"><p class="text-xs font-bold text-app-text">Recent Navigation Performance</p><span class="text-[10px] text-app-secondary">Last 10 page switches</span></div>
                   <div class="overflow-x-auto overscroll-x-contain"><table class="w-full min-w-[520px] text-left">
-                    <thead><tr class="border-b border-app-border text-[10px] uppercase tracking-wide text-app-muted"><th class="px-2 py-2">From → To</th><th class="px-2 py-2">Time</th><th class="px-2 py-2">Breakdown / likely bottleneck</th></tr></thead>
+                    <thead><tr class="border-b border-app-border text-[10px] uppercase tracking-wide text-app-muted"><th class="px-2 py-2">From → To</th><th class="px-2 py-2">UI / Paint</th><th class="px-2 py-2">Breakdown / likely bottleneck</th></tr></thead>
                     <tbody id="navigation-telemetry-table-body"></tbody>
                   </table></div>
                 </div>
@@ -1289,7 +1289,7 @@
         const navRows = Array.isArray(state.navigationTelemetryLast10) ? state.navigationTelemetryLast10.slice(0, 10) : [];
         if (navBody) navBody.innerHTML = navRows.length ? navRows.map((item) =>
           '<tr class="border-b border-app-border last:border-0"><td class="px-2 py-2 text-[10px] font-bold text-app-text">' + telemetryEscape(item.from) + ' → ' + telemetryEscape(item.to) + '<div class="text-[9px] font-normal text-app-secondary">' + telemetryEscape(item.timestamp) + '</div></td>' +
-          '<td class="px-2 py-2 text-[10px] font-bold text-app-text whitespace-nowrap">' + telemetryEscape(item.totalMs) + ' ms</td>' +
+          '<td class="px-2 py-2 text-[10px] font-bold text-app-text whitespace-nowrap">' + telemetryEscape(item.totalMs) + ' ms<div class="font-normal text-app-secondary">Paint: ' + telemetryEscape(item.paintMs == null ? '…' : item.paintMs) + ' ms</div></td>' +
           '<td class="px-2 py-2 text-[10px] text-app-secondary whitespace-normal">' + telemetryEscape(item.reason) + (item.scanMs ? '<div class="mt-1">Media scan: ' + telemetryEscape(item.scanMs) + ' ms</div>' : '') + '</td></tr>'
         ).join('') : '<tr><td colspan="3" class="px-2 py-4 text-center text-[10px] text-app-secondary">No navigation logs yet. Switch between pages to collect timings.</td></tr>';
         const copyAll = $('telemetry-copy-all');
