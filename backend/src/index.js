@@ -9,6 +9,7 @@ import {
   USER_SUBMISSION_LIMIT,
   isValidInstallId,
   isValidVideoId,
+  normalizeBugLogs,
   sanitizeSensitiveText,
 } from "./limits.js";
 
@@ -273,14 +274,16 @@ async function submitUserItem(request, env, kind) {
   if (kind === "bug") {
     const description = sanitizeSensitiveText(body?.description, 500);
     if (!description) return json({ ok: false, code: "INVALID_DESCRIPTION" }, 400);
+    const logs = normalizeBugLogs(body?.logs);
+    if (logs === null) return json({ ok: false, code: "INVALID_LOGS", maxLogs: 20, maxChars: 6000 }, 400);
     const category = sanitizeSensitiveText(String(body.category || "general"), 80) || "general";
     const appVersion = cleanNullableText(body.appVersion, 40);
     statements.push(env.DB.prepare(`
-      INSERT INTO bug_reports(day, install_hash, category, description, app_version, created_at)
-      SELECT ?, ?, ?, ?, ?, ?
+      INSERT INTO bug_reports(day, install_hash, category, description, app_version, logs, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?
       WHERE (SELECT submission_count FROM daily_counters WHERE day = ? AND install_hash = ?) < ?
         AND (SELECT write_units FROM daily_counters WHERE day = ? AND install_hash = '__global__') + ? <= ?
-    `).bind(day, hash, category, description, appVersion, createdAt,
+    `).bind(day, hash, category, description, appVersion, logs, createdAt,
       day, hash, USER_SUBMISSION_LIMIT, day, SUBMISSION_WRITE_RESERVATION, DAILY_WRITE_KILL_SWITCH));
   } else {
     if (!isValidVideoId(body?.video_id)) return json({ ok: false, code: "INVALID_VIDEO_ID" }, 400);
