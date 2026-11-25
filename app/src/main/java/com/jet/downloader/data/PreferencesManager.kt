@@ -43,6 +43,8 @@ class PreferencesManager(private val context: Context) {
         const val THEME_SYSTEM = "system"
         const val THEME_DARK = "dark"
         const val THEME_LIGHT = "light"
+        const val THEME_WARM = "warm"
+        const val THEME_OCEAN = "ocean"
     }
 
     val themeModeFlow: Flow<String> = context.jetDataStore.data.map { prefs ->
@@ -79,7 +81,7 @@ class PreferencesManager(private val context: Context) {
     }
 
     suspend fun setThemeMode(mode: String) {
-        require(mode == THEME_SYSTEM || mode == THEME_DARK || mode == THEME_LIGHT) {
+        require(mode == THEME_SYSTEM || mode == THEME_DARK || mode == THEME_LIGHT || mode == THEME_WARM || mode == THEME_OCEAN) {
             "Unsupported theme mode: $mode"
         }
         context.jetDataStore.edit { prefs ->

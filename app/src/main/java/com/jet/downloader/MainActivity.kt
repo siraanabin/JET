@@ -665,8 +665,8 @@ class MainActivity : AppCompatActivity() {
         // Preserve the app's three-part layout; system bars remain outside WebView content.
         val initialThemeMode = runBlocking { preferencesManager.migrateLegacyThemePreference() }
         AppCompatDelegate.setDefaultNightMode(appCompatNightMode(initialThemeMode))
-        applySystemBarTheme(isDarkTheme(initialThemeMode))
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(if (isDarkTheme(initialThemeMode)) "#080B12" else "#F4F6FB")))
+        applySystemBarTheme(initialThemeMode)
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(windowBackgroundColor(initialThemeMode))))
         initializeFallbackEngine()
 
         rootContainer = FrameLayout(this).apply {
@@ -944,8 +944,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun appCompatNightMode(themeMode: String): Int = when (themeMode) {
-        PreferencesManager.THEME_DARK -> AppCompatDelegate.MODE_NIGHT_YES
-        PreferencesManager.THEME_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+        PreferencesManager.THEME_DARK, PreferencesManager.THEME_OCEAN -> AppCompatDelegate.MODE_NIGHT_YES
+        PreferencesManager.THEME_LIGHT, PreferencesManager.THEME_WARM -> AppCompatDelegate.MODE_NIGHT_NO
         else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
     }
 
@@ -955,22 +955,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isDarkTheme(themeMode: String): Boolean = when (themeMode) {
-        PreferencesManager.THEME_DARK -> true
-        PreferencesManager.THEME_LIGHT -> false
+        PreferencesManager.THEME_DARK, PreferencesManager.THEME_OCEAN -> true
+        PreferencesManager.THEME_LIGHT, PreferencesManager.THEME_WARM -> false
         else -> isSystemDarkMode()
     }
 
-    private fun applySystemBarTheme(isDarkMode: Boolean) {
+    private fun applySystemBarTheme(themeMode: String) {
         val window = window
         val controller = WindowCompat.getInsetsController(window, window.decorView)
-
-        // Match the system status bar to --bg-canvas and navigation bar to --bg-nav.
-        // Keep system bars separate from app content to preserve the three-part layout.
-        window.statusBarColor = Color.parseColor(if (isDarkMode) "#080B12" else "#F4F6FB")
-        window.navigationBarColor = Color.parseColor(if (isDarkMode) "#121826" else "#FFFFFF")
-
+        val isDarkMode = isDarkTheme(themeMode)
+        val statusColor = when (themeMode) {
+            PreferencesManager.THEME_WARM -> "#E3D7D1"
+            PreferencesManager.THEME_OCEAN -> "#071321"
+            else -> if (isDarkMode) "#080B12" else "#F4F6FB"
+        }
+        val navigationColor = when (themeMode) {
+            PreferencesManager.THEME_WARM -> "#F4ECE4"
+            PreferencesManager.THEME_OCEAN -> "#0D1D2B"
+            else -> if (isDarkMode) "#121826" else "#FFFFFF"
+        }
+        window.statusBarColor = Color.parseColor(statusColor)
+        window.navigationBarColor = Color.parseColor(navigationColor)
         controller.isAppearanceLightStatusBars = !isDarkMode
         controller.isAppearanceLightNavigationBars = !isDarkMode
+    }
+
+    private fun windowBackgroundColor(themeMode: String): String = when (themeMode) {
+        PreferencesManager.THEME_WARM -> "#E3D7D1"
+        PreferencesManager.THEME_OCEAN -> "#071321"
+        else -> if (isDarkTheme(themeMode)) "#080B12" else "#F4F6FB"
     }
 
     private fun syncDataStorePreferencesToWeb() {
@@ -1122,8 +1135,8 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val mode = preferencesManager.themeModeFlow.first()
             val dark = isDarkTheme(mode)
-            applySystemBarTheme(dark)
-            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(if (dark) "#080B12" else "#F4F6FB")))
+            applySystemBarTheme(mode)
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(windowBackgroundColor(mode))))
             if (::webView.isInitialized) {
                 syncDataStorePreferencesToWeb()
                 webView.evaluateJavascript("if (window.onNativeSystemThemeChanged) window.onNativeSystemThemeChanged($dark);", null)
@@ -1916,7 +1929,9 @@ class MainActivity : AppCompatActivity() {
             if (selectedMode !in setOf(
                     PreferencesManager.THEME_SYSTEM,
                     PreferencesManager.THEME_DARK,
-                    PreferencesManager.THEME_LIGHT
+                    PreferencesManager.THEME_LIGHT,
+                    PreferencesManager.THEME_WARM,
+                    PreferencesManager.THEME_OCEAN
                 )
             ) return
 
@@ -1924,7 +1939,7 @@ class MainActivity : AppCompatActivity() {
                 preferencesManager.setThemeMode(selectedMode)
                 withContext(Dispatchers.Main) {
                     AppCompatDelegate.setDefaultNightMode(appCompatNightMode(selectedMode))
-                    applySystemBarTheme(isDarkTheme(selectedMode))
+                    applySystemBarTheme(selectedMode)
                 }
             }
         }
