@@ -86,8 +86,8 @@ export function isValidInstallId(value) {
 
 export function isValidVideoId(value) {
   return typeof value === "string" &&
-    value.length >= 3 &&
-    value.length <= 128 &&
+    value.length >= 1 &&
+    value.length <= 64 &&
     /^[A-Za-z0-9_-]+$/.test(value);
 }
 
