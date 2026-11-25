@@ -993,6 +993,7 @@ class MainActivity : AppCompatActivity() {
             } catch (t: Throwable) {
                 Log.e("JET", "yt-dlp initialization failed; download fallback will retry on demand", t)
                 ytDlpReady = false
+                runCatching { diagnosticRecorder.recordInitFailure("yt-dlp", ytDlpInitStep, "initialization_failed"); diagnosticRecorder.flushPending() }
             }
         }
     }
@@ -2535,7 +2536,7 @@ class MainActivity : AppCompatActivity() {
                         downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight)
                     }
                     val fallbackReason = downloadFallbackReasons.remove(downloadId) ?: "custom_engine_failed"
-                    if (newPipeFile == null) lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.recordFallback(fallbackReason); diagnosticRecorder.flushPending() } }
+                    if (newPipeFile == null) lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.recordFallback(fallbackReason, "newpipe"); diagnosticRecorder.flushPending() } }
                     if (newPipeFile != null) {
                         Log.d("ENGINE_DEBUG", "downloadId=$downloadId engine=custom reason=custom_download_succeeded")
                         finishDownloadSuccess(downloadId, url, newPipeFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl, selectedResolution)
@@ -2697,7 +2698,7 @@ class MainActivity : AppCompatActivity() {
                         e
                     )
                     notifyEngineUpdateRequired(e)
-                    lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.recordFailure(); diagnosticRecorder.flushPending() } }
+                    lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.recordFailure("yt-dlp", ytDlpInitStep, "download_failed"); diagnosticRecorder.flushPending() } }
                     val fail = DownloadErrorPayload(downloadId, e.message ?: "Download failed")
                     runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
@@ -3954,7 +3955,7 @@ class MainActivity : AppCompatActivity() {
             completedPayloadJson.put("telemetrySummary", rawLog)
             completedPayloadJson.put("telemetryDisplay", "${connections} conn • ${seconds(downloadSec)} • ${avgSpeedText}")
             val elapsedDiagnosticMs = (System.currentTimeMillis() - (downloadStartedAtMs[downloadId] ?: System.currentTimeMillis())).coerceAtLeast(0L)
-            runCatching { diagnosticRecorder.recordSuccess(url, file.extension, resolution, displaySizeBytes, elapsedDiagnosticMs) }
+            runCatching { diagnosticRecorder.recordSuccess(engine, file.extension, resolution, netSpeed * 8.0, elapsedDiagnosticMs, initStep, if (ytDlpInitError.isBlank()) "none" else "initialization_failed", fallbackReason) }
             lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.flushPending() } }
             downloadStartedAtMs.remove(downloadId)
             callJs("onNativeDownloadComplete", completedPayloadJson.toString())
