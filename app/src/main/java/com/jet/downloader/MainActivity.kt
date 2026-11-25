@@ -575,15 +575,9 @@ class MainActivity : AppCompatActivity() {
 
 
     // Notification and legacy startup permissions remain separate from Library media access.
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
-        } else ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-        if (granted) pushScannedLibraryToWeb()
-    }
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
 
     private val libraryPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -596,12 +590,11 @@ class MainActivity : AppCompatActivity() {
             else -> "denied"
         }
         callJs("onNativeLibraryPermissionState", JSONObject.quote(state))
-        // Even when device-wide access is denied, always scan JET's own Downloads/JET
-        // directory so files created by this app remain visible in Library.
-        if (!hasVideo && !hasAudio) {
-            Toast.makeText(this, "Media access was not granted. Showing JET downloads only.", Toast.LENGTH_LONG).show()
+        if (state == "denied") {
+            callJs("onNativeLibraryScanFailed", JSONObject.quote("Storage permission required to scan device media"))
+            return@registerForActivityResult
         }
-        // Force a fresh scan: the startup cache may have been created before permission was granted.
+        // Permission was granted (or partially granted on Android 14+): discard stale cache and scan now.
         pushScannedLibraryToWeb(force = true)
     }
 
@@ -623,7 +616,6 @@ class MainActivity : AppCompatActivity() {
         AppCompatDelegate.setDefaultNightMode(appCompatNightMode(initialThemeMode))
         applySystemBarTheme(isDarkTheme(initialThemeMode))
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.parseColor(if (isDarkTheme(initialThemeMode)) "#080B12" else "#F4F6FB")))
-        requestRuntimePermissions()
         initializeFallbackEngine()
 
         rootContainer = FrameLayout(this).apply {
@@ -1629,7 +1621,7 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            ) permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+            ) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
@@ -1695,30 +1687,6 @@ class MainActivity : AppCompatActivity() {
         return manager.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
     }
 
-    private fun requestRuntimePermissions() {
-        val perms = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                perms.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
-                perms.add(Manifest.permission.READ_MEDIA_VIDEO)
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                perms.add(Manifest.permission.READ_MEDIA_AUDIO)
-            }
-        } else {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            }
-        }
-        if (perms.isNotEmpty()) {
-            permissionLauncher.launch(perms.toTypedArray())
-        }
-    }
 
     private fun currentCachedLibraryItems(): List<LibraryItemPayload> {
         return cachedLibraryItems ?: runCatching {
@@ -3899,6 +3867,11 @@ class MainActivity : AppCompatActivity() {
                     if (thumbnail.isNotBlank()) callJs("onNativeFileThumbnail", "${JSONObject.quote(path)}, ${JSONObject.quote(thumbnail)}")
                 }
             }
+        }
+
+        @JavascriptInterface
+        fun requestLibraryPermission() {
+            requestLibraryMediaPermissions()
         }
 
         @JavascriptInterface
