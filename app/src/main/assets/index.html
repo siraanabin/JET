@@ -2518,6 +2518,7 @@
 
       // Official Release Channel in-app APK updater
       let pendingApkUpdateUrl = '';
+      let pendingApkVerified = false;
       const appUpdateModal = $('app-update-modal');
       const appUpdateVersion = $('app-update-version');
       const appUpdateNotes = $('app-update-notes');
@@ -2587,7 +2588,8 @@
         const progressBar = $('app-update-progress-bar');
         if (sub) sub.textContent = label || 'Preparing APK download...';
 
-        if (pct < 0) {
+        if (Number(pct) < 0) {
+          pendingApkVerified = false;
           if (progress) progress.classList.add('hidden');
           appUpdateInstall.disabled = false;
           appUpdateInstall.textContent = 'Try Again';
@@ -2602,11 +2604,20 @@
         if (progressLabel) progressLabel.textContent = label || (verified ? 'APK verified' : 'Downloading APK…');
         if (progressPercent) progressPercent.textContent = safePct + '%';
         if (progressBar) progressBar.style.width = safePct + '%';
-        appUpdateInstall.disabled = true;
-        appUpdateInstall.textContent = verified ? 'Verified · Opening installer…' : 'Downloading ' + safePct + '%';
+
+        pendingApkVerified = verified;
+        appUpdateInstall.disabled = !verified && !pendingApkUpdateUrl;
+        appUpdateInstall.textContent = verified ? 'Update Now' : 'Downloading ' + safePct + '%';
         appUpdateStatus.textContent = verified
-          ? 'APK byte count and archive verified. Opening Android installer…'
+          ? 'Download complete. APK size and package have been verified. Tap Update Now to open Android Installer.'
           : 'Downloading update…';
+        appUpdateStatus.classList.remove('hidden');
+      };
+
+      window.onNativeAppUpdateInstallError = function (message) {
+        appUpdateInstall.disabled = false;
+        appUpdateInstall.textContent = 'Update Now';
+        appUpdateStatus.textContent = message || 'Unable to open Android installer.';
         appUpdateStatus.classList.remove('hidden');
       };
 
@@ -2624,11 +2635,23 @@
         if (event.target === appUpdateModal) closeAppUpdateModal();
       });
       appUpdateInstall.addEventListener('click', () => {
-        if (!pendingApkUpdateUrl || !hasAndroid() || !window.JetAndroid.downloadAndInstallAppUpdate) {
+        if (!hasAndroid() || !window.JetAndroid) {
           appUpdateStatus.textContent = 'Native APK installer is unavailable.';
           appUpdateStatus.classList.remove('hidden');
           return;
         }
+        if (pendingApkVerified && window.JetAndroid.installDownloadedAppUpdate) {
+          appUpdateInstall.disabled = true;
+          appUpdateInstall.textContent = 'Opening installer…';
+          window.JetAndroid.installDownloadedAppUpdate();
+          return;
+        }
+        if (!pendingApkUpdateUrl || !window.JetAndroid.downloadAndInstallAppUpdate) {
+          appUpdateStatus.textContent = 'Native APK downloader is unavailable.';
+          appUpdateStatus.classList.remove('hidden');
+          return;
+        }
+        pendingApkVerified = false;
         appUpdateInstall.disabled = true;
         appUpdateInstall.textContent = 'Starting download...';
         window.JetAndroid.downloadAndInstallAppUpdate(pendingApkUpdateUrl);
