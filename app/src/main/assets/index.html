@@ -101,8 +101,8 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
 
-    /* Home top bar: use the same subtle accent palette in light and dark themes. */
-    #screen-home > header:first-child { background: linear-gradient(100deg, var(--accent-tint) 0%, var(--bg-surface) 100%); }
+    /* Keep the Home header aligned with the native Android status bar surface. */
+    #screen-home > header:first-child { background: var(--bg-surface); }
 
     .surface-card {
       background-color: var(--bg-surface);
@@ -293,7 +293,7 @@
             <div>
               <div class="flex items-center gap-1.5">
                 <h1 class="text-lg font-extrabold tracking-tight text-app-text leading-none">JET</h1>
-                <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-app-success text-[9px] font-extrabold">NewPipe + Media3</span>
+                
               </div>
               <span class="text-[11px] font-medium text-app-secondary">Download at Full Speed.</span>
             </div>
@@ -594,7 +594,7 @@
           </div>
         </div>
         <div class="space-y-2">
-          <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">PLAYER SETTINGS</p>
+          <div class="flex items-center gap-2 px-1"><span class="w-7 h-7 rounded-lg bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i></span><p class="text-[11px] font-bold uppercase tracking-wider text-app-muted">PLAYER SETTINGS</p></div>
           <div class="surface-card rounded-3xl divide-y divide-app-border overflow-hidden">
             <label class="p-4 flex items-center justify-between gap-3">
               <span class="min-w-0"><span class="block text-xs font-bold text-app-text">Player color</span><span class="block text-[11px] text-app-secondary mt-0.5">Change the player accent color</span></span>
