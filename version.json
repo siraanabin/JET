@@ -1,8 +1,9 @@
 {
-  "versionCode": 361,
-  "versionName": "0.9.18",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.18/app-universal-release.apk",
+  "versionCode": 362,
+  "versionName": "0.9.19",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.19/app-universal-release.apk",
   "changelog": [
+    "Prevented Android installer from opening before APK download and integrity verification complete",
     "Improved Library rendering performance for large media collections",
     "Added Warm Coral and Ocean Night themes",
     "Updated music placeholder artwork with colorful headphones",

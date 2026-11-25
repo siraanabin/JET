@@ -2625,6 +2625,7 @@
       // Official Release Channel in-app APK updater
       let pendingApkUpdateUrl = '';
       let pendingApkVerified = false;
+      let pendingApkSha256 = '';
       const appUpdateModal = $('app-update-modal');
       const appUpdateVersion = $('app-update-version');
       const appUpdateNotes = $('app-update-notes');
@@ -2665,6 +2666,7 @@
         if (res.hasUpdate) {
           pendingApkVerified = false;
           pendingApkUpdateUrl = res.apkUrl || '';
+          pendingApkSha256 = res.apkSha256 || '';
           if (sub) sub.textContent = `v${res.latestVersion} available`;
           if (btn) btn.textContent = 'View Update';
           if (badge) badge.classList.remove('hidden');
@@ -2761,7 +2763,7 @@
         pendingApkVerified = false;
         appUpdateInstall.disabled = true;
         appUpdateInstall.textContent = 'Starting download...';
-        window.JetAndroid.downloadAndInstallAppUpdate(pendingApkUpdateUrl);
+        window.JetAndroid.downloadAndInstallAppUpdate(pendingApkUpdateUrl, pendingApkSha256);
       });
 
       setTimeout(() => triggerAppUpdateCheck(false), 3000);
