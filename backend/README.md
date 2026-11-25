@@ -11,8 +11,8 @@ Cloudflare Worker + D1 backend for **opt-in** diagnostic telemetry. This directo
 - Neither key is committed to this repository. Do not add `.dev.vars`, `.env`, or secret values to Git.
 - The Worker does not store request IP addresses, email, phone, location, IMEI, Android ID, file names/paths, video titles, or full URLs.
 - `video_id` is accepted only by `/v1/top-link`, and only when the client has a separate video-ID opt-in. It is never stored in `events` or `daily_summary`.
-- `init_error` and bug-report descriptions are stripped of URL/path-like fragments and truncated to 500 characters. This is best-effort text sanitization, not a guarantee that arbitrary text cannot contain personal information; clients should avoid sending sensitive content.
-- `/v1/me/data` deletes that install's `events`, `bug_reports`, `top_links`, and `daily_counters`. It intentionally does **not** modify `daily_summary`; aggregate counts may therefore continue to include deleted events.
+- `init_error` and bug-report descriptions are stripped of URL/path-like fragments, email addresses, phone-like numbers, and IPv4/IPv6 addresses, then truncated. Bug-report descriptions are limited to 500 characters. Logs are stored as JSON text in the same bug-report row, with at most 20 entries and 6,000 serialized characters. This is best-effort text sanitization, not a guarantee that arbitrary text cannot contain personal information; clients should avoid sending sensitive content.
+- `/v1/me/data` deletes that install's `events`, `bug_reports`, `top_links`, and `daily_counters`. It deletes raw records but intentionally does **not** modify `daily_summary`; anonymous aggregates remain and may therefore continue to include deleted events.
 
 ## Limits
 
@@ -64,7 +64,7 @@ Migration `0001_initial_schema.sql` creates:
 
 - `events`: allowlisted event properties; no `video_id`.
 - `daily_summary`: aggregate metrics only; no `video_id`.
-- `bug_reports`: sanitized, max-500-character descriptions.
+- `bug_reports`: sanitized, max-500-character descriptions and allowlisted logs JSON text (max 20 entries / 6,000 characters).
 - `top_links`: the only table containing `video_id`.
 - `daily_counters`: global and per-install daily counters.
 
@@ -79,7 +79,7 @@ All client endpoints require:
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/v1/ingest` | Batch events; max 15 |
-| POST | `/v1/bug-report` | One sanitized bug report |
+| POST | `/v1/bug-report` | One sanitized bug report with optional allowlisted logs (max 20 / 6,000 chars) |
 | POST | `/v1/top-link` | One video ID; separate opt-in required |
 | GET | `/v1/admin/daily-summary?day=YYYY-MM-DD` | Aggregate dashboard; requires `ADMIN_API_KEY` |
 | DELETE | `/v1/me/data` | Delete the current install's records, except daily aggregates |
