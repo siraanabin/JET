@@ -63,6 +63,9 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
 
+    /* Home top bar: use the same subtle accent palette in light and dark themes. */
+    #screen-home > header:first-child { background: linear-gradient(100deg, var(--accent-tint) 0%, var(--bg-surface) 100%); }
+
     .surface-card {
       background-color: var(--bg-surface);
       border: 1px solid var(--border-subtle);
