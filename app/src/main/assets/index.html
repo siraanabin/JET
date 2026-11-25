@@ -456,7 +456,7 @@
           <div class="surface-card rounded-3xl p-4">
             <label class="flex items-center justify-between gap-3">
               <span class="text-xs font-bold text-app-text">Send Bug Report Anonymously</span>
-              <input id="diagnostics-toggle" type="checkbox" checked class="h-5 w-5 accent-blue-600">
+              <button id="diagnostics-toggle" type="button" role="switch" aria-checked="true" class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center shrink-0"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span></button>
             </label>
           </div>
         </div>
@@ -3060,17 +3060,29 @@
  const toggle=document.getElementById("diagnostics-toggle");
  const note=document.getElementById("diagnostics-key-note");
  const bridge=()=>window.JetAndroid&&typeof window.JetAndroid.getDiagnosticSettingsJson==="function";
+ function paint(enabled){
+  if(!toggle)return;
+  toggle.setAttribute("aria-checked",String(!!enabled));
+  toggle.classList.toggle("bg-app-primary",!!enabled);
+  toggle.classList.toggle("border-app-primary",!!enabled);
+  toggle.classList.toggle("bg-app-elevated",!enabled);
+  toggle.classList.toggle("border-app-border",!enabled);
+  toggle.querySelector(".toggle-thumb")?.classList.toggle("translate-x-5",!!enabled);
+ }
  function sync(){
   if(!bridge()||!toggle)return;
   try{
    const cfg=JSON.parse(window.JetAndroid.getDiagnosticSettingsJson()||"{}");
    toggle.disabled=!cfg.apiKeyConfigured;
-   toggle.checked=!!cfg.diagnosticsEnabled;
+   paint(!!cfg.diagnosticsEnabled);
    if(note)note.classList.toggle("hidden",!!cfg.apiKeyConfigured);
   }catch(_){}
  }
- if(toggle)toggle.addEventListener("change",e=>{
-  if(bridge())window.JetAndroid.setDiagnosticPreference("diagnostics",e.target.checked);
+ if(toggle)toggle.addEventListener("click",()=>{
+  if(toggle.disabled||!bridge())return;
+  const enabled=toggle.getAttribute("aria-checked")!=="true";
+  paint(enabled);
+  window.JetAndroid.setDiagnosticPreference("diagnostics",enabled);
   sync();
  });
  sync();
