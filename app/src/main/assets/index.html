@@ -1806,7 +1806,11 @@
       };
 
       window.onNativeLibraryChunk = function (chunk, isFinal) {
-        if (!Array.isArray(chunk)) return;
+        console.log('[JET-Library] onNativeLibraryChunk:', chunk?.length, 'isFinal=', isFinal);
+        if (!Array.isArray(chunk)) {
+          console.error('[JET-Library] Invalid native chunk payload:', typeof chunk, chunk);
+          return;
+        }
         const mapped = chunk.map((item) => ({
           ...item,
           thumbnailUrl: item.type === 'audio'
@@ -1872,6 +1876,18 @@
           $('library-items-container').firstElementChild.textContent = String(message || 'Unable to scan device media');
         }
       };
+
+      // Deliver native callbacks that arrived before their JavaScript handlers existed.
+      window.__jetFlushNativeCalls = function () {
+        const pending = Array.isArray(window.__jetPendingNativeCalls) ? window.__jetPendingNativeCalls : [];
+        window.__jetPendingNativeCalls = [];
+        pending.forEach((entry) => {
+          const handler = window[entry.name];
+          if (typeof handler === 'function') handler.apply(window, entry.args || []);
+          else window.__jetPendingNativeCalls.push(entry);
+        });
+      };
+      window.__jetFlushNativeCalls();
 
       window.onNativeEngineUpdated = function (res) {
         if (res && res.ok) {
