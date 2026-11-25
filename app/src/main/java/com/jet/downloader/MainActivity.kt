@@ -259,9 +259,16 @@ class MainActivity : AppCompatActivity() {
                 if (!ytDlpReady) {
                     // Match the youtubedl-android 0.18.1 initialization contract:
                     // initialize yt-dlp first, then extract FFmpeg's bundled support files.
+                    ytDlpInitStep = "yt_dlp_init"
+                    Log.d("ENGINE_DEBUG", "step=$ytDlpInitStep")
                     YoutubeDL.getInstance().init(applicationContext)
+
+                    ytDlpInitStep = "ffmpeg_runtime_initialize"
+                    Log.d("ENGINE_DEBUG", "step=$ytDlpInitStep")
                     val ffmpegInitMs = JetFfmpegRuntime.initialize(applicationContext)
 
+                    ytDlpInitStep = "ffmpeg_files_verify"
+                    Log.d("ENGINE_DEBUG", "step=$ytDlpInitStep")
                     // YoutubeDL 0.18.1 itself adds
                     // --ffmpeg-location=<nativeLibraryDir>/libffmpeg.so to every execute().
                     // Confirm that exact bundled executable is present and executable.
@@ -296,6 +303,25 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (t: Throwable) {
             ytDlpReady = false
+            val errorClass = t.javaClass.name
+            val errorMessage = t.message ?: ""
+            ytDlpInitError = "$errorClass:$errorMessage"
+            val causeChain = buildString {
+                var cause: Throwable? = t
+                var depth = 0
+                while (cause != null) {
+                    if (depth > 0) append(" <- ")
+                    append(cause.javaClass.name).append(":").append(cause.message ?: "")
+                    cause = cause.cause
+                    depth++
+                }
+            }
+            val stackTraceFirst10 = t.stackTrace.take(10).joinToString(" | ") { it.toString() }
+            Log.e(
+                "ENGINE_DEBUG",
+                "yt-dlp initialization failed exceptionClass=$errorClass message=$errorMessage initStep=$ytDlpInitStep causeChain=$causeChain stackTraceFirst10=$stackTraceFirst10",
+                t
+            )
             Log.e("JET", "yt-dlp initialization failed", t)
             throw IllegalStateException("yt-dlp initialization failed", t)
         }
@@ -486,6 +512,8 @@ class MainActivity : AppCompatActivity() {
     private val verifiedNewPipeSourceSizes = ConcurrentHashMap<String, Long>()
     private val downloadTelemetrySummaries = ConcurrentHashMap<String, Pair<String, String>>()
     private val downloadFallbackReasons = ConcurrentHashMap<String, String>()
+    @Volatile private var ytDlpInitStep = "not_started"
+    @Volatile private var ytDlpInitError = "none"
     private val downloadStartedAtMs = ConcurrentHashMap<String, Long>()
 
     private fun normalizeMediaInfoUrl(rawUrl:String):String {
@@ -3763,6 +3791,8 @@ class MainActivity : AppCompatActivity() {
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
             val fallbackReason = Regex("""fallbackReason=(.*?)(?=\s(?:connections|conn|connectionPath|chunks|chunkSize|download|convert|merge|avg|retries|blocks)=|\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "none"
+            val initError = ytDlpInitError.replace(Regex("\\s+"), "_").take(300).ifBlank { "none" }
+            val initStep = ytDlpInitStep
             val retries = metricInt("""retries=([0-9]+)""", 0)
             val blocks = metricInt("""blocks=([0-9]+)""", 0)
             val timestamp = java.text.SimpleDateFormat("hh:mm a", Locale.US).format(java.util.Date())
@@ -3772,7 +3802,7 @@ class MainActivity : AppCompatActivity() {
             val netSpeedText = speed(netSpeed)
             val container = file.extension.lowercase(Locale.US).ifBlank { "unknown" }
             val engine = if (previousSummary.contains("engine=yt-dlp-managed", ignoreCase = true)) "yt-dlp-managed" else "newpipe-okhttp-ffmpeg"
-            val rawLog = "engine=${engine} title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} convertSec=${seconds(convertSec)} ffInitSec=${seconds(ffInitSec)} ffPrepSec=${seconds(ffPrepSec)} ffExecSec=${seconds(ffExecSec)} ffMoveSec=${seconds(ffMoveSec)} ffSpeedLine=${ffSpeedLine} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} fallbackReason=${fallbackReason} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
+            val rawLog = "engine=${engine} title=${displayTitle} resolution=${resolution.ifBlank { "audio" }} container=${container} sizeText=${sizeStr} bytes=${displaySizeBytes} downloadSec=${seconds(downloadSec)} convertSec=${seconds(convertSec)} ffInitSec=${seconds(ffInitSec)} ffPrepSec=${seconds(ffPrepSec)} ffExecSec=${seconds(ffExecSec)} ffMoveSec=${seconds(ffMoveSec)} ffSpeedLine=${ffSpeedLine} muxSec=${seconds(muxSec)} totalSec=${seconds(totalSec)} avgSpeedText=${avgSpeedText} netSpeedText=${netSpeedText} connections=${connections} chunkSize=${chunkSize} fallbackReason=${fallbackReason} initError=${initError} initStep=${initStep} retries=${retries} blocks=${blocks} timestamp=${timestamp}"
             Log.d("DL_DEBUG", rawLog)
             val telemetryJson = JSONObject().apply {
                 put("engine", engine)
@@ -3795,6 +3825,8 @@ class MainActivity : AppCompatActivity() {
                 put("connections", connections)
                 put("chunkSize", chunkSize)
                 put("fallbackReason", fallbackReason)
+                put("initError", ytDlpInitError)
+                put("initStep", initStep)
                 put("retries", retries)
                 put("blocks", blocks)
                 put("timestamp", timestamp)
