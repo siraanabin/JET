@@ -1,0 +1,1 @@
+ALTER TABLE bug_reports ADD COLUMN logs TEXT NOT NULL DEFAULT '[]';
