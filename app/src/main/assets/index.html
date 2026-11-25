@@ -2562,7 +2562,9 @@
           appUpdateStatus.classList.remove('hidden');
           appUpdateInstall.disabled = !pendingApkUpdateUrl;
           appUpdateInstall.textContent = 'Download Update';
-          appUpdateModal.classList.remove('hidden');
+          // Automatic startup checks only announce availability in Settings.
+          // Show the update dialog only after the user explicitly checks.
+          if (res.manual) appUpdateModal.classList.remove('hidden');
         } else {
           pendingApkUpdateUrl = '';
           if (sub) sub.textContent = `Up to date · v${res.currentVersion}`;
