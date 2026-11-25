@@ -1048,6 +1048,7 @@
         doneDownloads: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-done-downloads-v1') || '[]'); return Array.isArray(cached) ? cached.map(({ telemetrySummary, telemetryDisplay, ...item }) => item) : []; } catch (_) { return []; } })(),
         library: (() => { try { const cached = JSON.parse(localStorage.getItem('jet-library-snapshot-v1') || '[]'); return Array.isArray(cached) ? cached : []; } catch (_) { return []; } })(),
         libraryHasLoaded: (() => { try { return localStorage.getItem('jet-library-snapshot-v1') !== null; } catch (_) { return false; } })(),
+        libraryDataRevision: 0,
         downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true },
         libraryGridColumns: 3
       };
@@ -1088,6 +1089,8 @@
 
       let lastDownloadsRenderKey = '';
       let libraryRenderGeneration = 0;
+      let libraryFilteredCacheKey = '';
+      let libraryFilteredCache = [];
       let libraryScanTimeout = null;
       let libraryPermissionState = 'unknown';
       function clearLibraryScanTimeout() { if (libraryScanTimeout) { clearTimeout(libraryScanTimeout); libraryScanTimeout = null; } }
@@ -1980,6 +1983,8 @@
 
         clearLibraryScanTimeout();
         state.library = state.libraryScanBuffer;
+        state.libraryDataRevision++;
+        libraryFilteredCacheKey = '';
         state.libraryHasLoaded = true;
         delete state.libraryScanBuffer;
         try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
@@ -2010,6 +2015,8 @@
         if (card) { card.style.transition = 'opacity 170ms ease, transform 170ms ease'; card.style.opacity = '0'; card.style.transform = 'scale(.96)'; }
         setTimeout(() => {
           state.library = state.library.filter((item) => item.filePath !== filePath);
+          state.libraryDataRevision++;
+          libraryFilteredCacheKey = '';
           try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
           renderLibrary();
           $('library-location-label').textContent = 'Device media · ' + state.library.length + ' files';
@@ -2417,6 +2424,8 @@
       window.onNativeLibraryItemRenamed = function (oldPath, newPath, newName) {
         const title = String(newName || '').replace(/\\.[^.]+$/, '');
         state.library = state.library.map((item) => item.filePath === oldPath ? { ...item, filePath: newPath, title } : item);
+        state.libraryDataRevision++;
+        libraryFilteredCacheKey = '';
         state.doneDownloads = state.doneDownloads.map((item) => item.filePath === oldPath ? { ...item, filePath: newPath, title } : item);
         try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
         renderLibrary(); renderDownloads(); showToast('File renamed');
@@ -2436,15 +2445,21 @@
       }
 
       function renderLibrary() {
-        const filtered = state.library.filter((item) => {
-          const matchCat = state.libFilter === 'all' || item.type === state.libFilter;
-          const matchSearch = item.title.toLowerCase().includes(state.libSearch.toLowerCase());
-          return matchCat && matchSearch;
-        });
+        const filterKey = state.libraryDataRevision + '|' + state.libFilter + '|' + state.libSearch;
+        if (libraryFilteredCacheKey !== filterKey) {
+          const query = state.libSearch.trim().toLocaleLowerCase();
+          libraryFilteredCache = state.library.filter((item) =>
+            (state.libFilter === 'all' || item.type === state.libFilter) &&
+            (!query || String(item.title || '').toLocaleLowerCase().includes(query))
+          );
+          libraryFilteredCacheKey = filterKey;
+        }
+        const filtered = libraryFilteredCache;
 
         $('library-item-count').textContent = `${state.library.length} files`;
         const container = $('library-items-container');
-        const renderKey = JSON.stringify([state.libView,state.libFilter,state.libSearch,state.libraryGridColumns,filtered.map(item => [item.filePath,item.title,item.size,item.duration,item.resolution,item.thumbnailUrl])]);
+        // A compact revision key avoids serializing every media row on each visit.
+        const renderKey = state.libraryDataRevision + '|' + state.libView + '|' + state.libFilter + '|' + state.libSearch + '|' + state.libraryGridColumns + '|' + filtered.length;
         if (container.dataset.renderKey === renderKey) return;
         container.dataset.renderKey = renderKey;
         const generation = ++libraryRenderGeneration;
