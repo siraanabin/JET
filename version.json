@@ -1,8 +1,13 @@
 {
-  "versionCode": 363,
-  "versionName": "0.9.20",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.20/app-universal-release.apk",
+  "versionCode": 364,
+  "versionName": "0.9.21",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.21/app-universal-release.apk",
   "changelog": [
+    "Added a CC badge icon beside Save subtitles",
+    "Added page navigation timing and bottleneck diagnostics to Show Download Speed Stats logs",
+    "Matched Android status bar colors to the selected app theme",
+    "Kept the Home header transparent across all themes",
+    "Removed the icon beside Player Settings",
     "Removed the rectangular NewPipe + Media3 badge beside JET on the Home screen",
     "Added a sliders icon beside Player Settings",
     "Matched Android time, network, Wi-Fi and battery status bar background to the selected theme",
