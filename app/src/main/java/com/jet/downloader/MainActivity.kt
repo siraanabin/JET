@@ -1293,7 +1293,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sanitizeFileName(name: String): String {
-        return name.replace(Regex("[^a-zA-Z0-9._ -]"), "_").trim().take(80).ifEmpty { "JET_Media" }
+        return name.replace(Regex("[\\\\/:*?\"<>|\\\\p{C}]"), "_").trim().trimEnd('.', ' ').take(100).ifEmpty { "JET_Media" }
     }
 
     private fun createSmartMediaThumbnailDataUrl(file: File, isAudio: Boolean, savedThumbnailUrl: String = ""): String {
@@ -2619,9 +2619,9 @@ class MainActivity : AppCompatActivity() {
 
                     downloadFallbackReasons.remove(downloadId)
                     val newPipeFile = if (isAudio) {
-                        downloadAudioWithNewPipe(downloadId, url, outDir, audioExt, audioBitrate)
+                        downloadAudioWithNewPipe(downloadId, url, title, outDir, audioExt, audioBitrate)
                     } else {
-                        downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight)
+                        downloadWithNewPipe(downloadId, url, title, outDir, selectedItag, maxHeight)
                     }
                     val fallbackReason = downloadFallbackReasons.remove(downloadId) ?: "custom_engine_failed"
                     if (newPipeFile == null) lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.recordFallback(fallbackReason, "newpipe"); diagnosticRecorder.flushPending() } }
@@ -2799,12 +2799,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun downloadAudioWithNewPipe(
-            downloadId: String, url: String, outDir: File, requestedExt: String, audioBitrate: String
+            downloadId: String, url: String, title: String, outDir: File, requestedExt: String, audioBitrate: String
         ): File? {
             val targetExt = if (requestedExt.equals("mp3", ignoreCase = true)) "mp3" else "m4a"
             val audioPart = File(cacheDir, "jet-" + downloadId + "-audio.part")
             val checkpointFile = File(cacheDir, "jet-" + downloadId + ".chunks.ckpt")
-            val output = File(outDir, "jet-newpipe-" + downloadId + "." + targetExt)
+            val output = File(outDir, sanitizeFileName(title) + "." + targetExt)
             var ffmpegProcess: Process? = null
             val downloadStartedAtMs = SystemClock.elapsedRealtime()
             var downloadSec = 0.0
@@ -3180,9 +3180,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun downloadWithNewPipe(
-            downloadId: String, url: String, outDir: File, selectedItag: Int, maxHeight: Int
+            downloadId: String, url: String, title: String, outDir: File, selectedItag: Int, maxHeight: Int
         ): File? {
-            var output = File(outDir, "jet-newpipe-" + downloadId + ".mp4")
+            var output = File(outDir, sanitizeFileName(title) + ".mp4")
             val videoPart = File(cacheDir, "jet-" + downloadId + "-video.part")
             val audioPart = File(cacheDir, "jet-" + downloadId + "-audio.part")
             var process: Process? = null
@@ -3242,7 +3242,7 @@ class MainActivity : AppCompatActivity() {
                 val audioSuffix = audio?.format?.suffix?.lowercase(Locale.ROOT).orEmpty()
                 val useMkv = videoSuffix in setOf("webm", "mkv", "opus") ||
                     audioSuffix in setOf("webm", "opus", "mkv")
-                output = File(outDir, "jet-newpipe-" + downloadId + if (useMkv) ".mkv" else ".mp4")
+                output = File(outDir, sanitizeFileName(title) + if (useMkv) ".mkv" else ".mp4")
                 if (output.exists()) output.delete()
                 val checkpointFile = File(cacheDir, "jet-" + downloadId + ".chunks.ckpt")
                 if (!checkpointFile.exists()) {
