@@ -1068,9 +1068,10 @@
         return [size, resolution, format].filter(Boolean).join(' · ');
       }
 
-      function refreshIcons() {
+      function refreshIcons(root) {
         if (window.lucide && window.lucide.createIcons) {
-          window.lucide.createIcons();
+          if (root) window.lucide.createIcons({ root });
+          else window.lucide.createIcons();
         }
       }
 
@@ -1986,7 +1987,15 @@
           ? 'JET downloads only · '
           : 'All device audio and video · ';
         $('library-location-label').textContent = (isFinal ? sourceLabel : 'Scanning device media · ') + scanCount + ' files';
-        if (!isFinal) return;
+        if (!isFinal) {
+          // Paint the first small batch immediately instead of waiting for the full
+          // MediaStore scan to finish. Later batches refresh the visible list.
+          state.library = state.libraryScanBuffer.slice();
+          state.libraryDataRevision++;
+          libraryFilteredCacheKey = '';
+          renderLibrary();
+          return;
+        }
 
         clearLibraryScanTimeout();
         state.library = state.libraryScanBuffer;
@@ -2530,7 +2539,7 @@
           template.innerHTML = filtered.slice(offset, end).map(renderItem).join('');
           container.appendChild(template.content);
           offset = end;
-          refreshIcons();
+          refreshIcons(container);
           bindLibraryMenuButtons();
           if (offset < filtered.length) requestAnimationFrame(appendChunk);
         };
