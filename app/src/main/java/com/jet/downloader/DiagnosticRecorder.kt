@@ -28,9 +28,9 @@ class DiagnosticRecorder(private val context: Context, private val preferences: 
         private const val MAX_BATCH = 15
         private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
         private val EVENT_FIELDS = listOf(
-            "event_type", "status", "initStep", "initError", "engine", "fallbackReason",
+            "event_type", "initStep", "initError", "engine", "fallbackReason",
             "appVersion", "androidVersion", "deviceModel", "networkType",
-            "speedMbps", "durationMs", "format", "resolution"
+            "speed", "durationMs", "format", "resolution"
         )
     }
 
@@ -131,8 +131,7 @@ class DiagnosticRecorder(private val context: Context, private val preferences: 
         format: String = "unknown",
         resolution: String = "unknown"
     ) = JSONObject().apply {
-        put("event_type", status)
-        put("status", status)
+        put("event_type", if (status == "init_failure") "failure" else status)
         put("initStep", safeCode(initStep, 64))
         put("initError", safeCode(initError, 64))
         put("engine", safeCode(engine, 48))
@@ -142,7 +141,7 @@ class DiagnosticRecorder(private val context: Context, private val preferences: 
         put("androidVersion", Build.VERSION.RELEASE.orEmpty().take(32))
         put("deviceModel", (Build.MANUFACTURER + " " + Build.MODEL).take(80))
         put("networkType", networkType())
-        put("speedMbps", speedMbps.coerceAtLeast(0.0))
+        put("speed", speedMbps.coerceAtLeast(0.0))
         put("durationMs", durationMs.coerceAtLeast(0))
         put("format", safeCode(format, 20))
         put("resolution", safeCode(resolution, 20))
@@ -233,8 +232,8 @@ class DiagnosticRecorder(private val context: Context, private val preferences: 
                 val selected = (0 until events.length()).map { it to events.getJSONObject(it) }
                     .sortedWith(
                         compareBy<Pair<Int, JSONObject>> {
-                            when (it.second.optString("status")) {
-                                "failure", "init_failure" -> 0
+                            when (it.second.optString("event_type")) {
+                                "failure" -> 0
                                 "fallback" -> 1
                                 else -> 2
                             }
