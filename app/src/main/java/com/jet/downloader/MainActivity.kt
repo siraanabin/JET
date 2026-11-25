@@ -1293,7 +1293,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sanitizeFileName(name: String): String {
-        return name.replace(Regex("[\\\\/:*?\"<>|\\\\p{C}]"), "_").trim().trimEnd('.', ' ').take(100).ifEmpty { "JET_Media" }
+        return name.filterNot { it.isISOControl() }.replace(Regex("[/\\\\:*?\"<>|]"), "_").trim().trimEnd('.', ' ').take(100).ifEmpty { "JET_Media" }
     }
 
     private fun createSmartMediaThumbnailDataUrl(file: File, isAudio: Boolean, savedThumbnailUrl: String = ""): String {
