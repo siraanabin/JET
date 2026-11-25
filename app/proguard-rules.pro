@@ -1,3 +1,4 @@
+-keepattributes JavascriptInterface,Signature,InnerClasses,EnclosingMethod,*Annotation*
 # Preserve generic type metadata and reflective Jackson model construction.
 -keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
 
@@ -15,6 +16,9 @@
 -dontwarn org.schabi.newpipe.extractor.**
 -keep class okhttp3.** { *; }
 -dontwarn okhttp3.**
+
+# Preserve all app classes and members from R8 removal/obfuscation, including WebView bridge and serialized models.
+-keep class com.jet.downloader.** { *; }
 
 # Preserve application JSON payloads, models, events and Room data models used by reflection/serialization.
 -keep class com.jet.downloader.model.** { *; }

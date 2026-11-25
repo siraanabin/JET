@@ -1,9 +1,10 @@
 {
-  "versionCode": 346,
-  "versionName": "0.9.3",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.3/app-universal-release.apk",
+  "versionCode": 347,
+  "versionName": "0.9.4",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.4/app-universal-release.apk",
   "changelog": [
-    "Library scan recovery, app-owned Downloads/JET fallback, and WebView R8 keep rules",
+    "Expanded R8 keep rules for all app classes and WebView JavaScript bridge",
+    "Hardened Library media scan and Downloads/JET fallback",
     "Production v0.9.2: verified 8-worker video and audio downloads with NewPipe/OkHttp",
     "Direct M4A saving and local FFmpeg MP3 conversion",
     "yt-dlp fallback with 8 concurrent fragments and direct M4A saving",
