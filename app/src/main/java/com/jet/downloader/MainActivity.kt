@@ -591,7 +591,6 @@ class MainActivity : AppCompatActivity() {
         }
         callJs("onNativeLibraryPermissionState", JSONObject.quote(state))
         if (state == "denied") {
-            callJs("onNativeLibraryScanFailed", JSONObject.quote("Storage permission required to scan device media"))
             return@registerForActivityResult
         }
         // Permission was granted (or partially granted on Android 14+): discard stale cache and scan now.
