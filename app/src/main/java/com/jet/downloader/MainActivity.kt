@@ -254,44 +254,50 @@ class MainActivity : AppCompatActivity() {
     private val engineUpdateTimestampKey = "last_engine_update_check_ms"
 
     private fun ensureYtDlpInitialized(): Long {
-        return synchronized(ytDlpEngineLock) {
-            if (!ytDlpReady) {
-                // Match the youtubedl-android 0.18.1 initialization contract:
-                // initialize yt-dlp first, then extract FFmpeg's bundled support files.
-                YoutubeDL.getInstance().init(applicationContext)
-                val ffmpegInitMs = JetFfmpegRuntime.initialize(applicationContext)
+        return try {
+            synchronized(ytDlpEngineLock) {
+                if (!ytDlpReady) {
+                    // Match the youtubedl-android 0.18.1 initialization contract:
+                    // initialize yt-dlp first, then extract FFmpeg's bundled support files.
+                    YoutubeDL.getInstance().init(applicationContext)
+                    val ffmpegInitMs = JetFfmpegRuntime.initialize(applicationContext)
 
-                // YoutubeDL 0.18.1 itself adds
-                // --ffmpeg-location=<nativeLibraryDir>/libffmpeg.so to every execute().
-                // Confirm that exact bundled executable is present and executable.
-                val ffmpegExecutable = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
-                check(ffmpegExecutable.isFile) {
-                    "Bundled FFmpeg executable is missing: ${ffmpegExecutable.absolutePath}"
-                }
-                if (!ffmpegExecutable.canExecute()) {
-                    val permissionSet = ffmpegExecutable.setExecutable(true, false)
-                    check(permissionSet && ffmpegExecutable.canExecute()) {
-                        "Bundled FFmpeg executable is not executable and permissions could not be fixed: ${ffmpegExecutable.absolutePath}"
+                    // YoutubeDL 0.18.1 itself adds
+                    // --ffmpeg-location=<nativeLibraryDir>/libffmpeg.so to every execute().
+                    // Confirm that exact bundled executable is present and executable.
+                    val ffmpegExecutable = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
+                    check(ffmpegExecutable.isFile) {
+                        "Bundled FFmpeg executable is missing: ${ffmpegExecutable.absolutePath}"
                     }
-                }
-                Log.i(
-                    "JET-FFmpeg",
-                    "FFmpeg executable verified: ${ffmpegExecutable.absolutePath}; executable=${ffmpegExecutable.canExecute()}; bytes=${ffmpegExecutable.length()}"
-                )
+                    if (!ffmpegExecutable.canExecute()) {
+                        val permissionSet = ffmpegExecutable.setExecutable(true, false)
+                        check(permissionSet && ffmpegExecutable.canExecute()) {
+                            "Bundled FFmpeg executable is not executable and permissions could not be fixed: ${ffmpegExecutable.absolutePath}"
+                        }
+                    }
+                    Log.i(
+                        "JET-FFmpeg",
+                        "FFmpeg executable verified: ${ffmpegExecutable.absolutePath}; executable=${ffmpegExecutable.canExecute()}; bytes=${ffmpegExecutable.length()}"
+                    )
 
-                val ffmpegArchive = File(applicationInfo.nativeLibraryDir, "libffmpeg.zip.so")
-                check(ffmpegArchive.isFile && ffmpegArchive.length() > 0L) {
-                    "Bundled FFmpeg support archive is missing or empty: ${ffmpegArchive.absolutePath}"
+                    val ffmpegArchive = File(applicationInfo.nativeLibraryDir, "libffmpeg.zip.so")
+                    check(ffmpegArchive.isFile && ffmpegArchive.length() > 0L) {
+                        "Bundled FFmpeg support archive is missing or empty: ${ffmpegArchive.absolutePath}"
+                    }
+                    val ffmpegSupportDir = File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg")
+                    check(ffmpegSupportDir.isDirectory && !ffmpegSupportDir.listFiles().isNullOrEmpty()) {
+                        "Bundled FFmpeg support files were not extracted: ${ffmpegSupportDir.absolutePath}"
+                    }
+                    ytDlpReady = true
+                    ffmpegInitMs
+                } else {
+                    0L
                 }
-                val ffmpegSupportDir = File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg")
-                check(ffmpegSupportDir.isDirectory && !ffmpegSupportDir.listFiles().isNullOrEmpty()) {
-                    "Bundled FFmpeg support files were not extracted: ${ffmpegSupportDir.absolutePath}"
-                }
-                ytDlpReady = true
-                ffmpegInitMs
-            } else {
-                0L
             }
+        } catch (t: Throwable) {
+            ytDlpReady = false
+            Log.e("JET", "yt-dlp initialization failed", t)
+            throw IllegalStateException("yt-dlp initialization failed", t)
         }
     }
 
@@ -940,8 +946,8 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     if (::webView.isInitialized) notifyEngineState()
                 }
-            } catch (error: Exception) {
-                Log.e("JET", "yt-dlp initialization failed; download fallback will retry on demand", error)
+            } catch (t: Throwable) {
+                Log.e("JET", "yt-dlp initialization failed; download fallback will retry on demand", t)
                 ytDlpReady = false
             }
         }

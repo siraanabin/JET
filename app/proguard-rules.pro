@@ -1,5 +1,22 @@
+# Preserve generic type metadata and reflective Jackson model construction.
+-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
+
+# Preserve yt-dlp, FFmpeg, aria2c and their reflection/native integration.
+-keep class com.yausername.** { *; }
+-dontwarn com.yausername.**
+
+# Preserve Jackson classes and TypeReference generic signatures/subclasses.
+-keep class com.fasterxml.jackson.** { *; }
+-keepclassmembers class * extends com.fasterxml.jackson.core.type.TypeReference { *; }
+-dontwarn com.fasterxml.jackson.**
+
+# Preserve NewPipe Extractor and OkHttp used by the custom download engine.
+-keep class org.schabi.newpipe.extractor.** { *; }
+-dontwarn org.schabi.newpipe.extractor.**
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**
+
 # Preserve Kotlin serialization models and generated serializers.
--keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 -keep @kotlinx.serialization.Serializable class ** { *; }
 -keepclassmembers class **$$serializer { *; }
 -keep class kotlinx.serialization.** { *; }
@@ -9,9 +26,6 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
-# Keep extractor and downloader reflection/native integration stable under R8.
--keep class org.schabi.newpipe.extractor.** { *; }
--keep class com.yausername.youtubedl_android.** { *; }
 -keepclasseswithmembers class * {
     native <methods>;
 }

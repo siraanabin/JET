@@ -1,9 +1,9 @@
 {
-  "versionCode": 343,
-  "versionName": "0.9.0",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.0/app-release.apk",
+  "versionCode": 344,
+  "versionName": "0.9.1",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.1/app-universal-release.apk",
   "changelog": [
-    "Production v0.9.0: verified 8-worker video and audio downloads with NewPipe/OkHttp",
+    "Production v0.9.1: verified 8-worker video and audio downloads with NewPipe/OkHttp",
     "Direct M4A saving and local FFmpeg MP3 conversion",
     "yt-dlp fallback with 8 concurrent fragments and direct M4A saving",
     "Settings download telemetry and fallback diagnostics",
