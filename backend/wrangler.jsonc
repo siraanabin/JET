@@ -9,7 +9,7 @@
     {
       "binding": "DB",
       "database_name": "JET_DIAGNOSTICS",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "6155d44e-0615-483e-8c3a-f3e25b477c38",
       "migrations_dir": "migrations"
     }
   ],
