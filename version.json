@@ -1,8 +1,11 @@
 {
-  "versionCode": 348,
-  "versionName": "0.9.5",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.5/app-universal-release.apk",
+  "versionCode": 349,
+  "versionName": "0.9.6",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.6/app-universal-release.apk",
   "changelog": [
+    "Fixed Library media permission request and scan refresh flow",
+    "Added a clear permission retry action and scan timeout fallback",
+    "Improved MediaStore scanning on scoped-storage devices",
     "Fixed Library MediaStore scanning on scoped-storage devices",
     "Keep media items visible when filesystem DATA paths are unavailable",
     "Preserved R8 release keep rules and WebView bridge protections",
