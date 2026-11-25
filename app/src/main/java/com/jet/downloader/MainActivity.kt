@@ -2827,12 +2827,74 @@ class MainActivity : AppCompatActivity() {
                             JSONObject.quote("--"), "true", "false"
                         ).joinToString(", ")
                     )
-                    val ffmpegInitMs = ensureYtDlpInitialized()
+                    val nativeLibraryDir = File(applicationInfo.nativeLibraryDir)
+                    val ffmpeg = File(nativeLibraryDir, "libffmpeg.so")
+                    val ffmpegInitMs = try {
+                        ytDlpInitStep = "ffmpeg_runtime_initialize"
+                        Log.d("ENGINE_DEBUG", "step=$ytDlpInitStep")
+                        val initializedMs = JetFfmpegRuntime.initialize(applicationContext)
+
+                        ytDlpInitStep = "ffmpeg_files_verify"
+                        Log.d("ENGINE_DEBUG", "step=$ytDlpInitStep")
+                        check(ffmpeg.isFile && ffmpeg.canExecute()) {
+                            "Bundled FFmpeg executable is unavailable: ${ffmpeg.absolutePath}"
+                        }
+                        val ffmpegArchive = File(nativeLibraryDir, "libffmpeg.zip.so")
+                        check(ffmpegArchive.isFile && ffmpegArchive.length() > 0L) {
+                            "Bundled FFmpeg support archive is missing or empty: ${ffmpegArchive.absolutePath}"
+                        }
+                        val ffmpegSupportDir = File(noBackupFilesDir, "youtubedl-android/packages/ffmpeg")
+                        check(ffmpegSupportDir.isDirectory && !ffmpegSupportDir.listFiles().isNullOrEmpty()) {
+                            "Bundled FFmpeg support files were not extracted: ${ffmpegSupportDir.absolutePath}"
+                        }
+                        initializedMs
+                    } catch (t: Throwable) {
+                        val errorClass = t.javaClass.name
+                        val errorMessage = t.message ?: ""
+                        ytDlpInitError = "$errorClass:$errorMessage"
+                        val causeChain = buildString {
+                            var cause: Throwable? = t
+                            var depth = 0
+                            while (cause != null) {
+                                if (depth > 0) append(" <- ")
+                                append(cause.javaClass.name).append(":").append(cause.message ?: "")
+                                cause = cause.cause
+                                depth++
+                            }
+                        }
+                        val stackTraceFirst10 = t.stackTraceToString().lineSequence().take(10).joinToString("\n")
+                        val failureTimestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ", Locale.US).format(java.util.Date())
+                        val failureRawLog = buildString {
+                            appendLine("status=FAILED")
+                            appendLine("initStep=$ytDlpInitStep")
+                            appendLine("initError=$errorClass:$errorMessage")
+                            appendLine("causeChain=$causeChain")
+                            appendLine("stackTraceFirst10:")
+                            appendLine(stackTraceFirst10)
+                            append("timestamp=$failureTimestamp")
+                        }
+                        val failureTelemetry = JSONObject().apply {
+                            put("status", "FAILED")
+                            put("engine", "ffmpeg")
+                            put("title", "FFmpeg initialization failed")
+                            put("initStep", ytDlpInitStep)
+                            put("initError", "$errorClass:$errorMessage")
+                            put("causeChain", causeChain)
+                            put("stackTraceFirst10", stackTraceFirst10)
+                            put("timestamp", failureTimestamp)
+                            put("rawLog", failureRawLog)
+                        }
+                        callJs("onNativeYtDlpInitFailure", failureTelemetry.toString())
+                        Log.e(
+                            "ENGINE_DEBUG",
+                            "FFmpeg initialization failed exceptionClass=$errorClass message=$errorMessage initStep=$ytDlpInitStep causeChain=$causeChain stackTraceFirst10=$stackTraceFirst10",
+                            t
+                        )
+                        Log.e("JET-FFmpeg", "FFmpeg initialization or file verification failed", t)
+                        throw IllegalStateException("FFmpeg initialization failed", t)
+                    }
                     ffInitSec = ffmpegInitMs.coerceAtLeast(0L) / 1000.0
                     val ffPrepStartedAtMs = SystemClock.elapsedRealtime()
-                    val ffmpeg = File(applicationInfo.nativeLibraryDir, "libffmpeg.so")
-                    check(ffmpeg.isFile && ffmpeg.canExecute()) { "Bundled FFmpeg is unavailable" }
-                    val nativeLibraryDir = File(applicationInfo.nativeLibraryDir)
                     val packagesDir = File(noBackupFilesDir, "youtubedl-android/packages")
                     val libraryDirs = listOf(
                         nativeLibraryDir,

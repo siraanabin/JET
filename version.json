@@ -1,6 +1,6 @@
 {
-  "versionCode": 354,
-  "versionName": "0.9.11",
+  "versionCode": 355,
+  "versionName": "0.9.12",
   "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.9/app-universal-release.apk",
   "changelog": [
     "Added detailed yt-dlp initialization diagnostics to ENGINE_DEBUG and Settings telemetry",
