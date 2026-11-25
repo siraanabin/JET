@@ -103,6 +103,9 @@
 
     /* Home header stays transparent so no rectangular strip appears behind the JET title. */
 
+    /* Keep the JET Home header transparent in every theme. */
+    #screen-home > header:first-child { background: transparent !important; }
+
     .surface-card {
       background-color: var(--bg-surface);
       border: 1px solid var(--border-subtle);
