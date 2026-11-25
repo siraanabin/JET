@@ -2557,6 +2557,7 @@
         }
 
         if (res.hasUpdate) {
+          pendingApkVerified = false;
           pendingApkUpdateUrl = res.apkUrl || '';
           if (sub) sub.textContent = `v${res.latestVersion} available`;
           if (btn) btn.textContent = 'View Update';
@@ -2606,7 +2607,7 @@
         if (progressBar) progressBar.style.width = safePct + '%';
 
         pendingApkVerified = verified;
-        appUpdateInstall.disabled = !verified && !pendingApkUpdateUrl;
+        appUpdateInstall.disabled = !verified;
         appUpdateInstall.textContent = verified ? 'Update Now' : 'Downloading ' + safePct + '%';
         appUpdateStatus.textContent = verified
           ? 'Download complete. APK size and package have been verified. Tap Update Now to open Android Installer.'
