@@ -1124,6 +1124,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Re-apply the selected theme to Android's native status bar
+        // (time, signal, Wi-Fi and battery) whenever the app returns.
+        lifecycleScope.launch {
+            val mode = preferencesManager.themeModeFlow.first()
+            applySystemBarTheme(mode)
+            window.setBackgroundDrawable(
+                android.graphics.drawable.ColorDrawable(Color.parseColor(windowBackgroundColor(mode)))
+            )
+        }
         if (::webView.isInitialized) {
             webView.postDelayed({
                 dispatchClipboardUrlToWebView()
