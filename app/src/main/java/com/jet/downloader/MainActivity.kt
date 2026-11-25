@@ -3789,7 +3789,7 @@ class MainActivity : AppCompatActivity() {
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
             val chunkSize = Regex("""(?:chunkSize|chunk)=([^\s]+)""", RegexOption.IGNORE_CASE)
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "n/a"
-            val fallbackReason = Regex("""fallbackReason=(.*?)(?=\s(?:connections|conn|connectionPath|chunks|chunkSize|download|convert|merge|avg|retries|blocks)=|\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val fallbackReason = Regex("""fallbackReason=(.*?)(?=\s(?:connections|conn|connectionPath|chunks|chunkSize|download|convert|merge|avg|initError|initStep|retries|blocks)=|\nretries=|$)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
                 .find(previousSummary)?.groupValues?.getOrNull(1) ?: "none"
             val initError = ytDlpInitError.replace(Regex("\\s+"), "_").take(300).ifBlank { "none" }
             val initStep = ytDlpInitStep
