@@ -3103,8 +3103,12 @@
     return String(str || "").trim().replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
   }
 
-  function renderAllIcons() {
-    document.querySelectorAll("[data-lucide]").forEach(function (el) {
+  function renderAllIcons(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    const iconNodes = [];
+    if (scope.nodeType === 1 && scope.matches && scope.matches("[data-lucide]")) iconNodes.push(scope);
+    scope.querySelectorAll("[data-lucide]").forEach(function (node) { iconNodes.push(node); });
+    iconNodes.forEach(function (el) {
       const key = toKebab(el.getAttribute("data-lucide"));
       const inner = ICONS[key] || ICONS["download"];
       if (el.tagName.toLowerCase() === "svg") {
@@ -3135,7 +3139,7 @@
     });
   }
 
-  window.lucide = { createIcons: renderAllIcons, icons: ICONS };
+  window.lucide = { createIcons: function(options) { renderAllIcons(options && options.root); }, icons: ICONS };
   window.refreshIcons = renderAllIcons;
   renderAllIcons();
   document.addEventListener("DOMContentLoaded", renderAllIcons);
@@ -3145,7 +3149,16 @@
     renderAllIcons();
     if (++ticks >= 15) clearInterval(bootTimer);
   }, 200);
-  new MutationObserver(renderAllIcons).observe(document.documentElement, {
+  new MutationObserver(function(records) {
+    const roots = new Set();
+    records.forEach(function(record) {
+      if (record.type === "attributes") roots.add(record.target);
+      (record.addedNodes || []).forEach(function(node) {
+        if (node && node.nodeType === 1) roots.add(node);
+      });
+    });
+    roots.forEach(function(root) { renderAllIcons(root); });
+  }).observe(document.documentElement, {
     childList: true,
     subtree: true,
     attributes: true,
