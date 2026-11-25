@@ -1,8 +1,9 @@
 {
-  "versionCode": 356,
-  "versionName": "0.9.13",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.9/app-universal-release.apk",
+  "versionCode": 357,
+  "versionName": "0.9.14",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.14/app-universal-release.apk",
   "changelog": [
+    "Updated About section with app description, open-source library credits and download disclaimer",
     "Added detailed yt-dlp initialization diagnostics to ENGINE_DEBUG and Settings telemetry",
     "Fixed Library scan delivery when media permission is denied",
     "Refresh Library media scan after permission result",
