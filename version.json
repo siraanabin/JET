@@ -1,7 +1,7 @@
 {
-  "versionCode": 358,
-  "versionName": "0.9.15",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.15/app-universal-release.apk",
+  "versionCode": 359,
+  "versionName": "0.9.16",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.16/app-universal-release.apk",
   "changelog": [
     "Added Player Settings for accent color, default playback speed, autoplay next and keep-screen-on",
     "Removed manual bug-report, sent-data details and data-deletion controls; anonymous diagnostics toggle remains",
