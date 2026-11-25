@@ -4051,7 +4051,7 @@ class MainActivity : AppCompatActivity() {
          * rate limit is exhausted. For Debug builds, fall back to GitHub's
          * public Releases HTML and derive the standard release asset URL.
          */
-        private fun fetchLatestDebugReleaseFromWeb(): JSONObject {
+        private fun fetchLatestReleaseFromWeb(isDebugApp: Boolean): JSONObject {
             val pageRequest = okhttp3.Request.Builder()
                 .url("https://github.com/siraanabin/JET/releases")
                 .header("User-Agent", "JET-Android-Updater")
@@ -4059,29 +4059,34 @@ class MainActivity : AppCompatActivity() {
                 .build()
             val pageHtml = okHttpClient.newCall(pageRequest).execute().use { response ->
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("JET Debug release channel unavailable (${response.code})")
+                    throw IllegalStateException("Official Release Channel unavailable (${response.code})")
                 }
                 response.body?.string()
-                    ?: throw IllegalStateException("JET Debug release channel returned no release.")
+                    ?: throw IllegalStateException("Official Release Channel returned no release page.")
             }
 
-            val tags = Regex("""/siraanabin/JET/releases/tag/(debug-v[0-9A-Za-z._-]+)""")
+            val tags = Regex("""/siraanabin/JET/releases/tag/((?:debug-v|v)[0-9A-Za-z._-]+)""")
                 .findAll(pageHtml)
                 .map { it.groupValues[1] }
+                .filter { tag -> tag.startsWith("debug-v") == isDebugApp }
                 .distinct()
                 .toList()
             val latestTag = tags.maxWithOrNull { left, right ->
-                compareVersionStrings(left.removePrefix("debug-v"), right.removePrefix("debug-v"))
-            } ?: throw IllegalStateException("No published JET Debug update was found.")
+                val prefix = if (isDebugApp) "debug-v" else "v"
+                compareVersionStrings(left.removePrefix(prefix), right.removePrefix(prefix))
+            } ?: throw IllegalStateException("No published ${if (isDebugApp) "JET Debug" else "JET"} update was found.")
 
-            val assetUrl = "https://github.com/siraanabin/JET/releases/download/$latestTag/JET-debug.apk"
+            val assetName = if (isDebugApp) "JET-debug.apk" else "app-universal-release.apk"
+            val version = latestTag.removePrefix(if (isDebugApp) "debug-v" else "v")
+            val appName = if (isDebugApp) "JET Debug" else "JET"
+            val assetUrl = "https://github.com/siraanabin/JET/releases/download/$latestTag/$assetName"
             return JSONObject().apply {
                 put("tag_name", latestTag)
-                put("name", "JET Debug ${latestTag.removePrefix("debug-v")}")
-                put("body", "Debug update")
+                put("name", "$appName $version")
+                put("body", "Update retrieved from the official GitHub Releases page.")
                 put("html_url", "https://github.com/siraanabin/JET/releases/tag/$latestTag")
                 put("assets", org.json.JSONArray().put(JSONObject().apply {
-                    put("name", "JET-debug.apk")
+                    put("name", assetName)
                     put("browser_download_url", assetUrl)
                 }))
             }
@@ -4152,7 +4157,7 @@ class MainActivity : AppCompatActivity() {
                                     } ?: throw IllegalStateException("No published JET Debug update is available yet.")
                             }
                         } catch (apiError: Exception) {
-                            fetchLatestDebugReleaseFromWeb()
+                            fetchLatestReleaseFromWeb(true)
                         }
                     } else {
                         val request = okhttp3.Request.Builder()
@@ -4161,11 +4166,16 @@ class MainActivity : AppCompatActivity() {
                             .header("X-GitHub-Api-Version", "2022-11-28")
                             .header("Cache-Control", "no-cache")
                             .build()
-                        okHttpClient.newCall(request).execute().use { response ->
-                            if (!response.isSuccessful || response.body == null) {
-                                throw IllegalStateException("Official Release Channel unavailable (${response.code})")
+                        try {
+                            okHttpClient.newCall(request).execute().use { response ->
+                                if (!response.isSuccessful || response.body == null) {
+                                    throw IllegalStateException("Official Release Channel unavailable (${response.code})")
+                                }
+                                JSONObject(response.body!!.string())
                             }
-                            JSONObject(response.body!!.string())
+                        } catch (apiError: Exception) {
+                            Log.w("JET-Updater", "GitHub Releases API failed; using public Releases page fallback", apiError)
+                            fetchLatestReleaseFromWeb(false)
                         }
                     }
 
@@ -4177,7 +4187,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         val releaseNotes = release.optString("body", "").trim()
                         val assets = release.optJSONArray("assets")
-                        val expectedAssetName = if (isDebugApp) "JET-debug.apk" else "app-release.apk"
+                        val expectedAssetName = if (isDebugApp) "JET-debug.apk" else "app-universal-release.apk"
                         var apkUrl = ""
                         if (assets != null) {
                             for (index in 0 until assets.length()) {
