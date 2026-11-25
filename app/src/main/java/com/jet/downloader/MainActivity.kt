@@ -4283,6 +4283,17 @@ class MainActivity : AppCompatActivity() {
             val version = latestTag.removePrefix(if (isDebugApp) "debug-v" else "v")
             val appName = if (isDebugApp) "JET Debug" else "JET"
             val assetUrl = "https://github.com/siraanabin/JET/releases/download/$latestTag/$assetName"
+            val checksumRequest = okhttp3.Request.Builder()
+                .url("$assetUrl.sha256")
+                .header("User-Agent", "JET-Android-Updater")
+                .header("Cache-Control", "no-cache")
+                .build()
+            val checksumText = okHttpClient.newCall(checksumRequest).execute().use { response ->
+                if (!response.isSuccessful) throw IllegalStateException("Official APK checksum file is unavailable.")
+                response.body?.string()?.trim().orEmpty()
+            }
+            val checksum = Regex("(?i)\\b[a-f0-9]{64}\\b").find(checksumText)?.value
+                ?: throw IllegalStateException("Official APK checksum file is invalid.")
             return JSONObject().apply {
                 put("tag_name", latestTag)
                 put("name", "$appName $version")
@@ -4291,6 +4302,7 @@ class MainActivity : AppCompatActivity() {
                 put("assets", org.json.JSONArray().put(JSONObject().apply {
                     put("name", assetName)
                     put("browser_download_url", assetUrl)
+                    put("digest", "sha256:$checksum")
                 }))
             }
         }
