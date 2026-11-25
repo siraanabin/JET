@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script>(function(){try{var m=localStorage.getItem("jet-theme-mode")||"system";var sd=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;var d=m==="dark"||(m==="system"&&sd);document.documentElement.classList.toggle("dark",d);document.documentElement.style.backgroundColor=d?"#090C14":"#F4F6FB";}catch(e){}})();</script>
+  <script>(function(){try{var m=localStorage.getItem("jet-theme-mode")||"system";var sd=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches;var d=m==="dark"||m==="ocean"||(m==="system"&&sd);document.documentElement.classList.toggle("dark",d);document.documentElement.classList.toggle("theme-warm",m==="warm");document.documentElement.classList.toggle("theme-ocean",m==="ocean");document.documentElement.style.backgroundColor=m==="warm"?"#E3D7D1":(d?"#071321":"#F4F6FB");}catch(e){}})();</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>JET — Download at Full Speed.</title>
@@ -45,6 +45,44 @@
       --bg-nav: rgba(13, 18, 31, 0.98);
       --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.45);
       --glow-color: rgba(79, 124, 255, 0.22);
+    }
+
+    html.theme-warm {
+      --bg-canvas: #E3D7D1;
+      --bg-surface: #F4ECE4;
+      --bg-elevated: #FFFFFF;
+      --border-subtle: #D8C9C0;
+      --accent-primary: #E2584D;
+      --accent-hover: #C94B42;
+      --accent-tint: #F8DDD7;
+      --text-primary: #464646;
+      --text-secondary: #625B57;
+      --text-muted: #827873;
+      --status-success: #27845D;
+      --status-warning: #B87524;
+      --status-danger: #C94B42;
+      --bg-nav: rgba(244, 236, 228, 0.98);
+      --card-shadow: 0 4px 20px -4px rgba(70, 70, 70, 0.10);
+      --glow-color: rgba(226, 88, 77, 0.12);
+    }
+
+    html.dark.theme-ocean {
+      --bg-canvas: #071321;
+      --bg-surface: #0D1D2B;
+      --bg-elevated: #142B3C;
+      --border-subtle: #25465A;
+      --accent-primary: #36C6B4;
+      --accent-hover: #25A997;
+      --accent-tint: rgba(54, 198, 180, 0.14);
+      --text-primary: #EAF7F5;
+      --text-secondary: #B5D1D1;
+      --text-muted: #85A8AD;
+      --status-success: #4CCB8A;
+      --status-warning: #F2B85B;
+      --status-danger: #FF7B78;
+      --bg-nav: rgba(13, 29, 43, 0.98);
+      --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.48);
+      --glow-color: rgba(54, 198, 180, 0.18);
     }
 
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -740,6 +778,14 @@
             <span><span class="block text-sm font-bold text-app-text">Light</span><span class="block text-[11px] text-app-secondary mt-0.5">Always use light appearance</span></span>
             <span data-theme-check class="hidden text-app-primary font-extrabold text-lg">✓</span>
           </button>
+          <button type="button" data-theme-option="warm" role="radio" aria-checked="false" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span class="flex items-center gap-3"><span class="flex gap-1"><i class="w-3 h-7 rounded-full bg-[#F4ECE4] border border-app-border"></i><i class="w-3 h-7 rounded-full bg-[#464646]"></i><i class="w-3 h-7 rounded-full bg-[#E2584D]"></i></span><span><span class="block text-sm font-bold text-app-text">Warm Coral</span><span class="block text-[11px] text-app-secondary mt-0.5">Cream, charcoal and coral</span></span></span>
+            <span data-theme-check class="hidden text-app-primary font-extrabold text-lg">✓</span>
+          </button>
+          <button type="button" data-theme-option="ocean" role="radio" aria-checked="false" class="w-full rounded-2xl px-3.5 py-3 flex items-center justify-between text-left active:bg-app-elevated transition">
+            <span class="flex items-center gap-3"><span class="flex gap-1"><i class="w-3 h-7 rounded-full bg-[#071321] border border-app-border"></i><i class="w-3 h-7 rounded-full bg-[#0D1D2B]"></i><i class="w-3 h-7 rounded-full bg-[#36C6B4]"></i></span><span><span class="block text-sm font-bold text-app-text">Ocean Night</span><span class="block text-[11px] text-app-secondary mt-0.5">Deep navy with teal accents</span></span></span>
+            <span data-theme-check class="hidden text-app-primary font-extrabold text-lg">✓</span>
+          </button>
         </div>
       </div>
     </div>
@@ -1115,8 +1161,8 @@
         if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('libraryGridColumns', String(state.libraryGridColumns));
       });
 
-      // Three-way theme selection is persisted natively in AndroidX DataStore.
-      const themeLabels = { system: 'System Default', dark: 'Dark', light: 'Light' };
+      // Theme selection is persisted natively in AndroidX DataStore.
+      const themeLabels = { system: 'System Default', dark: 'Dark', light: 'Light', warm: 'Warm Coral', ocean: 'Ocean Night' };
 
       function updateThemeSelector() {
         const subtitle = $('settings-theme-value');
@@ -1133,8 +1179,11 @@
         const mode = Object.prototype.hasOwnProperty.call(themeLabels, themeMode) ? themeMode : 'system';
         state.themeMode = mode;
         state.systemDark = Boolean(systemDark);
-        const isDark = mode === 'dark' || (mode === 'system' && state.systemDark);
+        const isDark = mode === 'dark' || mode === 'ocean' || (mode === 'system' && state.systemDark);
         document.documentElement.classList.toggle('dark', isDark);
+        document.documentElement.classList.toggle('theme-warm', mode === 'warm');
+        document.documentElement.classList.toggle('theme-ocean', mode === 'ocean');
+        document.documentElement.style.backgroundColor = mode === 'warm' ? '#E3D7D1' : (isDark ? '#071321' : '#F4F6FB');
         const topIcon = $('topbar-theme-icon');
         if (topIcon) topIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
         updateThemeSelector();
@@ -2744,7 +2793,7 @@
       window.onNativeMusicProgress=(p,d)=>{musicDurationMs=Math.max(0,Number(d)||0);musicPositionMs=Math.max(0,Number(p)||0);const shown=musicScrubbing?musicScrubPositionMs:musicPositionMs;$('music-current-time').textContent=musicTime(shown);$('music-duration-time').textContent=musicTime(musicDurationMs);if(!musicScrubbing)updateMusicSeekbar(musicPositionMs,musicDurationMs);};
       window.onNativeMusicQueueChanged=q=>{musicQueue=Array.isArray(q)?q:[];renderMusicQueue();};
       window.onNativeMusicError=m=>showToast(String(m||'Music playback error'));
-      window.onNativeSystemThemeChanged=dark=>document.documentElement.classList.toggle('dark',!!dark);
+      window.onNativeSystemThemeChanged=dark=>{if(state.themeMode==='system')applyTheme('system',!!dark,false);};
       $('music-minimize-btn').addEventListener('click',()=>{musicOverlay.classList.add('hidden');musicMiniBar.classList.remove('hidden');window.JetAndroid?.musicMinimize?.();});
       musicMiniBar.addEventListener('click',()=>{musicMiniBar.classList.add('hidden');musicOverlay.classList.remove('hidden');});
       $('music-play-pause-btn').addEventListener('click',()=>window.JetAndroid?.musicPlayPause?.());
