@@ -86,3 +86,44 @@ export function isValidVideoId(value) {
     value.length <= 128 &&
     /^[A-Za-z0-9_-]+$/.test(value);
 }
+
+const BUG_LOG_FIELDS = new Set([
+  "event_type", "engine", "fallbackReason", "initStep", "initError",
+  "speed", "durationMs", "format", "resolution", "sizeBytes", "retries",
+  "appVersion", "androidVersion", "deviceModel", "abi", "networkType",
+  "freeStorageBucket", "timestamp",
+]);
+const BUG_LOG_TEXT_LIMITS = {
+  event_type: 16, engine: 80, fallbackReason: 160, initStep: 100,
+  initError: 300, format: 40, resolution: 40, appVersion: 40,
+  androidVersion: 40, deviceModel: 80, abi: 40, networkType: 40,
+  freeStorageBucket: 40, timestamp: 32,
+};
+
+export function normalizeBugLogs(value) {
+  if (value === undefined || value === null) return "[]";
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const result = [];
+  let used = 2;
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const clean = {};
+    for (const [key, item] of Object.entries(raw)) {
+      if (!BUG_LOG_FIELDS.has(key) || item === undefined || item === null) continue;
+      if (Object.hasOwn(BUG_LOG_TEXT_LIMITS, key)) {
+        if (typeof item !== "string") continue;
+        const text = sanitizeSensitiveText(item, BUG_LOG_TEXT_LIMITS[key]);
+        if (text) clean[key] = text;
+      } else if (typeof item === "number" && Number.isFinite(item) && item >= 0) {
+        clean[key] = item;
+      }
+    }
+    if (!Object.keys(clean).length) continue;
+    const encoded = JSON.stringify(clean);
+    const extra = encoded.length + (result.length ? 1 : 0);
+    if (used + extra > 6000) break;
+    result.push(clean);
+    used += extra;
+  }
+  return JSON.stringify(result);
+}
