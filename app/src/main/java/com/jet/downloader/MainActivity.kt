@@ -4635,6 +4635,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                callJs(
+                    "onNativeAppUpdateInstallError",
+                    JSONObject.quote("Allow JET to install unknown apps in Android Settings, then tap Update Now again.")
+                )
                 runOnUiThread {
                     Toast.makeText(
                         this@MainActivity,
