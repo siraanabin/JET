@@ -45,3 +45,7 @@
 # These JavaBeans and javax.script adapters are not available/used on Android.
 -dontwarn java.beans.**
 -dontwarn javax.script.**
+
+# Preserve Apache Commons Compress classes used by youtubedl-android ZipUtils.
+-keep class org.apache.commons.compress.** { *; }
+-dontwarn org.apache.commons.compress.**
