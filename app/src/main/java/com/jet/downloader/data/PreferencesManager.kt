@@ -35,6 +35,10 @@ class PreferencesManager(private val context: Context) {
         private val SPEED_LIMIT_KEY = intPreferencesKey("download_speed_limit_kbps")
         private val ALLOW_MOBILE_DATA_KEY = booleanPreferencesKey("download_mobile_data")
         private val LIBRARY_GRID_COLUMNS_KEY = intPreferencesKey("library_grid_columns")
+        private val DIAGNOSTICS_ENABLED_KEY = booleanPreferencesKey("diagnostics_enabled")
+        private val TOP_LINK_ENABLED_KEY = booleanPreferencesKey("top_link_counting_enabled")
+        private val DIAGNOSTIC_INSTALL_ID_KEY = stringPreferencesKey("diagnostic_install_id")
+        private val DIAGNOSTIC_STOP_UNTIL_KEY = stringPreferencesKey("diagnostic_stop_until_utc")
 
         const val THEME_SYSTEM = "system"
         const val THEME_DARK = "dark"
@@ -103,6 +107,34 @@ class PreferencesManager(private val context: Context) {
             }
         }
     }
+
+    suspend fun isDiagnosticsEnabled(): Boolean = context.jetDataStore.data.first()[DIAGNOSTICS_ENABLED_KEY] ?: false
+    suspend fun isTopLinkCountingEnabled(): Boolean = context.jetDataStore.data.first()[TOP_LINK_ENABLED_KEY] ?: false
+    suspend fun setDiagnosticPreference(name: String, enabled: Boolean) {
+        context.jetDataStore.edit { prefs ->
+            when (name) {
+                "diagnostics" -> prefs[DIAGNOSTICS_ENABLED_KEY] = enabled
+                "topLink" -> prefs[TOP_LINK_ENABLED_KEY] = enabled
+                else -> throw IllegalArgumentException("Unknown diagnostic preference")
+            }
+        }
+    }
+    suspend fun getOrCreateDiagnosticInstallId(): String {
+        var result = ""
+        context.jetDataStore.edit { prefs ->
+            val current = prefs[DIAGNOSTIC_INSTALL_ID_KEY].orEmpty()
+            result = if (current.matches(Regex("[A-Za-z0-9._-]{16,128}"))) current else java.util.UUID.randomUUID().toString().also { prefs[DIAGNOSTIC_INSTALL_ID_KEY] = it }
+        }
+        return result
+    }
+    suspend fun resetDiagnosticInstallId() {
+        context.jetDataStore.edit { prefs ->
+            prefs[DIAGNOSTIC_INSTALL_ID_KEY] = java.util.UUID.randomUUID().toString()
+            prefs.remove(DIAGNOSTIC_STOP_UNTIL_KEY)
+        }
+    }
+    suspend fun getDiagnosticStopUntilUtc(): String = context.jetDataStore.data.first()[DIAGNOSTIC_STOP_UNTIL_KEY].orEmpty()
+    suspend fun setDiagnosticStopUntilUtc(value: String) { context.jetDataStore.edit { prefs -> prefs[DIAGNOSTIC_STOP_UNTIL_KEY] = value } }
 
     suspend fun getDownloadPreferences(): DownloadPreferences = downloadPreferencesFlow.first()
 }

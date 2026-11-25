@@ -147,6 +147,7 @@ class MainActivity : AppCompatActivity() {
     private val newPipeInitLock = Any()
     private val downloadDao: DownloadDao by inject()
     private val preferencesManager: PreferencesManager by inject()
+    private val diagnosticRecorder by lazy { DiagnosticRecorder(applicationContext, preferencesManager, okHttpClient) }
     private val json: Json by inject()
     private val realDownloadSpecs = ConcurrentHashMap<String, RealDownloadSpec>()
     private data class PrefetchedStreamChunk(val bytes: ByteArray, val totalBytes: Long, val cachedAtMs: Long)
@@ -721,6 +722,7 @@ class MainActivity : AppCompatActivity() {
                 pushScannedLibraryToWeb()
                 syncNetworkStateToJs()
                 syncMusicVolumeToWeb()
+                lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.flushPending() } }
             }
 
             override fun onReceivedError(
@@ -1947,6 +1949,36 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun getDiagnosticSettingsJson(): String = runBlocking { diagnosticRecorder.settingsJson() }
+        @JavascriptInterface
+        fun getRecentDiagnosticLogsJson(): String = runBlocking { diagnosticRecorder.recentLogsJson() }
+        @JavascriptInterface
+        fun setDiagnosticPreference(name: String, enabled: Boolean) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                runCatching { diagnosticRecorder.setPreference(name, enabled); diagnosticRecorder.flushPending() }
+                runOnUiThread { callJs("onNativeDiagnosticResult", "true,${JSONObject.quote("Settings saved.")}") }
+            }
+        }
+        @JavascriptInterface
+        fun sendDiagnosticReport(payload: String) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val result = runCatching {
+                    val data = JSONObject(payload)
+                    val includeLogs = data.optJSONArray("logs")?.length()?.let { it > 0 } ?: false
+                    diagnosticRecorder.submitReport(data.optString("category"), data.optString("description"), includeLogs)
+                }.getOrDefault(false)
+                runOnUiThread { callJs("onNativeDiagnosticResult", "${result},${JSONObject.quote(if (result) "রিপোর্ট পাঠানো হয়েছে।" else "রিপোর্ট পাঠানো যায়নি।")}") }
+            }
+        }
+        @JavascriptInterface
+        fun deleteDiagnosticData() {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val result = diagnosticRecorder.deleteMyData()
+                runOnUiThread { callJs("onNativeDiagnosticResult", "${result},${JSONObject.quote(if (result) "কাঁচা ডেটা মুছে ফেলার অনুরোধ সম্পন্ন। অজ্ঞাত সারাংশ গণনা থাকতে পারে।" else "ডেটা মুছতে অনুরোধ ব্যর্থ হয়েছে।")}") }
+            }
+        }
+
+        @JavascriptInterface
         fun pickFeedbackMedia(maxItems: Int) {
             runOnUiThread { feedbackMediaPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
         }
@@ -2503,6 +2535,7 @@ class MainActivity : AppCompatActivity() {
                         downloadWithNewPipe(downloadId, url, outDir, selectedItag, maxHeight)
                     }
                     val fallbackReason = downloadFallbackReasons.remove(downloadId) ?: "custom_engine_failed"
+                    if (newPipeFile == null) lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.recordFallback(fallbackReason); diagnosticRecorder.flushPending() } }
                     if (newPipeFile != null) {
                         Log.d("ENGINE_DEBUG", "downloadId=$downloadId engine=custom reason=custom_download_succeeded")
                         finishDownloadSuccess(downloadId, url, newPipeFile, if (isAudio) "audio" else "video", resolvedThumbnailUrl, selectedResolution)
@@ -2664,6 +2697,7 @@ class MainActivity : AppCompatActivity() {
                         e
                     )
                     notifyEngineUpdateRequired(e)
+                    lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.recordFailure(); diagnosticRecorder.flushPending() } }
                     val fail = DownloadErrorPayload(downloadId, e.message ?: "Download failed")
                     runCatching { DownloadNotificationService.failed(this@MainActivity, downloadId, title, fail.error) }
                     callJs("onNativeDownloadError", json.encodeToString(fail))
@@ -3919,6 +3953,9 @@ class MainActivity : AppCompatActivity() {
             completedPayloadJson.put("telemetry", telemetryJson)
             completedPayloadJson.put("telemetrySummary", rawLog)
             completedPayloadJson.put("telemetryDisplay", "${connections} conn • ${seconds(downloadSec)} • ${avgSpeedText}")
+            val elapsedDiagnosticMs = (System.currentTimeMillis() - (downloadStartedAtMs[downloadId] ?: System.currentTimeMillis())).coerceAtLeast(0L)
+            runCatching { diagnosticRecorder.recordSuccess(url, file.extension, resolution, displaySizeBytes, elapsedDiagnosticMs) }
+            lifecycleScope.launch(Dispatchers.IO) { runCatching { diagnosticRecorder.flushPending() } }
             downloadStartedAtMs.remove(downloadId)
             callJs("onNativeDownloadComplete", completedPayloadJson.toString())
             pushScannedLibraryToWeb()

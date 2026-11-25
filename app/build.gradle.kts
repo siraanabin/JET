@@ -22,9 +22,12 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 29
         targetSdk = 34
-        versionCode = 355
-        versionName = "0.9.12"
+        versionCode = 356
+        versionName = "0.9.13"
         buildConfigField("String", "JET_FEEDBACK_HELPER_URL", "\"$feedbackHelperUrl\"")
+        val ingestApiKey = providers.environmentVariable("INGEST_API_KEY").orElse("").get()
+            .replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "INGEST_API_KEY", "\"$ingestApiKey\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
