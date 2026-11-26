@@ -1,8 +1,9 @@
 {
-  "versionCode": 367,
-  "versionName": "0.9.24",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.24/app-universal-release.apk",
+  "versionCode": 368,
+  "versionName": "0.9.25",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.25/app-universal-release.apk",
   "changelog": [
+    "Test Library grid content-visibility optimization",
     "Improved navigation performance diagnostics and fixed log copying",
     "Added detailed Library navigation and render phase profiling",
     "Improved Library opening and rendering performance",

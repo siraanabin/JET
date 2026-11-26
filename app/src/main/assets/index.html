@@ -112,6 +112,12 @@
       box-shadow: var(--card-shadow);
     }
 
+    /* Library grid experiment: defer off-screen card rendering without changing JS. */
+    #library-items-container.grid > [data-play-title] {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 120px;
+    }
+
     .ambient-glow {
       background: radial-gradient(85% 45% at 50% 0%, var(--glow-color) 0%, transparent 100%);
     }
