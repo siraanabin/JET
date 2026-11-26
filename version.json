@@ -1,8 +1,10 @@
 {
-  "versionCode": 372,
-  "versionName": "0.9.29",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.29/app-universal-release.apk",
+  "versionCode": 373,
+  "versionName": "0.9.30",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v0.9.30/JET-debug.apk",
   "changelog": [
+    "Experimental Library thumbnail queue: max 3 active, in-flight cache-key dedupe, and queued-only cancellation for cards leaving viewport",
+    "Bumped app version to 0.9.30 (versionCode 373)",
     "Added batched Library thumbnail telemetry: cache hit/miss, request and generation timing, cache size, concurrency and slowest 10",
     "Bumped app version to 0.9.28 (versionCode 371)",
     "Cache Library thumbnails on disk so previously generated thumbnails are reused on later visits",

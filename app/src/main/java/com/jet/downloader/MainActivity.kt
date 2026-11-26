@@ -105,6 +105,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -166,7 +167,24 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
     private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
     private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
+    private val libraryVideoThumbnailCacheDir by lazy { File(cacheDir, "library-thumbnails").apply { mkdirs() } }
     private val libraryThumbnailActiveCount = AtomicInteger(0)
+    private val libraryThumbnailSemaphore = Semaphore(3)
+    private val libraryThumbnailRequestLock = Any()
+    private val libraryThumbnailInFlight = mutableMapOf<String, Job>()
+    private val libraryThumbnailStarted = mutableSetOf<String>()
+    private val libraryThumbnailWaiters = mutableMapOf<String, MutableSet<String>>()
+
+    private fun libraryThumbnailIdentity(path: String, uriText: String): String {
+        val file = path.takeIf { it.isNotBlank() }?.let(::File)
+        return if (file != null && file.isFile) "${path}|${file.lastModified()}|${file.length()}" else uriText
+    }
+
+    private fun libraryThumbnailCacheFile(identity: String): File {
+        val name = MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) } + ".jpg.txt"
+        return File(libraryVideoThumbnailCacheDir, name)
+    }
     private val mediaRefreshHandler = Handler(Looper.getMainLooper())
     private var mediaStoreObserver: android.database.ContentObserver? = null
     private val mediaRefreshRunnable = Runnable { if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb(force = true) }
@@ -4111,58 +4129,115 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun requestFileThumbnail(filePath: String, fileUri: String) {
+        fun requestFileThumbnail(filePath: String, fileUri: String, consumerId: String) {
             val path = filePath.trim()
             val uriText = fileUri.trim()
-            lifecycleScope.launch(Dispatchers.IO) {
-                val active = libraryThumbnailActiveCount.incrementAndGet()
-                val started = SystemClock.elapsedRealtime()
-                var hit = false
-                var generationMs = 0L
-                var cacheBytes = 0L
-                val thumbnail = runCatching {
-                    val file = path.takeIf { it.isNotBlank() }?.let(::File)
-                    val identity = if (file != null && file.isFile) "${path}|${file.lastModified()}|${file.length()}" else uriText
-                    val name = MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
-                        .joinToString("") { "%02x".format(it) } + ".jpg.txt"
-                    val dir = File(cacheDir, "library-thumbnails").apply { mkdirs() }
-                    val cached = File(dir, name)
-                    val result = if (cached.isFile && cached.length() > 0L) {
-                        hit = true
-                        cached.readText(Charsets.UTF_8)
-                    } else {
-                        val genStart = SystemClock.elapsedRealtime()
-                        val generated = if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
-                        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
-                            val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
-                            ByteArrayOutputStream().use { output ->
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
-                                bitmap.recycle()
-                                "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+            val requestKey = libraryThumbnailIdentity(path, uriText)
+            if (requestKey.isBlank()) return
+            val waiterId = consumerId.trim().ifBlank { "legacy:${path.ifBlank { uriText }}" }
+
+            synchronized(libraryThumbnailRequestLock) {
+                val waiters = libraryThumbnailWaiters.getOrPut(requestKey) { mutableSetOf() }
+                if (!waiters.add(waiterId)) return
+                if (libraryThumbnailInFlight.containsKey(requestKey)) return
+
+                val requestJob = lifecycleScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+                    var acquired = false
+                    var countedActive = false
+                    try {
+                        val requestStartedAt = SystemClock.elapsedRealtime()
+                        libraryThumbnailSemaphore.acquire()
+                        acquired = true
+                        val currentJob = currentCoroutineContext()[Job]
+                        synchronized(libraryThumbnailRequestLock) {
+                            if (currentJob?.isCancelled == true) throw CancellationException("Thumbnail request cancelled before start")
+                            libraryThumbnailStarted.add(requestKey)
+                        }
+
+                        val active = libraryThumbnailActiveCount.incrementAndGet()
+                        countedActive = true
+                        var hit = false
+                        var generationMs = 0L
+                        var cacheBytes = 0L
+                        val thumbnail = try {
+                            val file = path.takeIf { it.isNotBlank() }?.let(::File)
+                            val cached = libraryThumbnailCacheFile(requestKey)
+                            val result = if (cached.isFile && cached.length() > 0L) {
+                                hit = true
+                                cached.readText(Charsets.UTF_8)
+                            } else {
+                                val genStart = SystemClock.elapsedRealtime()
+                                val generated = if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
+                                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
+                                    val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
+                                    ByteArrayOutputStream().use { output ->
+                                        bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                                        bitmap.recycle()
+                                        "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                                    }
+                                } else ""
+                                generationMs = SystemClock.elapsedRealtime() - genStart
+                                if (generated.startsWith("data:image/")) runCatching { cached.writeText(generated, Charsets.UTF_8) }
+                                generated
                             }
-                        } else ""
-                        generationMs = SystemClock.elapsedRealtime() - genStart
-                        if (generated.startsWith("data:image/")) runCatching { cached.writeText(generated, Charsets.UTF_8) }
-                        generated
+                            cacheBytes = cached.takeIf { it.isFile }?.length() ?: 0L
+                            result
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Throwable) {
+                            Log.w("JET-LibraryThumb", "Thumbnail failed for key=$requestKey", error)
+                            ""
+                        }
+
+                        val requestMs = SystemClock.elapsedRealtime() - requestStartedAt
+                        val activeNow = libraryThumbnailActiveCount.decrementAndGet().coerceAtLeast(0)
+                        countedActive = false
+                        withContext(Dispatchers.Main) {
+                            val record = JSONObject().apply {
+                                put("cache", if (hit) "HIT" else "MISS")
+                                put("generationMs", generationMs)
+                                put("requestMs", requestMs)
+                                put("imageKB", cacheBytes / 1024.0)
+                                put("cacheBytes", cacheBytes)
+                                put("activeAtStart", active)
+                                put("activeNow", activeNow)
+                                put("success", thumbnail.isNotBlank())
+                            }
+                            callJs("onNativeThumbnailTelemetry", record.toString())
+                            if (thumbnail.isNotBlank()) callJs("onNativeFileThumbnail", "${JSONObject.quote(path)}, ${JSONObject.quote(thumbnail)}")
+                        }
+                    } finally {
+                        if (countedActive) libraryThumbnailActiveCount.decrementAndGet()
+                        if (acquired) libraryThumbnailSemaphore.release()
                     }
-                    cacheBytes = cached.takeIf { it.isFile }?.length() ?: 0L
-                    result
-                }.getOrDefault("")
-                val requestMs = SystemClock.elapsedRealtime() - started
-                val activeNow = libraryThumbnailActiveCount.decrementAndGet().coerceAtLeast(0)
-                withContext(Dispatchers.Main) {
-                    val record = JSONObject().apply {
-                        put("cache", if (hit) "HIT" else "MISS")
-                        put("generationMs", generationMs)
-                        put("requestMs", requestMs)
-                        put("imageKB", cacheBytes / 1024.0)
-                        put("cacheBytes", cacheBytes)
-                        put("activeAtStart", active)
-                        put("activeNow", activeNow)
-                        put("success", thumbnail.isNotBlank())
+                }
+                libraryThumbnailInFlight[requestKey] = requestJob
+                requestJob.invokeOnCompletion {
+                    synchronized(libraryThumbnailRequestLock) {
+                        if (libraryThumbnailInFlight[requestKey] === requestJob) {
+                            libraryThumbnailInFlight.remove(requestKey)
+                            libraryThumbnailStarted.remove(requestKey)
+                            libraryThumbnailWaiters.remove(requestKey)
+                        }
                     }
-                    callJs("onNativeThumbnailTelemetry", record.toString())
-                    if (thumbnail.isNotBlank()) callJs("onNativeFileThumbnail", "${JSONObject.quote(path)}, ${JSONObject.quote(thumbnail)}")
+                }
+                requestJob.start()
+            }
+        }
+
+        @JavascriptInterface
+        fun cancelFileThumbnail(filePath: String, fileUri: String, consumerId: String) {
+            val path = filePath.trim()
+            val uriText = fileUri.trim()
+            val requestKey = libraryThumbnailIdentity(path, uriText)
+            val waiterId = consumerId.trim().ifBlank { "legacy:${path.ifBlank { uriText }}" }
+            synchronized(libraryThumbnailRequestLock) {
+                val waiters = libraryThumbnailWaiters[requestKey] ?: return
+                waiters.remove(waiterId)
+                if (waiters.isEmpty() && requestKey !in libraryThumbnailStarted) {
+                    val queuedJob = libraryThumbnailInFlight.remove(requestKey)
+                    libraryThumbnailWaiters.remove(requestKey)
+                    queuedJob?.cancel(CancellationException("Thumbnail left the viewport before generation started"))
                 }
             }
         }

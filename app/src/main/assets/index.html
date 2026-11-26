@@ -1996,8 +1996,14 @@
           else { const img=document.createElement('img'); img.alt=''; img.decoding='async'; img.className='absolute inset-0 w-full h-full object-cover'; img.src=record.thumbnailUrl; img.onerror=()=>img.remove(); preview.replaceChildren(img); }
         } else if (record.filePath||record.fileUri) {
           const key=record.filePath||record.fileUri;
-          if (card.dataset.thumbnailRequest!==key) { card.dataset.thumbnailRequest=key;
-            if (hasAndroid()&&window.JetAndroid&&window.JetAndroid.requestFileThumbnail) window.JetAndroid.requestFileThumbnail(record.filePath,record.fileUri);
+          if (card.dataset.thumbnailRequest!==key) {
+            if (card.dataset.thumbnailRequest && hasAndroid() && window.JetAndroid && window.JetAndroid.cancelFileThumbnail) {
+              window.JetAndroid.cancelFileThumbnail(card.dataset.thumbnailPath || '',card.dataset.thumbnailUri || '','latest-saved');
+            }
+            card.dataset.thumbnailRequest=key;
+            card.dataset.thumbnailPath=record.filePath;
+            card.dataset.thumbnailUri=record.fileUri;
+            if (hasAndroid()&&window.JetAndroid&&window.JetAndroid.requestFileThumbnail) window.JetAndroid.requestFileThumbnail(record.filePath,record.fileUri,'latest-saved');
           }
         }
       }
@@ -2093,7 +2099,13 @@
         if (container && safePath) {
           const card = Array.from(container.querySelectorAll('[data-file-path]')).find((node) => node.dataset.filePath === safePath);
           const img = card && card.querySelector('[data-library-thumbnail]');
-          if (img) { img.src = thumbnailUrl; img.classList.remove('hidden'); }
+          if (img) {
+            img.src = thumbnailUrl;
+            img.classList.remove('hidden');
+            card.dataset.thumbnailLoaded = 'true';
+            delete card.dataset.thumbnailRequested;
+            if (libraryThumbnailObserver) libraryThumbnailObserver.unobserve(card);
+          }
         }
         const card = $('latest-download-card');
         if (!safePath || card.dataset.filePath === safePath) {
@@ -2675,16 +2687,27 @@
         libraryRevealObserver.observe(sentinel);
       }
 
+      let libraryThumbnailConsumerSequence = 0;
       function observeLibraryThumbnails(root) {
         if (!root || !window.JetAndroid || typeof window.JetAndroid.requestFileThumbnail !== 'function') return;
         if (!libraryThumbnailObserver && 'IntersectionObserver' in window) {
           libraryThumbnailObserver = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
-              if (!entry.isIntersecting) return;
               const card = entry.target;
-              libraryThumbnailObserver.unobserve(card);
-              if (card.dataset.thumbnailRequested === 'true') return;
+              const filePath = card.dataset.filePath || '';
+              const fileUri = card.dataset.fileUri || '';
+              if (!entry.isIntersecting) {
+                if (card.dataset.thumbnailRequested === 'true' && card.dataset.thumbnailLoaded !== 'true') {
+                  if (window.JetAndroid.cancelFileThumbnail) {
+                    window.JetAndroid.cancelFileThumbnail(filePath, fileUri, card.dataset.thumbnailConsumer || '');
+                  }
+                  delete card.dataset.thumbnailRequested;
+                }
+                return;
+              }
+              if (card.dataset.thumbnailRequested === 'true' || card.dataset.thumbnailLoaded === 'true') return;
               card.dataset.thumbnailRequested = 'true';
+              card.dataset.thumbnailConsumer = card.dataset.thumbnailConsumer || ('library-card-' + (++libraryThumbnailConsumerSequence));
               const frame = card.querySelector('.relative.aspect-video, .w-12.h-12, .w-16.h-16');
               if (frame && card.dataset.mediaType === 'video' && !frame.querySelector('[data-library-thumbnail]')) {
                 const img = document.createElement('img');
@@ -2695,12 +2718,12 @@
                 img.className = 'absolute inset-0 w-full h-full object-cover bg-[#141923]';
                 frame.appendChild(img);
               }
-              window.JetAndroid.requestFileThumbnail(card.dataset.filePath || '', card.dataset.fileUri || '');
+              window.JetAndroid.requestFileThumbnail(filePath, fileUri, card.dataset.thumbnailConsumer);
             });
           }, { root: document.getElementById('scroll-container'), rootMargin: '240px 0px', threshold: 0.01 });
         }
         if (libraryThumbnailObserver) {
-          root.querySelectorAll('[data-play-title][data-media-type="video"][data-file-uri]:not([data-thumbnail-requested="true"])').forEach((card) => libraryThumbnailObserver.observe(card));
+          root.querySelectorAll('[data-play-title][data-media-type="video"][data-file-uri]:not([data-thumbnail-loaded="true"])').forEach((card) => libraryThumbnailObserver.observe(card));
         }
       }
 

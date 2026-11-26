@@ -22,8 +22,8 @@ android {
         applicationId = "com.jet.downloader"
         minSdk = 29
         targetSdk = 34
-        versionCode = 372
-        versionName = "0.9.29"
+        versionCode = 373
+        versionName = "0.9.30"
         buildConfigField("String", "JET_FEEDBACK_HELPER_URL", "\"$feedbackHelperUrl\"")
         val ingestApiKey = providers.environmentVariable("INGEST_API_KEY").orElse("").get()
             .replace("\\", "\\\\").replace("\"", "\\\"")
