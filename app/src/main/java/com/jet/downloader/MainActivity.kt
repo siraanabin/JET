@@ -1325,24 +1325,38 @@ class MainActivity : AppCompatActivity() {
         return try {
             retriever.setDataSource(file.absolutePath)
             val embedded = retriever.embeddedPicture
-            val cover = embedded?.let { bytes ->
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            }
+            val cover = embedded?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                ?.takeUnless { !isAudio && isFrameTooDark(it) }
             var bitmap = cover ?: if (isAudio) null else {
                 val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                    ?.toLongOrNull() ?: 0L
+                    ?.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
                 val durationUs = durationMs * 1_000L
-                val firstTimeUs = if (durationUs > 4_000_000L) durationUs / 4 else 1_000_000L
-                val firstFrame = retriever.getFrameAtTime(firstTimeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                if (firstFrame != null && isFrameTooDark(firstFrame) && durationUs > 4_000_000L) {
-                    retriever.getFrameAtTime(durationUs / 2, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                        ?: firstFrame
-                } else firstFrame
+                val fractions = longArrayOf(12L, 25L, 40L, 55L, 70L, 85L)
+                var selected: Bitmap? = null
+                for (fraction in fractions) {
+                    val timeUs = if (durationUs > 0L) (durationUs * fraction / 100L).coerceAtLeast(250_000L)
+                        else fraction * 100_000L
+                    val candidate = runCatching {
+                        retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    }.getOrNull() ?: continue
+                    if (!isFrameTooDark(candidate)) {
+                        selected = candidate
+                        break
+                    }
+                    candidate.recycle()
+                }
+                selected
             }
             if (bitmap == null && !isAudio && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                bitmap = runCatching { ThumbnailUtils.createVideoThumbnail(file, android.util.Size(320, 180), null) }.getOrNull()
+                bitmap = runCatching {
+                    ThumbnailUtils.createVideoThumbnail(file, android.util.Size(320, 180), null)
+                }.getOrNull()?.takeUnless { isFrameTooDark(it) }
             }
             val frame = bitmap ?: return if (isAudio) "file:///android_asset/images/music-placeholder.svg" else ""
+            if (!isAudio && isFrameTooDark(frame)) {
+                frame.recycle()
+                return ""
+            }
             val scale = minOf(1.0, 320.0 / frame.width, 180.0 / frame.height)
             val width = (frame.width * scale).toInt().coerceAtLeast(1)
             val height = (frame.height * scale).toInt().coerceAtLeast(1)
@@ -1362,10 +1376,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun isUsableVideoThumbnailDataUrl(dataUrl: String): Boolean {
+        if (!dataUrl.startsWith("data:image/", true)) return false
+        return runCatching {
+            val encoded = dataUrl.substringAfter(',', "")
+            if (encoded.isBlank()) return@runCatching false
+            val bytes = Base64.decode(encoded, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@runCatching false
+            try { !isFrameTooDark(bitmap) } finally { bitmap.recycle() }
+        }.getOrDefault(false)
+    }
+
     private fun isFrameTooDark(bitmap: Bitmap): Boolean {
         val stepX = (bitmap.width / 10).coerceAtLeast(1)
         val stepY = (bitmap.height / 10).coerceAtLeast(1)
         var luminance = 0.0
+        var nearBlack = 0
         var samples = 0
         for (x in 0 until bitmap.width step stepX) {
             for (y in 0 until bitmap.height step stepY) {
@@ -1373,11 +1399,15 @@ class MainActivity : AppCompatActivity() {
                 val red = (pixel shr 16) and 0xFF
                 val green = (pixel shr 8) and 0xFF
                 val blue = pixel and 0xFF
-                luminance += 0.299 * red + 0.587 * green + 0.114 * blue
+                val value = 0.299 * red + 0.587 * green + 0.114 * blue
+                luminance += value
+                if (value < 16.0) nearBlack++
                 samples++
             }
         }
-        return samples > 0 && luminance / samples < 26.0
+        val average = if (samples > 0) luminance / samples else 0.0
+        val blackRatio = if (samples > 0) nearBlack.toDouble() / samples else 1.0
+        return samples > 0 && average < 20.0 && blackRatio > 0.88
     }
 
 
@@ -4162,22 +4192,27 @@ class MainActivity : AppCompatActivity() {
                         val thumbnail = try {
                             val file = path.takeIf { it.isNotBlank() }?.let(::File)
                             val cached = libraryThumbnailCacheFile(requestKey)
-                            val result = if (cached.isFile && cached.length() > 0L) {
+                            val cachedValue = if (cached.isFile && cached.length() > 0L) {
+                                runCatching { cached.readText(Charsets.UTF_8) }.getOrDefault("")
+                            } else ""
+                            val result = if (isUsableVideoThumbnailDataUrl(cachedValue)) {
                                 hit = true
-                                cached.readText(Charsets.UTF_8)
+                                cachedValue
                             } else {
+                                if (cached.isFile) runCatching { cached.delete() }
                                 val genStart = SystemClock.elapsedRealtime()
                                 val generated = if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
                                 else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
                                     val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
-                                    ByteArrayOutputStream().use { output ->
-                                        bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
-                                        bitmap.recycle()
-                                        "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
-                                    }
+                                    try {
+                                        if (isFrameTooDark(bitmap)) "" else ByteArrayOutputStream().use { output ->
+                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                                            "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                                        }
+                                    } finally { bitmap.recycle() }
                                 } else ""
                                 generationMs = SystemClock.elapsedRealtime() - genStart
-                                if (generated.startsWith("data:image/")) runCatching { cached.writeText(generated, Charsets.UTF_8) }
+                                if (isUsableVideoThumbnailDataUrl(generated)) runCatching { cached.writeText(generated, Charsets.UTF_8) }
                                 generated
                             }
                             cacheBytes = cached.takeIf { it.isFile }?.length() ?: 0L
