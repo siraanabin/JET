@@ -2603,6 +2603,7 @@
       function observeLibraryRevealSentinel(container, generation) {
         const sentinel = container && container.querySelector('[data-library-reveal-sentinel]');
         if (!sentinel || generation !== libraryRenderGeneration) return;
+        if (!container.querySelector('.library-card-deferred')) return;
         if (!('IntersectionObserver' in window)) {
           container.querySelectorAll('.library-card-deferred').forEach((card) => card.classList.remove('hidden', 'library-card-deferred'));
           sentinel.remove();
@@ -2710,7 +2711,7 @@
           if (state.libView === 'grid') {
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
-                class="${index >= 30 ? 'hidden library-card-deferred ' : ''}surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
+                class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
                 <div class="relative aspect-video w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                   ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
@@ -2730,7 +2731,7 @@
           }
           return `
             <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${item.type || 'video'}"
-              class="${index >= 30 ? 'hidden library-card-deferred ' : ''}surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
+              class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
               <div class="${item.type === 'audio' ? 'w-16 h-16 rounded-2xl' : 'w-12 h-12 rounded-xl'} ${item.type === 'audio' ? '' : 'bg-[#141923]'} text-white flex items-center justify-center shrink-0 overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                 ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover bg-[#141923]">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
               </div>
