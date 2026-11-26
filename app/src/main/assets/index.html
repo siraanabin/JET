@@ -100,6 +100,7 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .tabular-nums { font-variant-numeric: tabular-nums; }
+    .library-thumb-frame { aspect-ratio: 4 / 3; }
 
     /* Home header stays transparent so no rectangular strip appears behind the JET title. */
 
@@ -2210,8 +2211,6 @@
           });
         }
         state.libraryScanBuffer.push(...mapped);
-        // Merge audio and video into one stable newest-first timeline as each scan batch arrives.
-        state.libraryScanBuffer.sort((a, b) => (Number(b.dateAdded) || 0) - (Number(a.dateAdded) || 0));
         const scanCount = state.libraryScanBuffer.length;
         const sourceLabel = libraryPermissionState === 'denied'
           ? 'JET downloads only · '
@@ -2733,10 +2732,13 @@
               if (!batch.length) { target.remove(); return; }
               const fragment = document.createElement('template');
               fragment.innerHTML = batch.map((item, index) => libraryPendingRenderItem(item, libraryPendingOffset + index)).join('');
+              const batchCards = Array.from(fragment.content.querySelectorAll('[data-play-title]'));
+              refreshIcons(fragment.content);
               host.insertBefore(fragment.content, target);
               libraryPendingOffset = end;
-              observeLibraryThumbnails(host);
-              refreshIcons(host);
+              if (libraryThumbnailObserver) batchCards.forEach((card) => {
+                if ((card.dataset.mediaType === 'video' || card.dataset.mediaType === 'audio') && card.dataset.fileUri) libraryThumbnailObserver.observe(card);
+              });
               if (libraryPendingOffset >= libraryPendingItems.length) target.remove();
               else observeLibraryRevealSentinel(host, activeGeneration);
             });
@@ -2769,7 +2771,7 @@
               if (card.dataset.thumbnailRequested === 'true' || card.dataset.thumbnailLoaded === 'true') return;
               card.dataset.thumbnailRequested = 'true';
               card.dataset.thumbnailConsumer = card.dataset.thumbnailConsumer || ('library-card-' + (++libraryThumbnailConsumerSequence));
-              const frame = card.querySelector('.relative.aspect-video, .w-12.h-12, .w-16.h-16');
+              const frame = card.querySelector('.relative.library-thumb-frame, .w-12.h-12, .w-16.h-16');
               if (frame && card.dataset.mediaType === 'video' && !frame.querySelector('[data-library-thumbnail]')) {
                 const img = document.createElement('img');
                 img.dataset.libraryThumbnail = 'true';
@@ -2841,7 +2843,7 @@
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
                 class="surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
-                <div class="relative aspect-[4/3] w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
+                <div class="relative library-thumb-frame w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                   ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : (libraryInitialThumbnailMode && index < 30 && (item.type || 'video') === 'video' ? '' : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`)}
                   <span class="absolute z-10 bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-bold tabular-nums text-white">${item.duration}</span>
                 </div>
