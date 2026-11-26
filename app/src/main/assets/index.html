@@ -2097,13 +2097,17 @@
         if (!thumbnailUrl) return;
         const safePath = String(filePath || '');
         // Retain startup-prewarmed thumbnails in the in-memory model for instant Library paint.
-        if (safePath && Array.isArray(state.library)) {
-          const item = state.library.find((entry) => entry.filePath === safePath);
-          if (item && !item.thumbnailUrl) {
-            item.thumbnailUrl = thumbnailUrl;
+        if (safePath) {
+          let updated = false;
+          [state.library, state.libraryScanBuffer].forEach((items) => {
+            if (!Array.isArray(items)) return;
+            const item = items.find((entry) => entry.filePath === safePath);
+            if (item && !item.thumbnailUrl) { item.thumbnailUrl = thumbnailUrl; updated = true; }
+          });
+          if (updated) {
             state.libraryDataRevision++;
             libraryFilteredCacheKey = '';
-            try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
+            try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify((state.libraryScanBuffer || state.library || []).slice(0, 500))); } catch (_) {}
           }
         }
         const container = $('library-items-container');
