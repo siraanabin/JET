@@ -246,11 +246,11 @@
 
 
     /* Settings icon accents: distinct, soft colors without changing layout. */
-    #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="grid-3x3"]) { color:#0EA5E9; background:rgba(14,165,233,.12); }
-    #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="palette"]) { color:#A855F7; background:rgba(168,85,247,.12); }
+    #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="layout-grid"]) { color:#0EA5E9; background:rgba(14,165,233,.12); }
+    #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="sun-moon"]) { color:#A855F7; background:rgba(168,85,247,.12); }
     #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="clipboard-check"]) { color:#0D9488; background:rgba(13,148,136,.12); }
     #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="folder"]) { color:#D97706; background:rgba(217,119,6,.13); }
-    #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="hd"]) { color:#2563EB; background:rgba(37,99,235,.12); }
+    #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="video"]) { color:#2563EB; background:rgba(37,99,235,.12); }
     #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="closed-caption"]) { color:#8B5CF6; background:rgba(139,92,246,.12); }
     #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="gauge"]) { color:#EA580C; background:rgba(234,88,12,.12); }
     #screen-settings .w-9.h-9.rounded-xl:has(> [data-lucide="list"]) { color:#0891B2; background:rgba(8,145,178,.12); }
@@ -522,7 +522,7 @@
           <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">Bug Report</p>
           <div class="surface-card rounded-3xl p-4">
             <label class="flex items-center justify-between gap-3">
-              <span class="text-xs font-bold text-app-text">Send Bug Report Anonymously</span>
+              <span class="flex min-w-0 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="bug" class="w-4 h-4"></i></span><span class="text-xs font-bold text-app-text">Send Bug Report Anonymously</span></span>
               <button id="diagnostics-toggle" type="button" role="switch" aria-checked="true" class="toggle-track w-12 h-7 rounded-full bg-app-primary border border-app-primary p-0.5 flex items-center shrink-0"><span class="toggle-thumb w-5 h-5 rounded-full bg-white shadow translate-x-5"></span></button>
             </label>
           </div>
