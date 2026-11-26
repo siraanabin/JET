@@ -4201,16 +4201,22 @@ class MainActivity : AppCompatActivity() {
                             } else {
                                 if (cached.isFile) runCatching { cached.delete() }
                                 val genStart = SystemClock.elapsedRealtime()
-                                val generated = if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
-                                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
-                                    val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
-                                    try {
-                                        if (isFrameTooDark(bitmap)) "" else ByteArrayOutputStream().use { output ->
-                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
-                                            "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
-                                        }
-                                    } finally { bitmap.recycle() }
-                                } else ""
+                                val generated = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
+                                    // Prefer Android's MediaStore thumbnail pipeline: it can return an
+                                    // already-generated system thumbnail without decoding the full video.
+                                    val systemThumbnail = runCatching {
+                                        val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
+                                        try {
+                                            if (isFrameTooDark(bitmap)) "" else ByteArrayOutputStream().use { output ->
+                                                bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                                                "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                                            }
+                                        } finally { bitmap.recycle() }
+                                    }.getOrDefault("")
+                                    if (systemThumbnail.isNotBlank()) systemThumbnail
+                                    else if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false) else ""
+                                } else if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
+                                else ""
                                 generationMs = SystemClock.elapsedRealtime() - genStart
                                 if (isUsableVideoThumbnailDataUrl(generated)) runCatching { cached.writeText(generated, Charsets.UTF_8) }
                                 generated
