@@ -1635,7 +1635,8 @@ class MainActivity : AppCompatActivity() {
                         MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME,
                         MediaStore.MediaColumns.TITLE, MediaStore.MediaColumns.DATA,
                         MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DURATION,
-                        MediaStore.MediaColumns.MIME_TYPE, MediaStore.MediaColumns.DATE_ADDED
+                        MediaStore.MediaColumns.MIME_TYPE, MediaStore.MediaColumns.DATE_ADDED,
+                        MediaStore.MediaColumns.DATE_MODIFIED
                     )
                     contentResolver.query(
                         collection, projection, null, null,
@@ -1649,6 +1650,7 @@ class MainActivity : AppCompatActivity() {
                         val durationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DURATION)
                         val mimeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
                         val dateAddedIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
+                        val dateModifiedIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_MODIFIED)
                         while (cursor.moveToNext()) {
                             val mediaId = if (idIndex >= 0) cursor.getLong(idIndex) else -1L
                             val mediaUri = if (mediaId >= 0L) ContentUris.withAppendedId(collection, mediaId) else null
@@ -1664,7 +1666,13 @@ class MainActivity : AppCompatActivity() {
                             val mime = if (mimeIndex >= 0) cursor.getString(mimeIndex).orEmpty() else ""
                             val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else 0L
                             val durationMs = if (durationIndex >= 0) cursor.getLong(durationIndex).coerceAtLeast(0L) else 0L
-                            val dateAdded = if (dateAddedIndex >= 0) cursor.getLong(dateAddedIndex).coerceAtLeast(0L) * 1000L else (file?.lastModified() ?: 0L)
+                            val dateAddedSeconds = if (dateAddedIndex >= 0) cursor.getLong(dateAddedIndex).coerceAtLeast(0L) else 0L
+                            val dateModifiedSeconds = if (dateModifiedIndex >= 0) cursor.getLong(dateModifiedIndex).coerceAtLeast(0L) else 0L
+                            val dateAdded = when {
+                                dateAddedSeconds > 0L -> dateAddedSeconds * 1000L
+                                dateModifiedSeconds > 0L -> dateModifiedSeconds * 1000L
+                                else -> file?.lastModified() ?: 0L
+                            }
                             val ext = fileName.substringAfterLast('.', "").uppercase(Locale.US)
                                 .ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
                             val canReadPath = file?.isFile == true
