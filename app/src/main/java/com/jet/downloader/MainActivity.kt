@@ -167,6 +167,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
     private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
     private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
+    private val libraryVideoThumbnailCacheDir by lazy { File(cacheDir, "library-thumbnails").apply { mkdirs() } }
     private val libraryThumbnailActiveCount = AtomicInteger(0)
     private val libraryThumbnailSemaphore = Semaphore(3)
     private val libraryThumbnailRequestLock = Any()
@@ -182,7 +183,7 @@ class MainActivity : AppCompatActivity() {
     private fun libraryThumbnailCacheFile(identity: String): File {
         val name = MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) } + ".jpg.txt"
-        return File(libraryThumbnailCacheDir, name)
+        return File(libraryVideoThumbnailCacheDir, name)
     }
     private val mediaRefreshHandler = Handler(Looper.getMainLooper())
     private var mediaStoreObserver: android.database.ContentObserver? = null
