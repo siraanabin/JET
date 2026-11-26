@@ -4150,7 +4150,7 @@ class MainActivity : AppCompatActivity() {
                         acquired = true
                         val currentJob = currentCoroutineContext()[Job]
                         synchronized(libraryThumbnailRequestLock) {
-                            if (currentJob?.isActive != true) throw CancellationException("Thumbnail request cancelled before start")
+                            if (currentJob?.isCancelled == true) throw CancellationException("Thumbnail request cancelled before start")
                             libraryThumbnailStarted.add(requestKey)
                         }
 
