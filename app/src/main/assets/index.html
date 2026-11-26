@@ -516,7 +516,7 @@
         <!-- Preferences (Persisted via AndroidX DataStore) -->
         <div class="surface-card rounded-3xl p-4 flex items-center justify-between gap-3">
           <span class="flex min-w-0 items-center gap-3"><span class="w-9 h-9 rounded-xl bg-app-elevated text-app-secondary flex items-center justify-center shrink-0"><i data-lucide="grid-3x3" class="w-4 h-4"></i></span><span><span class="block text-xs font-bold text-app-text">Library grid columns</span><span class="block text-[11px] text-app-secondary mt-0.5">Videos per row</span></span></span>
-          <select id="library-grid-columns-setting" class="rounded-xl bg-app-elevated border border-app-border px-3 py-2 text-xs font-bold text-app-text"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+          <select id="library-grid-columns-setting" class="rounded-xl bg-app-elevated border border-app-border px-3 py-2 text-xs font-bold text-app-text"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select>
         </div>
         <div class="space-y-2">
           <p class="text-[11px] font-bold uppercase tracking-wider text-app-muted px-1">Bug Report</p>
@@ -1069,7 +1069,7 @@
         libraryHasLoaded: (() => { try { return localStorage.getItem('jet-library-snapshot-v1') !== null; } catch (_) { return false; } })(),
         libraryDataRevision: 0,
         downloadSettings: { defaultQuality: 'vid-1080', saveSubtitles: false, maxDownloadTasks: 3, speedLimitKbps: 0, allowMobileData: true },
-        libraryGridColumns: 3
+        libraryGridColumns: 4
       };
 
       const hasAndroid = () => typeof window.JetAndroid === 'object' && window.JetAndroid !== null;
@@ -2210,6 +2210,8 @@
           });
         }
         state.libraryScanBuffer.push(...mapped);
+        // Merge audio and video into one stable newest-first timeline as each scan batch arrives.
+        state.libraryScanBuffer.sort((a, b) => (Number(b.dateAdded) || 0) - (Number(a.dateAdded) || 0));
         const scanCount = state.libraryScanBuffer.length;
         const sourceLabel = libraryPermissionState === 'denied'
           ? 'JET downloads only · '
@@ -2235,7 +2237,7 @@
           pendingLibraryNavigationRecord = null;
           libraryScanPerfStartedAt = 0;
         }
-        state.library = state.libraryScanBuffer;
+        state.library = state.libraryScanBuffer.sort((a, b) => (Number(b.dateAdded) || 0) - (Number(a.dateAdded) || 0));
         state.libraryDataRevision++;
         libraryFilteredCacheKey = '';
         state.libraryHasLoaded = true;
@@ -2699,14 +2701,22 @@
 
       let libraryThumbnailObserver = null;
       let libraryRevealObserver = null;
+      let libraryPendingItems = [];
+      let libraryPendingOffset = 0;
+      let libraryPendingGeneration = 0;
+      let libraryPendingRenderItem = null;
+
       function observeLibraryRevealSentinel(container, generation) {
         const sentinel = container && container.querySelector('[data-library-reveal-sentinel]');
-        if (!sentinel || generation !== libraryRenderGeneration) return;
-        if (!container.querySelector('.library-card-deferred')) return;
+        if (!sentinel || generation !== libraryRenderGeneration || libraryPendingOffset >= libraryPendingItems.length) return;
         if (!('IntersectionObserver' in window)) {
-          container.querySelectorAll('.library-card-deferred').forEach((card) => card.classList.remove('hidden', 'library-card-deferred'));
+          const template = document.createElement('template');
+          template.innerHTML = libraryPendingItems.slice(libraryPendingOffset).map((item, index) => libraryPendingRenderItem(item, libraryPendingOffset + index)).join('');
+          container.insertBefore(template.content, sentinel);
+          libraryPendingOffset = libraryPendingItems.length;
           sentinel.remove();
           observeLibraryThumbnails(container);
+          refreshIcons(container);
           return;
         }
         if (!libraryRevealObserver) {
@@ -2716,17 +2726,19 @@
               const target = entry.target;
               libraryRevealObserver.unobserve(target);
               const host = target.parentElement;
-              if (!host || host.id !== 'library-items-container') return;
+              if (!host || host.id !== 'library-items-container' || libraryPendingGeneration !== libraryRenderGeneration) return;
               const activeGeneration = libraryRenderGeneration;
-              const nextBatch = Array.from(host.querySelectorAll('.library-card-deferred')).slice(0, 30);
-              if (!nextBatch.length) {
-                target.remove();
-                return;
-              }
-              nextBatch.forEach((card) => card.classList.remove('hidden', 'library-card-deferred'));
-              nextBatch[nextBatch.length - 1].after(target);
+              const end = Math.min(libraryPendingOffset + 30, libraryPendingItems.length);
+              const batch = libraryPendingItems.slice(libraryPendingOffset, end);
+              if (!batch.length) { target.remove(); return; }
+              const fragment = document.createElement('template');
+              fragment.innerHTML = batch.map((item, index) => libraryPendingRenderItem(item, libraryPendingOffset + index)).join('');
+              host.insertBefore(fragment.content, target);
+              libraryPendingOffset = end;
               observeLibraryThumbnails(host);
-              observeLibraryRevealSentinel(host, activeGeneration);
+              refreshIcons(host);
+              if (libraryPendingOffset >= libraryPendingItems.length) target.remove();
+              else observeLibraryRevealSentinel(host, activeGeneration);
             });
           }, { root: document.getElementById('scroll-container'), rootMargin: '800px 0px', threshold: 0.01 });
         }
@@ -2812,7 +2824,7 @@
         }
         container.dataset.renderKey = renderKey;
         const generation = ++libraryRenderGeneration;
-        container.className = state.libView === 'grid' ? 'grid gap-2' : 'space-y-2.5';
+        container.className = state.libView === 'grid' ? 'grid gap-1' : 'space-y-1';
         container.style.gridTemplateColumns = state.libView === 'grid' ? 'repeat(' + state.libraryGridColumns + ', minmax(0, 1fr))' : '';
 
         if (filtered.length === 0) {
@@ -2828,10 +2840,10 @@
           if (state.libView === 'grid') {
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
-                class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
-                <div class="relative aspect-video w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
+                class="surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
+                <div class="relative aspect-[4/3] w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                   ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : (libraryInitialThumbnailMode && index < 30 && (item.type || 'video') === 'video' ? '' : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`)}
-                  <span class="absolute z-10 bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-bold tabular-nums text-white shadow">${item.duration}</span>
+                  <span class="absolute z-10 bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-bold tabular-nums text-white">${item.duration}</span>
                 </div>
                 <div class="p-1.5 flex items-center gap-1 min-w-0">
                   <div class="min-w-0 flex-1">
@@ -2848,7 +2860,7 @@
           }
           return `
             <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
-              class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
+              class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
               <div class="${item.type === 'audio' ? 'w-16 h-16 rounded-2xl' : 'w-12 h-12 rounded-xl'} ${item.type === 'audio' ? '' : 'bg-[#141923]'} text-white flex items-center justify-center shrink-0 overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                 ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover bg-[#141923]">` : (libraryInitialThumbnailMode && index < 30 && (item.type || 'video') === 'video' ? '' : `<i data-lucide="${icon}" class="w-5 h-5"></i>`)}
               </div>
@@ -2863,14 +2875,20 @@
             </div>
           `;
         };
-        // Keep every filtered card in the DOM, but reveal only 30 at a time as the user scrolls.
+        // Keep only the first 30 cards in the DOM. Add the next 30 only when the
+        // user approaches the end of the visible batch; this avoids thousands of
+        // hidden nodes and repeated full-container scans during long scrolls.
         const initialBatchSize = Math.min(30, filtered.length);
         const templateStartedAt = performance.now();
         const firstBatchHtml = filtered.slice(0, initialBatchSize).map((item, index) => renderItem(item, index)).join('');
         const templateMs = performance.now() - templateStartedAt;
         const domStartedAt = performance.now();
         container.innerHTML = firstBatchHtml;
-        if (filtered.length > initialBatchSize) {
+        libraryPendingItems = filtered;
+        libraryPendingOffset = initialBatchSize;
+        libraryPendingGeneration = generation;
+        libraryPendingRenderItem = renderItem;
+        if (libraryPendingOffset < filtered.length) {
           const sentinel = document.createElement('div');
           sentinel.dataset.libraryRevealSentinel = 'true';
           sentinel.setAttribute('aria-hidden', 'true');
@@ -2879,30 +2897,12 @@
         }
         const initialDomMs = performance.now() - domStartedAt;
         observeLibraryThumbnails(container);
-        const sentinel = container.querySelector('[data-library-reveal-sentinel]');
-        const firstVisibleCard = container.querySelectorAll('[data-play-title]')[initialBatchSize - 1];
-        if (sentinel && firstVisibleCard) firstVisibleCard.after(sentinel);
-        let offset = initialBatchSize;
-        const appendChunk = () => {
-          if (generation !== libraryRenderGeneration || offset >= filtered.length) return;
-          const end = Math.min(offset + 40, filtered.length);
-          const template = document.createElement('template');
-          template.innerHTML = filtered.slice(offset, end).map((item, index) => renderItem(item, offset + index)).join('');
-          container.appendChild(template.content);
-          offset = end;
-          refreshIcons(container);
-          observeLibraryThumbnails(container);
-          bindLibraryMenuButtons();
-          observeLibraryRevealSentinel(container, generation);
-          if (offset < filtered.length) requestAnimationFrame(appendChunk);
-        };
         // Only process icons inside Library; a document-wide icon scan made tab switches slower.
         const iconsStartedAt = performance.now();
         refreshIcons(container);
         const iconMs = performance.now() - iconsStartedAt;
         bindLibraryMenuButtons();
         observeLibraryRevealSentinel(container, generation);
-        if (offset < filtered.length) requestAnimationFrame(appendChunk);
         window.__jetLibraryRenderPerf = {
           skipped: false, totalMs: Number((performance.now() - renderStartedAt).toFixed(2)),
           filterMs: Number(filterMs.toFixed(2)), templateMs: Number(templateMs.toFixed(2)),
