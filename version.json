@@ -1,8 +1,11 @@
 {
-  "versionCode": 368,
-  "versionName": "0.9.25",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.25/app-universal-release.apk",
+  "versionCode": 369,
+  "versionName": "0.9.26",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.26/app-universal-release.apk",
   "changelog": [
+    "Bumped app version to 0.9.26 (versionCode 369)",
+    "Changed the Settings Theme icon to a paintbrush",
+    "Temporarily limited Library to the first 30 cards for controlled performance testing",
     "Test Library grid content-visibility optimization",
     "Improved navigation performance diagnostics and fixed log copying",
     "Added detailed Library navigation and render phase profiling",
