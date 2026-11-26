@@ -169,7 +169,7 @@ class MainActivity : AppCompatActivity() {
     private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
     private val libraryVideoThumbnailCacheDir by lazy { File(cacheDir, "library-thumbnails").apply { mkdirs() } }
     private val libraryThumbnailActiveCount = AtomicInteger(0)
-    private val libraryThumbnailSemaphore = Semaphore(4)
+    private val libraryThumbnailSemaphore = Semaphore(5)
     private val libraryThumbnailRequestLock = Any()
     private val libraryThumbnailInFlight = mutableMapOf<String, Job>()
     private val libraryThumbnailStarted = mutableSetOf<String>()
