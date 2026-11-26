@@ -2113,6 +2113,16 @@
         const container = $('library-items-container');
         if (container && safePath) {
           const card = Array.from(container.querySelectorAll('[data-file-path]')).find((node) => node.dataset.filePath === safePath);
+          if (card && card.dataset.mediaType === 'audio') {
+            const disc = card.querySelector('.relative.w-20.h-20, .relative.w-14.h-14');
+            if (disc) {
+              const sizeClass = disc.classList.contains('w-14') ? 'w-14 h-14' : 'w-20 h-20';
+              disc.outerHTML = vinylDiscMarkup(thumbnailUrl, sizeClass);
+              card.dataset.thumbnailLoaded = 'true';
+              delete card.dataset.thumbnailRequested;
+              if (libraryThumbnailObserver) libraryThumbnailObserver.unobserve(card);
+            }
+          }
           const img = card && card.querySelector('[data-library-thumbnail]');
           if (img) {
             img.onload = () => {
@@ -2764,7 +2774,9 @@
           }, { root: document.getElementById('scroll-container'), rootMargin: '240px 0px', threshold: 0.01 });
         }
         if (libraryThumbnailObserver) {
-          root.querySelectorAll('[data-play-title][data-media-type="video"][data-file-uri]:not([data-thumbnail-loaded="true"])').forEach((card) => libraryThumbnailObserver.observe(card));
+          root.querySelectorAll('[data-play-title][data-media-type="video"][data-file-uri], [data-play-title][data-media-type="audio"][data-file-uri]').forEach((card) => {
+            if (card.dataset.thumbnailLoaded !== 'true') libraryThumbnailObserver.observe(card);
+          });
         }
       }
 
@@ -2835,7 +2847,7 @@
             `;
           }
           return `
-            <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${item.type || 'video'}"
+            <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
               class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
               <div class="${item.type === 'audio' ? 'w-16 h-16 rounded-2xl' : 'w-12 h-12 rounded-xl'} ${item.type === 'audio' ? '' : 'bg-[#141923]'} text-white flex items-center justify-center shrink-0 overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                 ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover bg-[#141923]">` : (libraryInitialThumbnailMode && index < 30 && (item.type || 'video') === 'video' ? '' : `<i data-lucide="${icon}" class="w-5 h-5"></i>`)}
