@@ -580,6 +580,12 @@
                   </table>
                 </div>
                 <div class="border-t border-app-border p-3">
+                  <div class="flex items-center justify-between gap-2 mb-2"><p class="text-xs font-bold text-app-text">Library Thumbnail Performance</p><span id="thumbnail-telemetry-count" class="text-[10px] text-app-secondary">0 measured</span></div>
+                  <div id="thumbnail-telemetry-summary" class="text-[10px] leading-5 text-app-secondary">Scroll Library to collect timings. Records are batched.</div>
+                  <div class="mt-2 text-[10px] font-bold text-app-text">Slowest 10 thumbnails</div>
+                  <div id="thumbnail-telemetry-slowest" class="mt-1 text-[10px] leading-5 text-app-secondary">No measurements yet.</div>
+                </div>
+                <div class="border-t border-app-border p-3">
                   <div class="flex items-center justify-between gap-2 mb-2"><p class="text-xs font-bold text-app-text">Recent Navigation Performance</p><span class="text-[10px] text-app-secondary">Last 10 page switches</span></div>
                   <div class="overflow-x-auto overscroll-x-contain"><table class="w-full min-w-[520px] text-left">
                     <thead><tr class="border-b border-app-border text-[10px] uppercase tracking-wide text-app-muted"><th class="px-2 py-2">From → To</th><th class="px-2 py-2">UI / Paint</th><th class="px-2 py-2">Breakdown / likely bottleneck</th></tr></thead>
@@ -1029,6 +1035,7 @@
         showDownloadSpeedStats: (() => { try { return localStorage.getItem('jet_show_dl_stats') === 'true'; } catch (_) { return false; } })(),
         telemetryLast4: (() => { try { const value = JSON.parse(localStorage.getItem('jet-telemetry-last4-v1') || '[]'); return Array.isArray(value) ? value.slice(0, 4) : []; } catch (_) { return []; } })(),
         navigationTelemetryLast10: (() => { try { const value = JSON.parse(localStorage.getItem('jet-navigation-telemetry-v1') || '[]'); return Array.isArray(value) ? value.slice(0, 10) : []; } catch (_) { return []; } })(),
+        thumbnailTelemetry: (() => { try { return JSON.parse(localStorage.getItem('jet-thumbnail-telemetry-v1') || '{}') || {}; } catch (_) { return {}; } })(),
         dlTab: 'active',
         libFilter: 'all',
         libView: 'grid',
@@ -1343,6 +1350,11 @@
           (item.longTasks && item.longTasks.length ? '<div>Long tasks: ' + telemetryEscape(JSON.stringify(item.longTasks)) + '</div>' : '') +
           (item.scanMs ? '<div class="mt-1">Media scan: ' + telemetryEscape(item.scanMs) + ' ms</div>' : '') + '</td></tr>'
         ).join('') : '<tr><td colspan="3" class="px-2 py-4 text-center text-[10px] text-app-secondary">No navigation logs yet. Switch between pages to collect timings.</td></tr>';
+        const thumb = state.thumbnailTelemetry || {};
+        const thumbCount = $('thumbnail-telemetry-count'), thumbSummary = $('thumbnail-telemetry-summary'), thumbSlow = $('thumbnail-telemetry-slowest');
+        if (thumbCount) thumbCount.textContent = (thumb.total || 0) + ' measured';
+        if (thumbSummary) thumbSummary.textContent = 'Total ' + (thumb.total || 0) + ' · HIT ' + (thumb.hits || 0) + ' · MISS ' + (thumb.misses || 0) + ' · recent average ' + (thumb.avgMs || 0) + ' ms · batch (' + (thumb.batchCount || 0) + '): request ' + (thumb.batchRequestMs || 0) + ' ms, generation ' + (thumb.batchGenerationMs || 0) + ' ms · cache data ' + (Number(thumb.batchCacheBytes || 0)/1024).toFixed(1) + ' KB · max concurrent ' + (thumb.maxConcurrent || 0);
+        if (thumbSlow) thumbSlow.innerHTML = (thumb.slowest || []).length ? thumb.slowest.map((x,i)=>'<div>'+(i+1)+'. '+telemetryEscape(x.requestMs)+' ms · '+telemetryEscape(x.cache)+' · gen '+telemetryEscape(x.generationMs)+' ms · '+telemetryEscape((Number(x.imageKB)||0).toFixed(1))+' KB</div>').join('') : 'No measurements yet.';
         const copyAll = $('telemetry-copy-all');
         if (copyAll) copyAll.textContent = 'Copy All (' + (rows.length + navRows.length) + ')';
         if (!rows.length) {
@@ -1427,7 +1439,9 @@
         $('telemetry-copy-all')?.addEventListener('click', async () => {
           const logs = (state.telemetryLast4 || []).slice(0, 4).map((item) => item.rawLog).filter(Boolean);
           const navLogs = (state.navigationTelemetryLast10 || []).slice(0, 10).map((item) => 'NAVIGATION ' + item.from + ' -> ' + item.to + ' | total=' + item.totalMs + 'ms | raf1=' + (item.raf1Ms ?? 'pending') + 'ms | raf2=' + (item.raf2Ms ?? item.paintMs ?? 'pending') + 'ms | screen=' + (item.screenToggleMs ?? '—') + 'ms | nav=' + (item.navButtonsMs ?? '—') + 'ms | libraryRender=' + (item.libraryRenderMs ?? '—') + 'ms | items=' + (item.libraryItems ?? '—') + ' | domCards=' + (item.libraryDomCards ?? '—') + ' | styleProbe=' + (item.styleProbeMs ?? '—') + 'ms | layoutProbe=' + (item.layoutProbeMs ?? '—') + 'ms | libraryDisplay=' + (item.libraryDisplay ?? '—') + ' | libraryRect=' + JSON.stringify(item.libraryRect || {}) + ' | longTasks=' + JSON.stringify(item.longTasks || []) + ' | render=' + JSON.stringify(item.renderBreakdown || {}) + ' | ' + item.reason + (item.scanMs ? ' | Media scan: ' + item.scanMs + ' ms' : ''));
-          const allLogs = [...logs, ...navLogs];
+          const thumb=state.thumbnailTelemetry||{};
+          const thumbLogs=['LIBRARY THUMBNAILS total='+(thumb.total||0)+' hits='+(thumb.hits||0)+' misses='+(thumb.misses||0)+' avgMs='+(thumb.avgMs||0)+' batchRequestMs='+(thumb.batchRequestMs||0)+' batchGenerationMs='+(thumb.batchGenerationMs||0)+' cacheKB='+((thumb.batchCacheBytes||0)/1024).toFixed(1)+' maxConcurrent='+(thumb.maxConcurrent||0),...(thumb.slowest||[]).map((x,i)=>'THUMB_SLOWEST '+(i+1)+' requestMs='+x.requestMs+' cache='+x.cache+' generationMs='+x.generationMs+' imageKB='+x.imageKB+' activeAtStart='+x.activeAtStart)];
+          const allLogs = [...logs, ...navLogs, ...thumbLogs];
           if (!allLogs.length) { showToast('No logs to copy'); return; }
           try { await copyTelemetryText(allLogs.join('\n')); showToast('Performance logs copied'); }
           catch (_) { showToast('Could not copy logs'); }
@@ -1435,7 +1449,8 @@
         $('telemetry-clear')?.addEventListener('click', () => {
           state.telemetryLast4 = [];
           state.navigationTelemetryLast10 = [];
-          try { localStorage.removeItem('jet-telemetry-last4-v1'); localStorage.removeItem('jet-navigation-telemetry-v1'); } catch (_) {}
+          state.thumbnailTelemetry = {};
+          try { localStorage.removeItem('jet-thumbnail-telemetry-v1'); localStorage.removeItem('jet-telemetry-last4-v1'); localStorage.removeItem('jet-navigation-telemetry-v1'); } catch (_) {}
           renderTelemetryTable();
           showToast('Performance logs cleared');
         });
@@ -2045,6 +2060,32 @@
         showToast(`Error: ${data.error || 'Download failed'}`);
       };
 
+      const thumbnailTelemetryPending = [];
+      let thumbnailTelemetryTimer = null;
+      function flushThumbnailTelemetry() {
+        if (!thumbnailTelemetryPending.length) return;
+        const batch = thumbnailTelemetryPending.splice(0, 30), old = state.thumbnailTelemetry || {};
+        const recent = [...(old.recent || []), ...batch].slice(-600), samples = recent.map(x=>Number(x.requestMs)||0).filter(x=>x>0);
+        const summary = { total:(old.total||0)+batch.length, hits:(old.hits||0)+batch.filter(x=>x.cache==='HIT').length,
+          misses:(old.misses||0)+batch.filter(x=>x.cache==='MISS').length,
+          avgMs:samples.length?Math.round(samples.reduce((a,b)=>a+b,0)/samples.length):0, batchCount:batch.length,
+          batchRequestMs:batch.reduce((s,x)=>s+(Number(x.requestMs)||0),0),
+          batchGenerationMs:batch.reduce((s,x)=>s+(Number(x.generationMs)||0),0),
+          batchCacheBytes:batch.reduce((s,x)=>s+(Number(x.cacheBytes)||0),0),
+          maxConcurrent:Math.max(old.maxConcurrent||0,...batch.map(x=>Number(x.activeAtStart)||0)),
+          recent, slowest:[...recent].sort((a,b)=>(b.requestMs||0)-(a.requestMs||0)).slice(0,10) };
+        state.thumbnailTelemetry=summary;
+        try { localStorage.setItem('jet-thumbnail-telemetry-v1',JSON.stringify(summary)); } catch (_) {}
+        if (state.showDownloadSpeedStats) renderTelemetryTable();
+        if (thumbnailTelemetryPending.length) thumbnailTelemetryTimer=setTimeout(flushThumbnailTelemetry,500);
+        else thumbnailTelemetryTimer=null;
+      }
+      window.onNativeThumbnailTelemetry = function (record) {
+        if (!record || typeof record !== 'object') return;
+        thumbnailTelemetryPending.push(record);
+        if (thumbnailTelemetryPending.length>=30) { if(thumbnailTelemetryTimer) clearTimeout(thumbnailTelemetryTimer); flushThumbnailTelemetry(); }
+        else if (!thumbnailTelemetryTimer) thumbnailTelemetryTimer=setTimeout(flushThumbnailTelemetry,700);
+      };
       window.onNativeFileThumbnail = function (filePath, thumbnailUrl) {
         if (!thumbnailUrl) return;
         const safePath = String(filePath || '');
