@@ -111,6 +111,7 @@ class PlayerPlaybackService : MediaSessionService() {
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             persistCurrentPosition()
+            updateMediaNotification()
         }
     }
     private val sleepTimer = Runnable {
@@ -353,12 +354,18 @@ class PlayerPlaybackService : MediaSessionService() {
     }
 
     private fun updateMediaNotification() {
-        if (backgroundVideoMode) {
-            runCatching {
-                getSystemService(NotificationManager::class.java)
-                    .notify(NOTIFICATION_ID, buildMediaNotification())
-            }.onFailure { Log.w("JET-MusicService", "Could not refresh playback notification", it) }
+        // Keep the foreground media notification in sync for BOTH music queues
+        // and background video playback. Previously music mode skipped updates,
+        // so the notification could disappear or show stale paused controls.
+        val hasActiveMedia = player?.currentMediaItem != null
+        if (!hasActiveMedia) {
+            runCatching { getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID) }
+            return
         }
+        runCatching {
+            getSystemService(NotificationManager::class.java)
+                .notify(NOTIFICATION_ID, buildMediaNotification())
+        }.onFailure { Log.w("JET-MusicService", "Could not refresh playback notification", it) }
     }
 
     private fun toggleBackgroundPlayback() {
@@ -461,6 +468,7 @@ class PlayerPlaybackService : MediaSessionService() {
             exo.setMediaItems(items, selectedIndex.coerceIn(items.indices), 0L)
             exo.prepare()
             exo.play()
+            updateMediaNotification()
             timerHandler.removeCallbacks(positionTicker)
             timerHandler.post(positionTicker)
         } catch (t: Throwable) {
