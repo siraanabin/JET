@@ -56,7 +56,8 @@ data class LibraryItemPayload(
     val size: String = "",
     val format: String = "",
     val dominantColor: String = "#20242E",
-    val resolution: String = ""
+    val resolution: String = "",
+    val dateAdded: Long = 0L
 )
 
 @Serializable
