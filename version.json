@@ -1,8 +1,11 @@
 {
-  "versionCode": 373,
-  "versionName": "0.9.30",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v0.9.30/JET-debug.apk",
+  "versionCode": 374,
+  "versionName": "0.9.31",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v0.9.31/JET-debug.apk",
   "changelog": [
+    "Reject nearly-black video frames and invalid cached thumbnails; sample multiple timestamps before falling back",
+    "Fade Library thumbnails in only after the image has decoded to avoid the initial black flash",
+    "Bumped app version to 0.9.31 (versionCode 374)",
     "Experimental Library thumbnail queue: max 3 active, in-flight cache-key dedupe, and queued-only cancellation for cards leaving viewport",
     "Bumped app version to 0.9.30 (versionCode 373)",
     "Added batched Library thumbnail telemetry: cache hit/miss, request and generation timing, cache size, concurrency and slowest 10",
