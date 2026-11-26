@@ -1163,6 +1163,7 @@
           let libraryRenderMs = 0;
           // Paint cached items in this frame; keep the native scan off the tap stack.
           if (target === 'library') {
+            libraryInitialThumbnailMode = fromScreen !== 'library';
             if (Array.isArray(state.library)) {
               // Re-entering Library starts with 30 visible cards; scrolling reveals more.
               if (fromScreen !== 'library') $('library-items-container').dataset.renderKey = '';
@@ -2698,6 +2699,9 @@
       }
 
       let libraryThumbnailConsumerSequence = 0;
+      // On Library entry, avoid showing the generic play-icon placeholder in the first viewport.
+      // Cards revealed later while scrolling keep the normal placeholder behavior.
+      let libraryInitialThumbnailMode = false;
       function observeLibraryThumbnails(root) {
         if (!root || !window.JetAndroid || typeof window.JetAndroid.requestFileThumbnail !== 'function') return;
         if (!libraryThumbnailObserver && 'IntersectionObserver' in window) {
@@ -2789,7 +2793,7 @@
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
                 class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
                 <div class="relative aspect-video w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
-                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
+                  ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : (libraryInitialThumbnailMode && index < 30 && (item.type || 'video') === 'video' ? '' : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`)}
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
                 </div>
                 <div class="p-1.5 flex items-center gap-1 min-w-0">
@@ -2809,7 +2813,7 @@
             <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${item.type || 'video'}"
               class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
               <div class="${item.type === 'audio' ? 'w-16 h-16 rounded-2xl' : 'w-12 h-12 rounded-xl'} ${item.type === 'audio' ? '' : 'bg-[#141923]'} text-white flex items-center justify-center shrink-0 overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
-                ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover bg-[#141923]">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
+                ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover bg-[#141923]">` : (libraryInitialThumbnailMode && index < 30 && (item.type || 'video') === 'video' ? '' : `<i data-lucide="${icon}" class="w-5 h-5"></i>`)}
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-bold text-app-text truncate">${item.title}</p>
