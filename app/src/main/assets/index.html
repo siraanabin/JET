@@ -2222,6 +2222,10 @@
           });
         }
         state.libraryScanBuffer.push(...mapped);
+        // Keep All in one chronological order while scan batches are still arriving.
+        // Audio is queried after video, so without this merge every audio row temporarily
+        // appears at the bottom until the final callback.
+        state.libraryScanBuffer.sort((a, b) => (Number(b.dateAdded) || 0) - (Number(a.dateAdded) || 0));
         const scanCount = state.libraryScanBuffer.length;
         const sourceLabel = libraryPermissionState === 'denied'
           ? 'JET downloads only · '
