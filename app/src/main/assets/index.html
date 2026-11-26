@@ -2727,7 +2727,7 @@
                 const img = document.createElement('img');
                 img.dataset.libraryThumbnail = 'true';
                 img.alt = '';
-                img.loading = 'lazy';
+                img.loading = libraryInitialThumbnailMode ? 'eager' : 'lazy';
                 img.decoding = 'async';
                 img.className = 'absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-150';
                 img.onload = () => { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); };
