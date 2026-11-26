@@ -2819,7 +2819,7 @@
                 class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
                 <div class="relative aspect-video w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                   ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : (libraryInitialThumbnailMode && index < 30 && (item.type || 'video') === 'video' ? '' : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`)}
-                  <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
+                  <span class="absolute z-10 bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-bold tabular-nums text-white shadow">${item.duration}</span>
                 </div>
                 <div class="p-1.5 flex items-center gap-1 min-w-0">
                   <div class="min-w-0 flex-1">
