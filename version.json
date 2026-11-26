@@ -1,8 +1,9 @@
 {
-  "versionCode": 365,
-  "versionName": "0.9.22",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.22/app-universal-release.apk",
+  "versionCode": 366,
+  "versionName": "0.9.23",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.23/app-universal-release.apk",
   "changelog": [
+    "Added detailed Library navigation and render phase profiling",
     "Improved Library opening and rendering performance",
     "Added lazy loading for Library video thumbnails",
     "Optimized icon rendering to reduce UI work during navigation",
