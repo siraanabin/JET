@@ -1635,7 +1635,7 @@ class MainActivity : AppCompatActivity() {
                         MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME,
                         MediaStore.MediaColumns.TITLE, MediaStore.MediaColumns.DATA,
                         MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DURATION,
-                        MediaStore.MediaColumns.MIME_TYPE
+                        MediaStore.MediaColumns.MIME_TYPE, MediaStore.MediaColumns.DATE_ADDED
                     )
                     contentResolver.query(
                         collection, projection, null, null,
@@ -1648,6 +1648,7 @@ class MainActivity : AppCompatActivity() {
                         val sizeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
                         val durationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DURATION)
                         val mimeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+                        val dateAddedIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
                         while (cursor.moveToNext()) {
                             val mediaId = if (idIndex >= 0) cursor.getLong(idIndex) else -1L
                             val mediaUri = if (mediaId >= 0L) ContentUris.withAppendedId(collection, mediaId) else null
@@ -1663,6 +1664,7 @@ class MainActivity : AppCompatActivity() {
                             val mime = if (mimeIndex >= 0) cursor.getString(mimeIndex).orEmpty() else ""
                             val size = if (sizeIndex >= 0) cursor.getLong(sizeIndex).coerceAtLeast(0L) else 0L
                             val durationMs = if (durationIndex >= 0) cursor.getLong(durationIndex).coerceAtLeast(0L) else 0L
+                            val dateAdded = if (dateAddedIndex >= 0) cursor.getLong(dateAddedIndex).coerceAtLeast(0L) * 1000L else (file?.lastModified() ?: 0L)
                             val ext = fileName.substringAfterLast('.', "").uppercase(Locale.US)
                                 .ifEmpty { mime.substringAfter('/', "MEDIA").uppercase(Locale.US) }
                             val canReadPath = file?.isFile == true
@@ -1683,7 +1685,8 @@ class MainActivity : AppCompatActivity() {
                                     size = formatBytes(size),
                                     format = ext,
                                     dominantColor = "#20242E",
-                                    resolution = resolution
+                                    resolution = resolution,
+                                    dateAdded = dateAdded
                                 )
                             )
                         }
@@ -1733,7 +1736,8 @@ class MainActivity : AppCompatActivity() {
                                 ?: if (type == "video" || type == "audio") cachedLibraryThumbnail(file, type).ifBlank { if (type == "audio") "file:///android_asset/images/music-placeholder.svg" else "" } else "",
                             size = formatBytes(size), format = ext, dominantColor = "#20242E",
                             resolution = savedByPath[file.absolutePath]?.resolution?.ifBlank { null }
-                                ?: ""
+                                ?: "",
+                            dateAdded = file.lastModified()
                         )
                     )
                 }
