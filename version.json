@@ -1,8 +1,10 @@
 {
-  "versionCode": 381,
-  "versionName": "0.9.38",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.38/app-universal-release.apk",
+  "versionCode": 382,
+  "versionName": "0.9.39",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.39/app-universal-release.apk",
   "changelog": [
+    "Bumped app version to 0.9.39 (versionCode 382)",
+    "Keep the Android music playback notification visible and update its Play/Pause state while music is active",
     "Bumped app version to 0.9.38 (versionCode 381)",
     "Keep All audio and video interleaved by timestamp during each scan batch",
     "Use MediaStore DATE_MODIFIED as a fallback when DATE_ADDED is unavailable",
