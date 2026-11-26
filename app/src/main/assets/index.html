@@ -118,6 +118,11 @@
       contain-intrinsic-size: auto 120px;
     }
 
+    /* TEST ONLY: isolate the cost of rendering more than the first 30 Library cards. */
+    #library-items-container.grid > [data-play-title]:nth-child(n + 31) {
+      display: none !important;
+    }
+
     .ambient-glow {
       background: radial-gradient(85% 45% at 50% 0%, var(--glow-color) 0%, transparent 100%);
     }
