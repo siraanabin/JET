@@ -1207,6 +1207,27 @@
             requestAnimationFrame(() => {
               navRecord.paintMs = Math.round(performance.now() - navigationStartedAt);
               navRecord.raf2Ms = navRecord.paintMs;
+              // Diagnostic probes help separate style recalculation from layout.
+              // These are timings of explicit probes, not browser-internal totals.
+              const librarySection = document.getElementById('screen-library');
+              const libraryProbeStartedAt = performance.now();
+              let libraryDisplay = 'n/a';
+              try { if (librarySection) libraryDisplay = getComputedStyle(librarySection).display; } catch (_) {}
+              navRecord.styleProbeMs = Number((performance.now() - libraryProbeStartedAt).toFixed(2));
+              const layoutProbeStartedAt = performance.now();
+              let libraryRect = null;
+              try {
+                if (librarySection && target === 'library') {
+                  const rect = librarySection.getBoundingClientRect();
+                  libraryRect = { width: Math.round(rect.width), height: Math.round(rect.height), scrollHeight: librarySection.scrollHeight };
+                }
+              } catch (_) {}
+              navRecord.layoutProbeMs = Number((performance.now() - layoutProbeStartedAt).toFixed(2));
+              navRecord.libraryDisplay = libraryDisplay;
+              navRecord.libraryRect = libraryRect;
+              navRecord.longTasks = (performance.getEntriesByType ? performance.getEntriesByType('longtask') : [])
+                .filter((entry) => entry.startTime >= navigationStartedAt && entry.startTime <= performance.now())
+                .map((entry) => ({ durationMs: Number(entry.duration.toFixed(1)), startOffsetMs: Number((entry.startTime - navigationStartedAt).toFixed(1)) }));
               if (navRecord.paintMs > 300 && navRecord.totalMs <= 120) navRecord.reason = 'Sync UI was quick; delay occurred before the second animation frame (not a direct GPU measurement)';
               console.info('[JET-Navigation-Perf]', JSON.stringify(navRecord));
               persistNavigationTelemetry(navRecord);
@@ -1316,10 +1337,12 @@
           '<div class="mt-1">Screen: ' + telemetryEscape(item.screenToggleMs ?? '—') + ' · Nav: ' + telemetryEscape(item.navButtonsMs ?? '—') + ' · Render: ' + telemetryEscape(item.libraryRenderMs ?? '—') + ' ms</div>' +
           (item.libraryItems != null ? '<div>Items: ' + telemetryEscape(item.libraryItems) + ' · DOM cards: ' + telemetryEscape(item.libraryDomCards ?? '—') + '</div>' : '') +
           (item.renderBreakdown ? '<div>Render detail: ' + telemetryEscape(JSON.stringify(item.renderBreakdown)) + '</div>' : '') +
+          (item.styleProbeMs != null ? '<div>Style probe: ' + telemetryEscape(item.styleProbeMs) + ' ms · Layout probe: ' + telemetryEscape(item.layoutProbeMs ?? '—') + ' ms</div>' : '') +
+          (item.longTasks && item.longTasks.length ? '<div>Long tasks: ' + telemetryEscape(JSON.stringify(item.longTasks)) + '</div>' : '') +
           (item.scanMs ? '<div class="mt-1">Media scan: ' + telemetryEscape(item.scanMs) + ' ms</div>' : '') + '</td></tr>'
         ).join('') : '<tr><td colspan="3" class="px-2 py-4 text-center text-[10px] text-app-secondary">No navigation logs yet. Switch between pages to collect timings.</td></tr>';
         const copyAll = $('telemetry-copy-all');
-        if (copyAll) copyAll.textContent = 'Copy All (' + rows.length + ')';
+        if (copyAll) copyAll.textContent = 'Copy All (' + (rows.length + navRows.length) + ')';
         if (!rows.length) {
           body.innerHTML = '<tr><td colspan="4" class="px-3 py-6 text-center text-[11px] text-app-secondary">No download telemetry yet.</td></tr>';
           return;
@@ -1336,17 +1359,34 @@
       }
 
       async function copyTelemetryText(value) {
-        if (!value) return;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(value);
-        } else {
-          const field = document.createElement('textarea');
-          field.value = value; field.setAttribute('readonly', '');
-          field.style.position = 'fixed'; field.style.opacity = '0';
-          document.body.appendChild(field); field.select();
-          const copied = document.execCommand('copy'); field.remove();
-          if (!copied) throw new Error('Clipboard copy failed');
+        if (!value) throw new Error('No log text to copy');
+        // Android WebView may expose navigator.clipboard but reject writeText
+        // (for example, when the page is not treated as a secure context).
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          try {
+            await navigator.clipboard.writeText(value);
+            return;
+          } catch (clipboardError) {
+            console.warn('[JET-Telemetry] Clipboard API failed; trying WebView fallback', clipboardError);
+          }
         }
+        const field = document.createElement('textarea');
+        field.value = value;
+        field.setAttribute('readonly', '');
+        field.setAttribute('aria-hidden', 'true');
+        field.style.position = 'fixed';
+        field.style.left = '-9999px';
+        field.style.top = '0';
+        field.style.width = '1px';
+        field.style.height = '1px';
+        field.style.opacity = '0.01';
+        document.body.appendChild(field);
+        field.focus();
+        field.select();
+        field.setSelectionRange(0, field.value.length);
+        let copied = false;
+        try { copied = document.execCommand('copy'); } finally { field.remove(); }
+        if (!copied) throw new Error('Clipboard API and WebView execCommand both failed');
       }
 
       function persistNavigationTelemetry(record) {
@@ -1384,7 +1424,7 @@
         });
         $('telemetry-copy-all')?.addEventListener('click', async () => {
           const logs = (state.telemetryLast4 || []).slice(0, 4).map((item) => item.rawLog).filter(Boolean);
-          const navLogs = (state.navigationTelemetryLast10 || []).slice(0, 10).map((item) => 'NAVIGATION ' + item.from + ' -> ' + item.to + ' | total=' + item.totalMs + 'ms | raf2=' + (item.raf2Ms ?? item.paintMs ?? 'pending') + 'ms | screen=' + (item.screenToggleMs ?? '—') + 'ms | nav=' + (item.navButtonsMs ?? '—') + 'ms | libraryRender=' + (item.libraryRenderMs ?? '—') + 'ms | items=' + (item.libraryItems ?? '—') + ' | domCards=' + (item.libraryDomCards ?? '—') + ' | render=' + JSON.stringify(item.renderBreakdown || {}) + ' | ' + item.reason + (item.scanMs ? ' | Media scan: ' + item.scanMs + ' ms' : ''));
+          const navLogs = (state.navigationTelemetryLast10 || []).slice(0, 10).map((item) => 'NAVIGATION ' + item.from + ' -> ' + item.to + ' | total=' + item.totalMs + 'ms | raf1=' + (item.raf1Ms ?? 'pending') + 'ms | raf2=' + (item.raf2Ms ?? item.paintMs ?? 'pending') + 'ms | screen=' + (item.screenToggleMs ?? '—') + 'ms | nav=' + (item.navButtonsMs ?? '—') + 'ms | libraryRender=' + (item.libraryRenderMs ?? '—') + 'ms | items=' + (item.libraryItems ?? '—') + ' | domCards=' + (item.libraryDomCards ?? '—') + ' | styleProbe=' + (item.styleProbeMs ?? '—') + 'ms | layoutProbe=' + (item.layoutProbeMs ?? '—') + 'ms | libraryDisplay=' + (item.libraryDisplay ?? '—') + ' | libraryRect=' + JSON.stringify(item.libraryRect || {}) + ' | longTasks=' + JSON.stringify(item.longTasks || []) + ' | render=' + JSON.stringify(item.renderBreakdown || {}) + ' | ' + item.reason + (item.scanMs ? ' | Media scan: ' + item.scanMs + ' ms' : ''));
           const allLogs = [...logs, ...navLogs];
           if (!allLogs.length) { showToast('No logs to copy'); return; }
           try { await copyTelemetryText(allLogs.join('\n')); showToast('Performance logs copied'); }
