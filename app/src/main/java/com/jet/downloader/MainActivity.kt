@@ -4201,9 +4201,11 @@ class MainActivity : AppCompatActivity() {
                             } else {
                                 if (cached.isFile) runCatching { cached.delete() }
                                 val genStart = SystemClock.elapsedRealtime()
-                                val generated = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
-                                    // Prefer Android's MediaStore thumbnail pipeline: it can return an
-                                    // already-generated system thumbnail without decoding the full video.
+                                val generated = if (file != null && file.isFile && isAudioFile(file)) {
+                                    // Audio cards need embedded album artwork, not a video-frame thumbnail.
+                                    audioThumbnailFromDiskCache(file)
+                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
+                                    // Prefer Android's MediaStore thumbnail pipeline for video files.
                                     val systemThumbnail = runCatching {
                                         val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
                                         try {
