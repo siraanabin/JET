@@ -4116,15 +4116,31 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch(Dispatchers.IO) {
                 val thumbnail = runCatching {
                     val file = path.takeIf { it.isNotBlank() }?.let(::File)
-                    if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
-                    else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
-                        val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
-                        ByteArrayOutputStream().use { output ->
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
-                            bitmap.recycle()
-                            "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                    val cacheIdentity = if (file != null && file.isFile) {
+                        "${path}|${file.lastModified()}|${file.length()}"
+                    } else uriText
+                    val cacheName = MessageDigest.getInstance("SHA-256")
+                        .digest(cacheIdentity.toByteArray(Charsets.UTF_8))
+                        .joinToString("") { "%02x".format(it) } + ".jpg.txt"
+                    val thumbnailCacheDir = File(cacheDir, "library-thumbnails").apply { mkdirs() }
+                    val cachedFile = File(thumbnailCacheDir, cacheName)
+                    if (cachedFile.isFile && cachedFile.length() > 0L) {
+                        cachedFile.readText(Charsets.UTF_8)
+                    } else {
+                        val generated = if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
+                        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
+                            val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
+                            ByteArrayOutputStream().use { output ->
+                                bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                                bitmap.recycle()
+                                "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                            }
+                        } else ""
+                        if (generated.startsWith("data:image/")) {
+                            runCatching { cachedFile.writeText(generated, Charsets.UTF_8) }
                         }
-                    } else ""
+                        generated
+                    }
                 }.getOrDefault("")
                 withContext(Dispatchers.Main) {
                     if (thumbnail.isNotBlank()) callJs("onNativeFileThumbnail", "${JSONObject.quote(path)}, ${JSONObject.quote(thumbnail)}")
