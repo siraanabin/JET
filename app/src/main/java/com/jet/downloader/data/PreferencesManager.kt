@@ -20,7 +20,7 @@ data class DownloadPreferences(
     val maxDownloadTasks: Int = 3,
     val speedLimitKbps: Int = 0,
     val allowMobileData: Boolean = true,
-    val libraryGridColumns: Int = 3
+    val libraryGridColumns: Int = 4
 )
 
 class PreferencesManager(private val context: Context) {
