@@ -4147,8 +4147,9 @@ class MainActivity : AppCompatActivity() {
                         val requestStartedAt = SystemClock.elapsedRealtime()
                         libraryThumbnailSemaphore.acquire()
                         acquired = true
+                        val currentJob = currentCoroutineContext()[Job]
                         synchronized(libraryThumbnailRequestLock) {
-                            if (!isActive) throw CancellationException("Thumbnail request cancelled before start")
+                            if (currentJob?.isActive != true) throw CancellationException("Thumbnail request cancelled before start")
                             libraryThumbnailStarted.add(requestKey)
                         }
 
