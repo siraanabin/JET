@@ -1130,12 +1130,15 @@
           state.screen = target;
 
           // Switch main screens
+          const screenToggleStartedAt = performance.now();
           ['home', 'downloads', 'library', 'settings'].forEach((s) => {
             const sec = document.getElementById('screen-' + s) || document.querySelector(`[id$="${s}"]`);
             if (sec) sec.classList.toggle('hidden', s !== target);
           });
 
+          const screenToggleMs = performance.now() - screenToggleStartedAt;
           // Safely update Nav Buttons
+          const navButtonsStartedAt = performance.now();
           document.querySelectorAll('.nav-btn').forEach((btn) => {
             const active = btn.dataset.navTarget === target;
             if (active) {
@@ -1149,12 +1152,15 @@
             }
           });
 
+          const navButtonsMs = performance.now() - navButtonsStartedAt;
+          let libraryRenderMs = 0;
           // Paint cached items in this frame; keep the native scan off the tap stack.
           if (target === 'library') {
             if (Array.isArray(state.library)) {
               const renderStartedAt = performance.now();
               renderLibrary();
-              console.info('[JET-Library-Perf] nav_render_ms=' + (performance.now() - renderStartedAt).toFixed(1) +
+              libraryRenderMs = performance.now() - renderStartedAt;
+              console.info('[JET-Library-Perf] nav_render_ms=' + libraryRenderMs.toFixed(1) +
                 '; items=' + state.library.length + '; loaded=' + Boolean(state.libraryHasLoaded));
             }
             // Keep the current file count and list stable when returning to Library.
@@ -1169,8 +1175,10 @@
             }
           }
 
+          const scrollResetStartedAt = performance.now();
           const scrollContainer = document.getElementById('scroll-container');
           if (scrollContainer) scrollContainer.scrollTop = 0;
+          const scrollResetMs = performance.now() - scrollResetStartedAt;
 
           // Navigation icons are static inline SVGs. Rebuilding every Lucide icon in
           // the whole document here caused avoidable work on each tab tap.
@@ -1178,18 +1186,32 @@
             console.info('[JET-Library-Perf] screen_switch_total_ms=' + (performance.now() - libraryNavStartedAt).toFixed(1));
           }
           const switchMs = performance.now() - navigationStartedAt;
+          const libraryContainer = document.getElementById('library-items-container');
           const navRecord = {
             from: fromScreen, to: target, totalMs: Math.round(switchMs),
+            screenToggleMs: Number(screenToggleMs.toFixed(2)),
+            navButtonsMs: Number(navButtonsMs.toFixed(2)),
+            libraryRenderMs: Number(libraryRenderMs.toFixed(2)),
+            scrollResetMs: Number(scrollResetMs.toFixed(2)),
+            libraryItems: target === 'library' ? state.library.length : undefined,
+            libraryDomCards: target === 'library' && libraryContainer ? libraryContainer.querySelectorAll('[data-play-title]').length : undefined,
+            libraryDomNodes: target === 'library' && libraryContainer ? libraryContainer.childElementCount : undefined,
+            renderBreakdown: target === 'library' ? (window.__jetLibraryRenderPerf || null) : undefined,
             timestamp: new Date().toLocaleTimeString(),
-            reason: switchMs > 120 ? 'Slow synchronous UI work (screen DOM/render update)' : 'Screen switch UI work completed quickly'
+            reason: switchMs > 120 ? 'Slow synchronous screen-switch work; inspect phase timings' : 'Synchronous screen-switch work completed quickly'
           };
           persistNavigationTelemetry(navRecord);
           if (target === 'library' && !state.libraryHasLoaded) pendingLibraryNavigationRecord = navRecord;
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            navRecord.paintMs = Math.round(performance.now() - navigationStartedAt);
-            if (navRecord.paintMs > 300 && navRecord.totalMs <= 120) navRecord.reason = 'UI update was quick; extra time was in browser paint/transition';
-            persistNavigationTelemetry(navRecord);
-          }));
+          requestAnimationFrame(() => {
+            navRecord.raf1Ms = Number((performance.now() - navigationStartedAt).toFixed(2));
+            requestAnimationFrame(() => {
+              navRecord.paintMs = Math.round(performance.now() - navigationStartedAt);
+              navRecord.raf2Ms = navRecord.paintMs;
+              if (navRecord.paintMs > 300 && navRecord.totalMs <= 120) navRecord.reason = 'Sync UI was quick; delay occurred before the second animation frame (not a direct GPU measurement)';
+              console.info('[JET-Navigation-Perf]', JSON.stringify(navRecord));
+              persistNavigationTelemetry(navRecord);
+            });
+          });
         } catch (err) {
           console.error("UI Switch Error:", err);
         }
@@ -2561,6 +2583,8 @@
       }
 
       function renderLibrary() {
+        const renderStartedAt = performance.now();
+        const filterStartedAt = renderStartedAt;
         const filterKey = state.libraryDataRevision + '|' + state.libFilter + '|' + state.libSearch;
         if (libraryFilteredCacheKey !== filterKey) {
           const query = state.libSearch.trim().toLocaleLowerCase();
@@ -2571,12 +2595,22 @@
           libraryFilteredCacheKey = filterKey;
         }
         const filtered = libraryFilteredCache;
+        const filterMs = performance.now() - filterStartedAt;
 
         $('library-item-count').textContent = `${state.library.length} files`;
         const container = $('library-items-container');
         // A compact revision key avoids serializing every media row on each visit.
         const renderKey = state.libraryDataRevision + '|' + state.libView + '|' + state.libFilter + '|' + state.libSearch + '|' + state.libraryGridColumns + '|' + filtered.length;
-        if (container.dataset.renderKey === renderKey) return;
+        if (container.dataset.renderKey === renderKey) {
+          window.__jetLibraryRenderPerf = {
+            skipped: true, totalMs: Number((performance.now() - renderStartedAt).toFixed(2)),
+            filterMs: Number(filterMs.toFixed(2)), items: filtered.length,
+            domCards: container.querySelectorAll('[data-play-title]').length,
+            domNodes: container.childElementCount, view: state.libView
+          };
+          console.info('[JET-Library-Perf] render_skip', JSON.stringify(window.__jetLibraryRenderPerf));
+          return;
+        }
         container.dataset.renderKey = renderKey;
         const generation = ++libraryRenderGeneration;
         container.className = state.libView === 'grid' ? 'grid gap-2' : 'space-y-2.5';
@@ -2631,7 +2665,12 @@
           `;
         };
         // Render a small first batch so Library becomes interactive before long lists are built.
-        container.innerHTML = filtered.slice(0, 12).map(renderItem).join('');
+        const templateStartedAt = performance.now();
+        const firstBatchHtml = filtered.slice(0, 12).map(renderItem).join('');
+        const templateMs = performance.now() - templateStartedAt;
+        const domStartedAt = performance.now();
+        container.innerHTML = firstBatchHtml;
+        const initialDomMs = performance.now() - domStartedAt;
         observeLibraryThumbnails(container);
         let offset = 12;
         const appendChunk = () => {
@@ -2647,9 +2686,20 @@
           if (offset < filtered.length) requestAnimationFrame(appendChunk);
         };
         // Only process icons inside Library; a document-wide icon scan made tab switches slower.
+        const iconsStartedAt = performance.now();
         refreshIcons(container);
+        const iconMs = performance.now() - iconsStartedAt;
         bindLibraryMenuButtons();
         if (offset < filtered.length) requestAnimationFrame(appendChunk);
+        window.__jetLibraryRenderPerf = {
+          skipped: false, totalMs: Number((performance.now() - renderStartedAt).toFixed(2)),
+          filterMs: Number(filterMs.toFixed(2)), templateMs: Number(templateMs.toFixed(2)),
+          initialDomMs: Number(initialDomMs.toFixed(2)), iconMs: Number(iconMs.toFixed(2)),
+          items: filtered.length, initialBatch: Math.min(12, filtered.length),
+          domCards: container.querySelectorAll('[data-play-title]').length,
+          domNodes: container.childElementCount, view: state.libView
+        };
+        console.info('[JET-Library-Perf] render_sync', JSON.stringify(window.__jetLibraryRenderPerf));
       }
 
       function bindLibraryMenuButtons() {
