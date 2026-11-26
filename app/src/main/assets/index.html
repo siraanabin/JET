@@ -2096,6 +2096,16 @@
       window.onNativeFileThumbnail = function (filePath, thumbnailUrl) {
         if (!thumbnailUrl) return;
         const safePath = String(filePath || '');
+        // Retain startup-prewarmed thumbnails in the in-memory model for instant Library paint.
+        if (safePath && Array.isArray(state.library)) {
+          const item = state.library.find((entry) => entry.filePath === safePath);
+          if (item && !item.thumbnailUrl) {
+            item.thumbnailUrl = thumbnailUrl;
+            state.libraryDataRevision++;
+            libraryFilteredCacheKey = '';
+            try { localStorage.setItem('jet-library-snapshot-v1', JSON.stringify(state.library.slice(0, 500))); } catch (_) {}
+          }
+        }
         const container = $('library-items-container');
         if (container && safePath) {
           const card = Array.from(container.querySelectorAll('[data-file-path]')).find((node) => node.dataset.filePath === safePath);
@@ -2174,6 +2184,17 @@
             : 'from-blue-500 to-indigo-700'
         }));
         if (!Array.isArray(state.libraryScanBuffer)) state.libraryScanBuffer = [];
+        // Pre-generate the first 30 video thumbnails during startup scanning, before Library is opened.
+        if (hasAndroid() && window.JetAndroid.requestFileThumbnail) {
+          const warmed = window.__jetStartupThumbnailPaths || (window.__jetStartupThumbnailPaths = new Set());
+          const startupCandidates = [...state.libraryScanBuffer, ...mapped]
+            .filter((item) => item && item.type === 'video' && item.filePath && !item.thumbnailUrl && !warmed.has(item.filePath))
+            .slice(0, Math.max(0, 30 - warmed.size));
+          startupCandidates.forEach((item) => {
+            warmed.add(item.filePath);
+            window.JetAndroid.requestFileThumbnail(item.filePath, item.fileUri || '', 'startup-library-prewarm');
+          });
+        }
         state.libraryScanBuffer.push(...mapped);
         const scanCount = state.libraryScanBuffer.length;
         const sourceLabel = libraryPermissionState === 'denied'
