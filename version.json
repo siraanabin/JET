@@ -1,8 +1,10 @@
 {
-  "versionCode": 378,
-  "versionName": "0.9.35",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.35/app-universal-release.apk",
+  "versionCode": 379,
+  "versionName": "0.9.36",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.36/app-universal-release.apk",
   "changelog": [
+    "Bumped app version to 0.9.36 (versionCode 379)",
+    "Load embedded album artwork for Library audio cards and retain it after thumbnail generation",
     "Bumped app version to 0.9.35 (versionCode 378)",
     "Keep the Library video duration badge above thumbnails after they load",
     "Bumped app version to 0.9.34 (versionCode 377)",
