@@ -2100,9 +2100,19 @@
           const card = Array.from(container.querySelectorAll('[data-file-path]')).find((node) => node.dataset.filePath === safePath);
           const img = card && card.querySelector('[data-library-thumbnail]');
           if (img) {
+            img.onload = () => {
+              img.classList.remove('opacity-0');
+              img.classList.add('opacity-100');
+              card.dataset.thumbnailLoaded = 'true';
+              delete card.dataset.thumbnailRequested;
+              if (libraryThumbnailObserver) libraryThumbnailObserver.unobserve(card);
+            };
+            img.onerror = () => {
+              img.remove();
+              delete card.dataset.thumbnailRequested;
+              delete card.dataset.thumbnailLoaded;
+            };
             img.src = thumbnailUrl;
-            img.classList.remove('hidden');
-            card.dataset.thumbnailLoaded = 'true';
             delete card.dataset.thumbnailRequested;
             if (libraryThumbnailObserver) libraryThumbnailObserver.unobserve(card);
           }
@@ -2715,7 +2725,9 @@
                 img.alt = '';
                 img.loading = 'lazy';
                 img.decoding = 'async';
-                img.className = 'absolute inset-0 w-full h-full object-cover bg-[#141923]';
+                img.className = 'absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-150';
+                img.onload = () => { img.classList.remove('opacity-0'); img.classList.add('opacity-100'); };
+                img.onerror = () => { img.remove(); delete card.dataset.thumbnailRequested; };
                 frame.appendChild(img);
               }
               window.JetAndroid.requestFileThumbnail(filePath, fileUri, card.dataset.thumbnailConsumer);
