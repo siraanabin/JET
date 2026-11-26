@@ -1,8 +1,11 @@
 {
-  "versionCode": 380,
-  "versionName": "0.9.37",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.37/app-universal-release.apk",
+  "versionCode": 381,
+  "versionName": "0.9.38",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.38/app-universal-release.apk",
   "changelog": [
+    "Bumped app version to 0.9.38 (versionCode 381)",
+    "Keep All audio and video interleaved by timestamp during each scan batch",
+    "Use MediaStore DATE_MODIFIED as a fallback when DATE_ADDED is unavailable",
     "Bumped app version to 0.9.37 (versionCode 380)",
     "Unified Library audio and video in one newest-first timeline using MediaStore timestamps",
     "Set Library grid to four columns with tighter card spacing, taller thumbnails and no duration-badge shadow",
