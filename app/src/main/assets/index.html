@@ -112,17 +112,6 @@
       box-shadow: var(--card-shadow);
     }
 
-    /* Library grid experiment: defer off-screen card rendering without changing JS. */
-    #library-items-container.grid > [data-play-title] {
-      content-visibility: auto;
-      contain-intrinsic-size: auto 120px;
-    }
-
-    /* TEMP TEST: show only the first 30 Library cards to isolate rendering cost. Revert after measurements. */
-    #library-items-container.grid > [data-play-title]:nth-child(n + 31) {
-      display: none !important;
-    }
-
     .ambient-glow {
       background: radial-gradient(85% 45% at 50% 0%, var(--glow-color) 0%, transparent 100%);
     }
@@ -1168,6 +1157,8 @@
           // Paint cached items in this frame; keep the native scan off the tap stack.
           if (target === 'library') {
             if (Array.isArray(state.library)) {
+              // Re-entering Library starts with 30 visible cards; scrolling reveals more.
+              if (fromScreen !== 'library') $('library-items-container').dataset.renderKey = '';
               const renderStartedAt = performance.now();
               renderLibrary();
               libraryRenderMs = performance.now() - renderStartedAt;
@@ -2608,6 +2599,41 @@
       }
 
       let libraryThumbnailObserver = null;
+      let libraryRevealObserver = null;
+      function observeLibraryRevealSentinel(container, generation) {
+        const sentinel = container && container.querySelector('[data-library-reveal-sentinel]');
+        if (!sentinel || generation !== libraryRenderGeneration) return;
+        if (!container.querySelector('.library-card-deferred')) return;
+        if (!('IntersectionObserver' in window)) {
+          container.querySelectorAll('.library-card-deferred').forEach((card) => card.classList.remove('hidden', 'library-card-deferred'));
+          sentinel.remove();
+          observeLibraryThumbnails(container);
+          return;
+        }
+        if (!libraryRevealObserver) {
+          libraryRevealObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              const target = entry.target;
+              libraryRevealObserver.unobserve(target);
+              const host = target.parentElement;
+              if (!host || host.id !== 'library-items-container') return;
+              const activeGeneration = libraryRenderGeneration;
+              const nextBatch = Array.from(host.querySelectorAll('.library-card-deferred')).slice(0, 30);
+              if (!nextBatch.length) {
+                target.remove();
+                return;
+              }
+              nextBatch.forEach((card) => card.classList.remove('hidden', 'library-card-deferred'));
+              nextBatch[nextBatch.length - 1].after(target);
+              observeLibraryThumbnails(host);
+              observeLibraryRevealSentinel(host, activeGeneration);
+            });
+          }, { root: document.getElementById('scroll-container'), rootMargin: '800px 0px', threshold: 0.01 });
+        }
+        libraryRevealObserver.observe(sentinel);
+      }
+
       function observeLibraryThumbnails(root) {
         if (!root || !window.JetAndroid || typeof window.JetAndroid.requestFileThumbnail !== 'function') return;
         if (!libraryThumbnailObserver && 'IntersectionObserver' in window) {
@@ -2639,6 +2665,7 @@
 
       function renderLibrary() {
         const renderStartedAt = performance.now();
+        if (libraryRevealObserver) libraryRevealObserver.disconnect();
         const filterStartedAt = renderStartedAt;
         const filterKey = state.libraryDataRevision + '|' + state.libFilter + '|' + state.libSearch;
         if (libraryFilteredCacheKey !== filterKey) {
@@ -2677,14 +2704,14 @@
           return;
         }
 
-        const renderItem = (item) => {
+        const renderItem = (item, index) => {
           const icon = item.type === 'audio' ? 'music' : item.type === 'document' ? 'file-text' : 'play';
           const accent = /^#[0-9A-Fa-f]{6}$/.test(item.dominantColor || '') ? item.dominantColor : '#20242E';
           const audioBackground = 'background:linear-gradient(135deg,' + accent + ' 0%,#171A20 78%)';
           if (state.libView === 'grid') {
             return `
               <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-file-uri="${item.fileUri || ''}" data-media-type="${item.type || 'video'}"
-                class="surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
+                class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-xl overflow-hidden cursor-pointer active:scale-[0.98] transition min-w-0">
                 <div class="relative aspect-video w-full bg-[#141923] flex items-center justify-center text-white overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                   ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-20 h-20') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover bg-[#141923]">` : `<div class="w-9 h-9 rounded-full bg-black/35 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4"></i></div>`}
                   <span class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold tabular-nums">${item.duration}</span>
@@ -2704,7 +2731,7 @@
           }
           return `
             <div data-play-title="${item.title}" data-file-path="${item.filePath || ''}" data-media-type="${item.type || 'video'}"
-              class="surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
+              class="${index >= 30 && 'IntersectionObserver' in window ? 'hidden library-card-deferred ' : ''}surface-card rounded-2xl p-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition">
               <div class="${item.type === 'audio' ? 'w-16 h-16 rounded-2xl' : 'w-12 h-12 rounded-xl'} ${item.type === 'audio' ? '' : 'bg-[#141923]'} text-white flex items-center justify-center shrink-0 overflow-hidden" style="${item.type === 'audio' ? audioBackground : 'background-color:' + (item.type === 'document' ? '#1A202C' : '#141923')}">
                 ${item.type === 'audio' ? vinylDiscMarkup(item.thumbnailUrl, 'w-14 h-14') : item.thumbnailUrl ? `<img src="${item.thumbnailUrl}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover bg-[#141923]">` : `<i data-lucide="${icon}" class="w-5 h-5"></i>`}
               </div>
@@ -2719,25 +2746,37 @@
             </div>
           `;
         };
-        // Render a small first batch so Library becomes interactive before long lists are built.
+        // Keep every filtered card in the DOM, but reveal only 30 at a time as the user scrolls.
+        const initialBatchSize = Math.min(30, filtered.length);
         const templateStartedAt = performance.now();
-        const firstBatchHtml = filtered.slice(0, 12).map(renderItem).join('');
+        const firstBatchHtml = filtered.slice(0, initialBatchSize).map((item, index) => renderItem(item, index)).join('');
         const templateMs = performance.now() - templateStartedAt;
         const domStartedAt = performance.now();
         container.innerHTML = firstBatchHtml;
+        if (filtered.length > initialBatchSize) {
+          const sentinel = document.createElement('div');
+          sentinel.dataset.libraryRevealSentinel = 'true';
+          sentinel.setAttribute('aria-hidden', 'true');
+          sentinel.style.cssText = 'height:1px;width:100%;grid-column:1/-1;pointer-events:none;';
+          container.appendChild(sentinel);
+        }
         const initialDomMs = performance.now() - domStartedAt;
         observeLibraryThumbnails(container);
-        let offset = 12;
+        const sentinel = container.querySelector('[data-library-reveal-sentinel]');
+        const firstVisibleCard = container.querySelectorAll('[data-play-title]')[initialBatchSize - 1];
+        if (sentinel && firstVisibleCard) firstVisibleCard.after(sentinel);
+        let offset = initialBatchSize;
         const appendChunk = () => {
           if (generation !== libraryRenderGeneration || offset >= filtered.length) return;
           const end = Math.min(offset + 40, filtered.length);
           const template = document.createElement('template');
-          template.innerHTML = filtered.slice(offset, end).map(renderItem).join('');
+          template.innerHTML = filtered.slice(offset, end).map((item, index) => renderItem(item, offset + index)).join('');
           container.appendChild(template.content);
           offset = end;
           refreshIcons(container);
           observeLibraryThumbnails(container);
           bindLibraryMenuButtons();
+          observeLibraryRevealSentinel(container, generation);
           if (offset < filtered.length) requestAnimationFrame(appendChunk);
         };
         // Only process icons inside Library; a document-wide icon scan made tab switches slower.
@@ -2745,13 +2784,16 @@
         refreshIcons(container);
         const iconMs = performance.now() - iconsStartedAt;
         bindLibraryMenuButtons();
+        observeLibraryRevealSentinel(container, generation);
         if (offset < filtered.length) requestAnimationFrame(appendChunk);
         window.__jetLibraryRenderPerf = {
           skipped: false, totalMs: Number((performance.now() - renderStartedAt).toFixed(2)),
           filterMs: Number(filterMs.toFixed(2)), templateMs: Number(templateMs.toFixed(2)),
           initialDomMs: Number(initialDomMs.toFixed(2)), iconMs: Number(iconMs.toFixed(2)),
-          items: filtered.length, initialBatch: Math.min(12, filtered.length),
+          items: filtered.length, initialBatch: initialBatchSize, revealBatch: 30,
           domCards: container.querySelectorAll('[data-play-title]').length,
+          visibleCards: container.querySelectorAll('[data-play-title]:not(.library-card-deferred)').length,
+          deferredCards: container.querySelectorAll('.library-card-deferred').length,
           domNodes: container.childElementCount, view: state.libView
         };
         console.info('[JET-Library-Perf] render_sync', JSON.stringify(window.__jetLibraryRenderPerf));
