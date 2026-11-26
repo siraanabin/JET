@@ -166,6 +166,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var cachedLibraryItems: List<LibraryItemPayload>? = null
     private val libraryCacheFile by lazy { File(cacheDir, "jet-library-cache.json") }
     private val libraryThumbnailCacheDir by lazy { File(cacheDir, "jet-library-thumbnails").apply { mkdirs() } }
+    private val libraryThumbnailActiveCount = AtomicInteger(0)
     private val mediaRefreshHandler = Handler(Looper.getMainLooper())
     private var mediaStoreObserver: android.database.ContentObserver? = null
     private val mediaRefreshRunnable = Runnable { if (hasVideoReadPermission() || hasAudioReadPermission()) pushScannedLibraryToWeb(force = true) }
@@ -4114,19 +4115,23 @@ class MainActivity : AppCompatActivity() {
             val path = filePath.trim()
             val uriText = fileUri.trim()
             lifecycleScope.launch(Dispatchers.IO) {
+                val active = libraryThumbnailActiveCount.incrementAndGet()
+                val started = SystemClock.elapsedRealtime()
+                var hit = false
+                var generationMs = 0L
+                var cacheBytes = 0L
                 val thumbnail = runCatching {
                     val file = path.takeIf { it.isNotBlank() }?.let(::File)
-                    val cacheIdentity = if (file != null && file.isFile) {
-                        "${path}|${file.lastModified()}|${file.length()}"
-                    } else uriText
-                    val cacheName = MessageDigest.getInstance("SHA-256")
-                        .digest(cacheIdentity.toByteArray(Charsets.UTF_8))
+                    val identity = if (file != null && file.isFile) "${path}|${file.lastModified()}|${file.length()}" else uriText
+                    val name = MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
                         .joinToString("") { "%02x".format(it) } + ".jpg.txt"
-                    val thumbnailCacheDir = File(cacheDir, "library-thumbnails").apply { mkdirs() }
-                    val cachedFile = File(thumbnailCacheDir, cacheName)
-                    if (cachedFile.isFile && cachedFile.length() > 0L) {
-                        cachedFile.readText(Charsets.UTF_8)
+                    val dir = File(cacheDir, "library-thumbnails").apply { mkdirs() }
+                    val cached = File(dir, name)
+                    val result = if (cached.isFile && cached.length() > 0L) {
+                        hit = true
+                        cached.readText(Charsets.UTF_8)
                     } else {
+                        val genStart = SystemClock.elapsedRealtime()
                         val generated = if (file != null && file.isFile) createSmartMediaThumbnailDataUrl(file, false)
                         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriText.isNotBlank()) {
                             val bitmap = contentResolver.loadThumbnail(Uri.parse(uriText), android.util.Size(320, 180), null)
@@ -4136,13 +4141,27 @@ class MainActivity : AppCompatActivity() {
                                 "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
                             }
                         } else ""
-                        if (generated.startsWith("data:image/")) {
-                            runCatching { cachedFile.writeText(generated, Charsets.UTF_8) }
-                        }
+                        generationMs = SystemClock.elapsedRealtime() - genStart
+                        if (generated.startsWith("data:image/")) runCatching { cached.writeText(generated, Charsets.UTF_8) }
                         generated
                     }
+                    cacheBytes = cached.takeIf { it.isFile }?.length() ?: 0L
+                    result
                 }.getOrDefault("")
+                val requestMs = SystemClock.elapsedRealtime() - started
+                val activeNow = libraryThumbnailActiveCount.decrementAndGet().coerceAtLeast(0)
                 withContext(Dispatchers.Main) {
+                    val record = JSONObject().apply {
+                        put("cache", if (hit) "HIT" else "MISS")
+                        put("generationMs", generationMs)
+                        put("requestMs", requestMs)
+                        put("imageKB", cacheBytes / 1024.0)
+                        put("cacheBytes", cacheBytes)
+                        put("activeAtStart", active)
+                        put("activeNow", activeNow)
+                        put("success", thumbnail.isNotBlank())
+                    }
+                    callJs("onNativeThumbnailTelemetry", record.toString())
                     if (thumbnail.isNotBlank()) callJs("onNativeFileThumbnail", "${JSONObject.quote(path)}, ${JSONObject.quote(thumbnail)}")
                 }
             }

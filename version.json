@@ -1,8 +1,9 @@
 {
-  "versionCode": 371,
-  "versionName": "0.9.28",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.28/app-universal-release.apk",
+  "versionCode": 372,
+  "versionName": "0.9.29",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/v0.9.29/app-universal-release.apk",
   "changelog": [
+    "Added batched Library thumbnail telemetry: cache hit/miss, request and generation timing, cache size, concurrency and slowest 10",
     "Bumped app version to 0.9.28 (versionCode 371)",
     "Cache Library thumbnails on disk so previously generated thumbnails are reused on later visits",
     "Bumped app version to 0.9.27 (versionCode 370)",
