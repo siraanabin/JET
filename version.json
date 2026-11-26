@@ -1,8 +1,11 @@
 {
-  "versionCode": 374,
-  "versionName": "0.9.31",
-  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v0.9.31/JET-debug.apk",
+  "versionCode": 375,
+  "versionName": "0.9.32",
+  "apkUrl": "https://github.com/siraanabin/JET/releases/download/debug-v0.9.32/JET-debug.apk",
   "changelog": [
+    "Increase parallel Library thumbnail generation from 3 to 4 workers for smoother simultaneous loading",
+    "Keep viewport-based thumbnail requests, duplicate-request deduplication, disk caching and queued-request cancellation",
+    "Bumped app version to 0.9.32 (versionCode 375)",
     "Reject nearly-black video frames and invalid cached thumbnails; sample multiple timestamps before falling back",
     "Fade Library thumbnails in only after the image has decoded to avoid the initial black flash",
     "Bumped app version to 0.9.31 (versionCode 374)",
