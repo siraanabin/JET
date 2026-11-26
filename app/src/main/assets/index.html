@@ -1311,8 +1311,12 @@
         const navRows = Array.isArray(state.navigationTelemetryLast10) ? state.navigationTelemetryLast10.slice(0, 10) : [];
         if (navBody) navBody.innerHTML = navRows.length ? navRows.map((item) =>
           '<tr class="border-b border-app-border last:border-0"><td class="px-2 py-2 text-[10px] font-bold text-app-text">' + telemetryEscape(item.from) + ' → ' + telemetryEscape(item.to) + '<div class="text-[9px] font-normal text-app-secondary">' + telemetryEscape(item.timestamp) + '</div></td>' +
-          '<td class="px-2 py-2 text-[10px] font-bold text-app-text whitespace-nowrap">' + telemetryEscape(item.totalMs) + ' ms<div class="font-normal text-app-secondary">Paint: ' + telemetryEscape(item.paintMs == null ? '…' : item.paintMs) + ' ms</div></td>' +
-          '<td class="px-2 py-2 text-[10px] text-app-secondary whitespace-normal">' + telemetryEscape(item.reason) + (item.scanMs ? '<div class="mt-1">Media scan: ' + telemetryEscape(item.scanMs) + ' ms</div>' : '') + '</td></tr>'
+          '<td class="px-2 py-2 text-[10px] font-bold text-app-text whitespace-nowrap">' + telemetryEscape(item.totalMs) + ' ms<div class="font-normal text-app-secondary">2 RAF: ' + telemetryEscape(item.paintMs == null ? '…' : item.paintMs) + ' ms</div></td>' +
+          '<td class="px-2 py-2 text-[10px] text-app-secondary whitespace-normal">' + telemetryEscape(item.reason) +
+          '<div class="mt-1">Screen: ' + telemetryEscape(item.screenToggleMs ?? '—') + ' · Nav: ' + telemetryEscape(item.navButtonsMs ?? '—') + ' · Render: ' + telemetryEscape(item.libraryRenderMs ?? '—') + ' ms</div>' +
+          (item.libraryItems != null ? '<div>Items: ' + telemetryEscape(item.libraryItems) + ' · DOM cards: ' + telemetryEscape(item.libraryDomCards ?? '—') + '</div>' : '') +
+          (item.renderBreakdown ? '<div>Render detail: ' + telemetryEscape(JSON.stringify(item.renderBreakdown)) + '</div>' : '') +
+          (item.scanMs ? '<div class="mt-1">Media scan: ' + telemetryEscape(item.scanMs) + ' ms</div>' : '') + '</td></tr>'
         ).join('') : '<tr><td colspan="3" class="px-2 py-4 text-center text-[10px] text-app-secondary">No navigation logs yet. Switch between pages to collect timings.</td></tr>';
         const copyAll = $('telemetry-copy-all');
         if (copyAll) copyAll.textContent = 'Copy All (' + rows.length + ')';
@@ -1380,7 +1384,7 @@
         });
         $('telemetry-copy-all')?.addEventListener('click', async () => {
           const logs = (state.telemetryLast4 || []).slice(0, 4).map((item) => item.rawLog).filter(Boolean);
-          const navLogs = (state.navigationTelemetryLast10 || []).slice(0, 10).map((item) => 'NAVIGATION ' + item.from + ' -> ' + item.to + ' | ' + item.totalMs + ' ms | ' + item.reason + (item.scanMs ? ' | Media scan: ' + item.scanMs + ' ms' : ''));
+          const navLogs = (state.navigationTelemetryLast10 || []).slice(0, 10).map((item) => 'NAVIGATION ' + item.from + ' -> ' + item.to + ' | total=' + item.totalMs + 'ms | raf2=' + (item.raf2Ms ?? item.paintMs ?? 'pending') + 'ms | screen=' + (item.screenToggleMs ?? '—') + 'ms | nav=' + (item.navButtonsMs ?? '—') + 'ms | libraryRender=' + (item.libraryRenderMs ?? '—') + 'ms | items=' + (item.libraryItems ?? '—') + ' | domCards=' + (item.libraryDomCards ?? '—') + ' | render=' + JSON.stringify(item.renderBreakdown || {}) + ' | ' + item.reason + (item.scanMs ? ' | Media scan: ' + item.scanMs + ' ms' : ''));
           const allLogs = [...logs, ...navLogs];
           if (!allLogs.length) { showToast('No logs to copy'); return; }
           try { await copyTelemetryText(allLogs.join('\n')); showToast('Performance logs copied'); }
