@@ -1471,9 +1471,20 @@
         applyDownloadToggle('save-subtitles-toggle', Boolean(settings.saveSubtitles), 'saveSubtitles');
         applyDownloadToggle('mobile-data-toggle', settings.allowMobileData !== false, 'allowMobileData');
         state.selectedFormatId = settings.defaultQuality || 'vid-1080';
-        state.libraryGridColumns = [2,3,4].includes(Number(settings.libraryGridColumns)) ? Number(settings.libraryGridColumns) : 3;
         const gridColumnsSelect = $('library-grid-columns-setting');
-        if (gridColumnsSelect) gridColumnsSelect.value = String(state.libraryGridColumns);
+        let appliedFourColumnMigration = false;
+        try { appliedFourColumnMigration = localStorage.getItem('jet-library-grid-four-migrated') === '1'; } catch (_) {}
+        if (!appliedFourColumnMigration) {
+          // Apply the requested four-column Library layout once for existing installs;
+          // later manual choices are preserved across app launches.
+          state.libraryGridColumns = 4;
+          if (gridColumnsSelect) gridColumnsSelect.value = '4';
+          if (hasAndroid() && window.JetAndroid.setDownloadPreference) window.JetAndroid.setDownloadPreference('libraryGridColumns', '4');
+          try { localStorage.setItem('jet-library-grid-four-migrated', '1'); } catch (_) {}
+        } else {
+          state.libraryGridColumns = [2,3,4].includes(Number(settings.libraryGridColumns)) ? Number(settings.libraryGridColumns) : 4;
+          if (gridColumnsSelect) gridColumnsSelect.value = String(state.libraryGridColumns);
+        }
       };
 
       window.onNativeStorageStats = function (stats) {
